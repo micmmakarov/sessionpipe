@@ -1,1 +1,13 @@
-{ "extends": "../../tsconfig.base.json", "compilerOptions": { "rootDir": "src", "outDir": "dist" }, "include": ["src"] }
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@sessionpipe/core": ["../core/dist/src/index.d.ts"],
+      "@sessionpipe/core/schema": ["../core/dist/schema/v1.d.ts"]
+    }
+  },
+  "include": ["src"]
+}
