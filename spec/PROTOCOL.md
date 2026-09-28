@@ -163,4 +163,4 @@ receiver's well-known file declares `max_tier`; the sender uses the lower.
 
 A sender or receiver is conformant when it passes the fixtures under
 `conformance/`: adapter fixtures (real hook payloads → expected events), redaction
-vectors, and delivery scenarios (HTTP.md §7). `@sessionpipe/conformance` runs them.
+vectors, and delivery scenarios (HTTP.md §7). `sessionpipe-conformance` runs them.

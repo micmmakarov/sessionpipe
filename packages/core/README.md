@@ -1,4 +1,4 @@
-# @sessionpipe/core
+# sessionpipe-core
 
 sessionpipe core: protocol types, harness adapters, privacy filter and redaction rulesets, outbox and sinks. Zero runtime dependencies.
 

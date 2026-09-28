@@ -22,4 +22,4 @@ body:
     id: sink
     attributes:
       label: Sink and tier
-      placeholder: "@sessionpipe/receiver 0.1.0 at tier 2"
+      placeholder: "sessionpipe-receiver 0.1.0 at tier 2"

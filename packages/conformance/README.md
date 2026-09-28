@@ -1,4 +1,4 @@
-# @sessionpipe/conformance
+# sessionpipe-conformance
 
 Runs the sessionpipe conformance fixtures against a receiver URL or an adapter.
 
