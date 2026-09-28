@@ -9,7 +9,7 @@ that closed it. Downloads are tracked weekly once published.
 | M1 | Spec v1, schemas, fixtures | 3 | ☐ | |
 | M2 | Core + CLI + 4 adapters (Claude Code, Codex, Gemini CLI, Antigravity) | 5 | ☐ | |
 | M3 | HTTP sink + reference receiver + conformance runner | 3 | ☐ | |
-| M4 | sessionpipe.org | 2 | ☐ | |
+| M4 | sessionpipe.org | 2 | ◐ | site + Pages workflow shipped early; DNS live; Lighthouse pending |
 | M5 | spacesheep speaks sessionpipe (in the spacesheep repo) | 2 | ☐ | |
 | M6 | Control channel | 3 | ☐ | |
 | M7 | Cursor, Copilot CLI, Droid, Kiro, OpenCode + OTLP sink + launch | 3 | ☐ | |
