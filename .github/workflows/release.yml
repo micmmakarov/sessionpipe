@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+  packages: write
+
+concurrency: release-${{ github.ref }}
+
+jobs:
+  release:
+    name: Version PR or publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm test
+      - name: Changesets — open the version PR, or publish when it merged
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npm run release
+          title: "Release: version packages"
+          commit: "Release: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No NPM_TOKEN: publishing uses npm trusted publishing (OIDC), which Misha
+          # enables per package after the first manual publish (see ROADMAP.md).
+          NPM_CONFIG_PROVENANCE: "true"
+      - name: Tag and GitHub release with the schema tarball
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          set -e
+          v=$(node -p "require('./packages/core/package.json').version")
+          tar -czf sessionpipe-schemas-v$v.tgz -C schemas v1
+          gh release create "v$v" sessionpipe-schemas-v$v.tgz --title "v$v" --notes-file <(node -e "const c=require('fs').readFileSync('packages/core/CHANGELOG.md','utf8');const m=c.split(/^## /m)[1]||'';process.stdout.write('## '+m)") || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Receiver image → GHCR
+        if: steps.changesets.outputs.published == 'true' && hashFiles('packages/receiver/Dockerfile') != ''
+        run: |
+          set -e
+          v=$(node -p "require('./packages/receiver/package.json').version")
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build -t ghcr.io/micmmakarov/sessionpipe-receiver:$v -t ghcr.io/micmmakarov/sessionpipe-receiver:latest -f packages/receiver/Dockerfile .
+          docker push ghcr.io/micmmakarov/sessionpipe-receiver:$v
+          docker push ghcr.io/micmmakarov/sessionpipe-receiver:latest

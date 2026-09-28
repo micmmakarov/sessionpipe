@@ -1,0 +1,55 @@
+{
+  "name": "sessionpipe",
+  "version": "0.0.0",
+  "description": "sessionpipe: hooks for every coding-agent harness, four privacy tiers, any sink. `npx sessionpipe install`.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/micmmakarov/sessionpipe.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://sessionpipe.org",
+  "bugs": "https://github.com/micmmakarov/sessionpipe/issues",
+  "keywords": [
+    "sessionpipe",
+    "coding-agents",
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "hooks",
+    "observability",
+    "protocol"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "bin": {
+    "sessionpipe": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build.mjs cli"
+  },
+  "dependencies": {
+    "@sessionpipe/core": "0.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

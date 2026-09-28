@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/micmmakarov/sessionpipe/discussions
+    about: Ask in Discussions; issues are for bugs, adapters, spec proposals and receiver listings.
+  - name: Security
+    url: https://github.com/micmmakarov/sessionpipe/security/advisories/new
+    about: Report a vulnerability privately (see SECURITY.md); never in a public issue.

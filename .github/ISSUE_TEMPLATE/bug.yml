@@ -1,0 +1,25 @@
+name: Bug
+description: Something sessionpipe does that the spec does not say
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: doctor
+    attributes:
+      label: sessionpipe doctor --json
+      description: Paste the output. It contains no secrets and no conversation text; check it anyway.
+      render: json
+  - type: input
+    id: harness
+    attributes:
+      label: Harness and version
+      placeholder: claude-code 2.1.290
+  - type: input
+    id: sink
+    attributes:
+      label: Sink and tier
+      placeholder: "@sessionpipe/receiver 0.1.0 at tier 2"

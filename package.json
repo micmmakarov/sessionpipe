@@ -1,0 +1,39 @@
+{
+  "name": "sessionpipe-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "An open protocol and client for what your coding agents are doing: hooks for every harness, four privacy tiers, any sink.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "schemas": "node scripts/schemas.mjs",
+    "conformance": "node scripts/conformance-fixtures.mjs",
+    "fixture-scan": "node scripts/fixture-scan.mjs",
+    "bench:hook": "node scripts/bench-hook.mjs",
+    "site": "node website/build.mjs",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@changesets/cli": "^3.0.3",
+    "@types/node": "^22",
+    "esbuild": "^0.28.2",
+    "marked": "^18.0.14",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2",
+    "zod": "^4.6.5"
+  }
+}

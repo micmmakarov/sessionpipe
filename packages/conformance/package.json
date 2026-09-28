@@ -1,0 +1,56 @@
+{
+  "name": "@sessionpipe/conformance",
+  "version": "0.0.0",
+  "description": "Runs the sessionpipe conformance fixtures against a receiver URL or an adapter.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/micmmakarov/sessionpipe.git",
+    "directory": "packages/conformance"
+  },
+  "homepage": "https://sessionpipe.org",
+  "bugs": "https://github.com/micmmakarov/sessionpipe/issues",
+  "keywords": [
+    "sessionpipe",
+    "coding-agents",
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "hooks",
+    "observability",
+    "protocol"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "bin": {
+    "sessionpipe-conformance": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build.mjs conformance"
+  },
+  "dependencies": {
+    "@sessionpipe/core": "0.0.0",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -1,0 +1,24 @@
+name: Adapter request
+description: A coding-agent harness sessionpipe should speak to
+labels: [adapter]
+body:
+  - type: input
+    id: harness
+    attributes: { label: Harness name and version }
+    validations: { required: true }
+  - type: input
+    id: docs
+    attributes: { label: Link to its hooks / plugin documentation }
+    validations: { required: true }
+  - type: textarea
+    id: events
+    attributes:
+      label: Which events does it fire, and what does each carry on stdin?
+      description: Paste one real payload per event, secrets removed. Fixtures are recorded from real payloads, never invented.
+  - type: checkboxes
+    id: ends
+    attributes:
+      label: Lifecycle
+      options:
+        - label: It fires a session-end event
+        - label: Its Stop hook can answer block-with-reason (needed for control prompts)

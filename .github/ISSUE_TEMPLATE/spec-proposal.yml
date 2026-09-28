@@ -1,0 +1,26 @@
+name: Spec proposal
+description: A change to the protocol (spec/*.md, schemas)
+labels: [spec]
+body:
+  - type: textarea
+    id: motivation
+    attributes: { label: Motivation — what cannot be expressed today? }
+    validations: { required: true }
+  - type: textarea
+    id: change
+    attributes:
+      label: Envelope or event change
+      description: The exact fields, types and requirement level (MUST / SHOULD / MAY).
+    validations: { required: true }
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Fixture
+      description: The conformance fixture that would prove it (an event JSON, a delivery scenario). A spec change without a fixture change fails CI.
+    validations: { required: true }
+  - type: textarea
+    id: compat
+    attributes:
+      label: Compatibility
+      description: Additive (behind a capability string) or breaking (a protocol integer bump)? What happens to a receiver that does not know it?
+    validations: { required: true }
