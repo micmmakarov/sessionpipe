@@ -1,0 +1,41 @@
+{
+  "harness": "claude-code",
+  "event": "SessionStart",
+  "recorded": {
+    "at": "2026-09-28T02:05:03.861Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> with a recording hook"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "SessionStart"
+    ],
+    "stdin": "{\"session_id\":\"3bd5639e-04f7-44e6-a4c2-2f9bb68adad6\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-private-tmp-claude-501--Users-mmakarov-spacesheep-7a42d90e-8d27-45a0-b353-a9b496f19454-scratchpad-rec-ws/3bd5639e-04f7-44e6-a4c2-2f9bb68adad6.jsonl\",\"cwd\":\"/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws\",\"hook_event_name\":\"SessionStart\",\"source\":\"startup\"}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+    },
+    "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "session.started",
+      "harness": {
+        "name": "claude-code",
+        "event": "SessionStart"
+      },
+      "session": {
+        "id": "3bd5639e-04f7-44e6-a4c2-2f9bb68adad6",
+        "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws",
+        "seq": "*"
+      },
+      "data": {
+        "source": "startup"
+      }
+    }
+  ]
+}

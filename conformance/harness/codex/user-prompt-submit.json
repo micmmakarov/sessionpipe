@@ -1,0 +1,40 @@
+{
+  "harness": "codex",
+  "event": "UserPromptSubmit",
+  "recorded": {
+    "at": "2026-09-28T02:08:33.445Z",
+    "harness_version": "0.157.1",
+    "how": "codex exec --dangerously-bypass-hook-trust with a recording hook in ~/.codex/hooks.json"
+  },
+  "input": {
+    "argv": [
+      "codex",
+      "UserPromptSubmit"
+    ],
+    "stdin": "{\"session_id\":\"01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65\",\"turn_id\":\"01a0e5c5-5bf6-7233-8f1a-2c5e4d560849\",\"transcript_path\":\"/Users/mmakarov/.codex/sessions/2026/09/27/rollout-2026-09-27T19-08-31-01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65.jsonl\",\"cwd\":\"/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws\",\"hook_event_name\":\"UserPromptSubmit\",\"model\":\"gpt-6-astra\",\"permission_mode\":\"bypassPermissions\",\"prompt\":\"Run ls, then read README.md, then try to write the word hi into a new file out.txt (if the sandbox refuses, say so), then say the single word done.\"}",
+    "env": {},
+    "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "turn.started",
+      "harness": {
+        "name": "codex",
+        "event": "UserPromptSubmit"
+      },
+      "session": {
+        "id": "01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65",
+        "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws",
+        "model": "gpt-6-astra",
+        "seq": "*"
+      },
+      "data": {
+        "turn_id": "01a0e5c5-5bf6-7233-8f1a-2c5e4d560849",
+        "prompt_chars": 147
+      }
+    }
+  ]
+}

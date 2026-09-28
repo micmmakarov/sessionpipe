@@ -33,13 +33,16 @@
   ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/src/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/v1.d.ts",
+      "import": "./dist/schema.js"
     }
   },
-  "types": "./dist/index.d.ts",
+  "types": "./dist/src/index.d.ts",
   "main": "./dist/index.js",
-
   "scripts": {
     "build": "node ../../scripts/build.mjs core"
   },
@@ -47,5 +50,8 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
+  },
+  "devDependencies": {
+    "zod": "^4.6.5"
   }
 }

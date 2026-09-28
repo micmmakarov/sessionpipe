@@ -1,0 +1,51 @@
+{
+  "name": "control",
+  "spec": "CONTROL.md",
+  "capability": "control",
+  "steps": [
+    {
+      "enqueue": {
+        "session": "conformance:conf-{run}",
+        "message": {
+          "kind": "prompt",
+          "text": "conformance ping",
+          "expires_in_s": 60
+        }
+      }
+    },
+    {
+      "poll": {
+        "session": "conformance:conf-{run}",
+        "wait": 1
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "messages": [
+            {
+              "kind": "prompt",
+              "text": "conformance ping"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ack": {
+        "outcome": "delivered"
+      },
+      "expect": {
+        "status": 202
+      }
+    },
+    {
+      "poll": {
+        "session": "conformance:conf-{run}",
+        "wait": 1
+      },
+      "expect": {
+        "status": 204
+      }
+    }
+  ]
+}

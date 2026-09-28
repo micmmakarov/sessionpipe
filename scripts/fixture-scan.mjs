@@ -36,7 +36,8 @@ for (const f of files) {
   const text = readFileSync(f, "utf8");
   // The redaction fixtures hold inputs that MUST look like secrets; only their `out` side is checked.
   const isVector = f.includes(`${path.sep}redaction${path.sep}`);
-  const subject = isVector ? JSON.stringify(JSON.parse(text).map((c) => c.out ?? "")) : text;
+  const vec = isVector ? JSON.parse(text) : null;
+  const subject = vec ? JSON.stringify((Array.isArray(vec) ? vec : (vec.cases ?? [])).map((c) => c.out ?? "")) : text;
   const hit = redact ? redact(subject) !== subject : FALLBACK.some((re) => re.test(subject));
   if (hit) {
     bad++;

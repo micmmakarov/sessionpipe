@@ -1,0 +1,96 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/well-known.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
+    },
+    "max_tier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "auth": {
+      "default": [
+        "bearer"
+      ],
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "bearer"
+        ]
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "string"
+        },
+        "control": {
+          "type": "string"
+        },
+        "native": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "events"
+      ]
+    },
+    "batch": {
+      "type": "object",
+      "properties": {
+        "max_events": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "max_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 262144
+        }
+      },
+      "required": [
+        "max_events",
+        "max_bytes"
+      ]
+    },
+    "control": {
+      "type": "object",
+      "properties": {
+        "wait_max_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        }
+      },
+      "required": [
+        "wait_max_s"
+      ]
+    }
+  },
+  "required": [
+    "protocol",
+    "max_tier",
+    "capabilities",
+    "endpoints",
+    "batch"
+  ]
+}
