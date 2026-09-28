@@ -6,6 +6,7 @@
 // dir's .claude.json account id. Ported from spacesheep-cli lib/sessions.js.
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { HOME } from "../paths.js";
@@ -97,6 +98,16 @@ export const claudeCode: Adapter = {
     const turn_id = typeof s.prompt_id === "string" ? s.prompt_id : undefined;
     const tool = validTool(s.tool_name) ? s.tool_name : undefined;
     const call_id = typeof s.tool_use_id === "string" ? s.tool_use_id : undefined;
+    const ms = typeof s.duration_ms === "number" ? Math.round(s.duration_ms) : undefined;
+    const agent_id = typeof s.agent_id === "string" ? s.agent_id : undefined;
+    // PermissionRequest carries no tool_use_id (recorded 2026-09-28): the id is a hash
+    // of the prompt, the tool and its input, so the same prompt yields the same id and
+    // a later control answer can name it.
+    const permissionId = () =>
+      `perm-${createHash("sha256")
+        .update(`${turn_id ?? ""}|${tool ?? ""}|${JSON.stringify(s.tool_input ?? null)}`)
+        .digest("hex")
+        .slice(0, 16)}`;
     const ev = (type: string, data: Record<string, unknown>) => ({ type, data: prune(data), harnessEvent: event });
     const events: HookResult["events"] = [];
     switch (event) {
@@ -112,12 +123,21 @@ export const claudeCode: Adapter = {
         );
         break;
       case "PreToolUse":
-        if (tool) events.push(ev("tool.started", { tool, call_id, turn_id, input: s.tool_input }));
+        if (tool) events.push(ev("tool.started", { tool, call_id, turn_id, agent_id, input: s.tool_input }));
         break;
       case "PostToolUse":
         if (tool)
           events.push(
-            ev("tool.ended", { tool, call_id, turn_id, ok: true, input: s.tool_input, output: s.tool_response }),
+            ev("tool.ended", {
+              tool,
+              call_id,
+              turn_id,
+              agent_id,
+              ms,
+              ok: true,
+              input: s.tool_input,
+              output: s.tool_response,
+            }),
           );
         break;
       case "PostToolUseFailure":
@@ -127,6 +147,8 @@ export const claudeCode: Adapter = {
               tool,
               call_id,
               turn_id,
+              agent_id,
+              ms,
               ok: false,
               error: errText(s.error ?? s.tool_response),
               input: s.tool_input,
@@ -137,7 +159,7 @@ export const claudeCode: Adapter = {
       case "PermissionRequest":
         events.push(
           ev("attention.needed", {
-            attention_id: call_id ?? `perm-${Date.now()}`,
+            attention_id: call_id ?? permissionId(),
             kind: "permission",
             tool,
             message: tool ? `${tool}${describe(s.tool_input)}` : undefined,

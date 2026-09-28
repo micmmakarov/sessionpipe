@@ -1,0 +1,48 @@
+{
+  "harness": "claude-code",
+  "event": "PreToolUse",
+  "recorded": {
+    "at": "2026-09-28T03:44:56.717Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> --allowedTools Bash(ls:*),Read,Agent with a recording hook; the prompt asked for ls, a Read, a failing cat, a refused redirect and an Explore subagent"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "PreToolUse"
+    ],
+    "stdin": "{\"session_id\":\"ed6c7665-589f-40c7-b7b4-e38ee662b7bc\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/scratchpad\",\"prompt_id\":\"5e6e20e7-82a4-4865-8967-b2c9adae76c4\",\"permission_mode\":\"default\",\"agent_id\":\"adae41131ac7691bb\",\"agent_type\":\"Explore\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls -la /Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"description\":\"List all files in the working directory with details\"},\"tool_use_id\":\"toolu_014seN9J9Vd2tEpJ5hBNMYkZ\"}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+    },
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "tool.started",
+      "harness": {
+        "name": "claude-code",
+        "event": "PreToolUse"
+      },
+      "session": {
+        "id": "ed6c7665-589f-40c7-b7b4-e38ee662b7bc",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2",
+        "seq": "*"
+      },
+      "data": {
+        "tool": "Bash",
+        "call_id": "toolu_014seN9J9Vd2tEpJ5hBNMYkZ",
+        "turn_id": "5e6e20e7-82a4-4865-8967-b2c9adae76c4",
+        "agent_id": "adae41131ac7691bb",
+        "input": {
+          "command": "ls -la /Users/mmakarov/.local/state/sessionpipe/record/ws2",
+          "description": "List all files in the working directory with details"
+        }
+      }
+    }
+  ]
+}

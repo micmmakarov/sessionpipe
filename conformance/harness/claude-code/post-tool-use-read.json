@@ -1,0 +1,58 @@
+{
+  "harness": "claude-code",
+  "event": "PostToolUse",
+  "recorded": {
+    "at": "2026-09-28T03:44:48.622Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> --allowedTools Bash(ls:*),Read,Agent with a recording hook; the prompt asked for ls, a Read, a failing cat, a refused redirect and an Explore subagent"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "PostToolUse"
+    ],
+    "stdin": "{\"session_id\":\"ed6c7665-589f-40c7-b7b4-e38ee662b7bc\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/scratchpad\",\"prompt_id\":\"5e6e20e7-82a4-4865-8967-b2c9adae76c4\",\"permission_mode\":\"default\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2/README.md\"},\"tool_response\":{\"type\":\"text\",\"file\":{\"filePath\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2/README.md\",\"content\":\"hello\\n\",\"numLines\":2,\"startLine\":1,\"totalLines\":2}},\"tool_use_id\":\"toolu_01AZ8E5WcSBygrxBND6VCVPg\",\"duration_ms\":6}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+    },
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "tool.ended",
+      "harness": {
+        "name": "claude-code",
+        "event": "PostToolUse"
+      },
+      "session": {
+        "id": "ed6c7665-589f-40c7-b7b4-e38ee662b7bc",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2",
+        "seq": "*"
+      },
+      "data": {
+        "tool": "Read",
+        "call_id": "toolu_01AZ8E5WcSBygrxBND6VCVPg",
+        "turn_id": "5e6e20e7-82a4-4865-8967-b2c9adae76c4",
+        "ms": 6,
+        "ok": true,
+        "input": {
+          "file_path": "/Users/mmakarov/.local/state/sessionpipe/record/ws2/README.md"
+        },
+        "output": {
+          "type": "text",
+          "file": {
+            "filePath": "/Users/mmakarov/.local/state/sessionpipe/record/ws2/README.md",
+            "content": "hello\n",
+            "numLines": 2,
+            "startLine": 1,
+            "totalLines": 2
+          }
+        }
+      }
+    }
+  ]
+}

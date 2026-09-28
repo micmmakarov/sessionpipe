@@ -2,21 +2,21 @@
   "harness": "claude-code",
   "event": "UserPromptSubmit",
   "recorded": {
-    "at": "2026-09-28T02:05:05.270Z",
+    "at": "2026-09-28T03:44:45.535Z",
     "harness_version": "2.1.258",
-    "how": "claude -p --settings <hooks> with a recording hook"
+    "how": "claude -p --settings <hooks> --allowedTools Bash(ls:*),Read,Agent with a recording hook; the prompt asked for ls, a Read, a failing cat, a refused redirect and an Explore subagent"
   },
   "input": {
     "argv": [
       "claude-code",
       "UserPromptSubmit"
     ],
-    "stdin": "{\"session_id\":\"3bd5639e-04f7-44e6-a4c2-2f9bb68adad6\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-private-tmp-claude-501--Users-mmakarov-spacesheep-7a42d90e-8d27-45a0-b353-a9b496f19454-scratchpad-rec-ws/3bd5639e-04f7-44e6-a4c2-2f9bb68adad6.jsonl\",\"cwd\":\"/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws\",\"prompt_id\":\"be2f5ed1-6667-4423-83ef-d6476444a198\",\"permission_mode\":\"default\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"Run ls, then read README.md, then try to run: echo hi > out.txt (if that is refused, just say so). Finish with the single word done.\"}\n",
+    "stdin": "{\"session_id\":\"ed6c7665-589f-40c7-b7b4-e38ee662b7bc\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/scratchpad\",\"prompt_id\":\"5e6e20e7-82a4-4865-8967-b2c9adae76c4\",\"permission_mode\":\"default\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"Do these in order: 1) run ls. 2) read README.md. 3) run: cat /nonexistent-file-xyz (it will fail; note the error). 4) try to run: echo hi > out.txt (if that is refused, just say so). 5) use the Agent tool with subagent_type Explore to list the files in this folder. Finish with the single word done.\"}\n",
     "env": {
       "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
-      "CLAUDE_PROJECT_DIR": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
     },
-    "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
   },
   "expect": [
     {
@@ -29,13 +29,13 @@
         "event": "UserPromptSubmit"
       },
       "session": {
-        "id": "3bd5639e-04f7-44e6-a4c2-2f9bb68adad6",
-        "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws",
+        "id": "ed6c7665-589f-40c7-b7b4-e38ee662b7bc",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2",
         "seq": "*"
       },
       "data": {
-        "turn_id": "be2f5ed1-6667-4423-83ef-d6476444a198",
-        "prompt_chars": 132
+        "turn_id": "5e6e20e7-82a4-4865-8967-b2c9adae76c4",
+        "prompt_chars": 299
       }
     }
   ]

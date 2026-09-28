@@ -162,6 +162,10 @@
           "type": "string",
           "maxLength": 128
         },
+        "agent_id": {
+          "type": "string",
+          "maxLength": 128
+        },
         "input": {}
       },
       "required": [
@@ -181,6 +185,10 @@
           "maxLength": 128
         },
         "turn_id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "agent_id": {
           "type": "string",
           "maxLength": 128
         },
