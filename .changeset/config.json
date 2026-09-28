@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["sessionpipe", "@sessionpipe/core", "@sessionpipe/receiver", "@sessionpipe/conformance"]],
+  "fixed": [["sessionpipe", "sessionpipe-core", "sessionpipe-receiver", "sessionpipe-conformance"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

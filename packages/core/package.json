@@ -1,7 +1,7 @@
 {
-  "name": "@sessionpipe/core",
+  "name": "sessionpipe-core",
   "version": "0.1.0",
-  "description": "sessionpipe core: protocol types, harness adapters, privacy filter and redaction rulesets, outbox and sinks. Zero runtime dependencies.",
+  "description": "sessionpipe core: protocol types, harness adapters, privacy filter and redaction rulesets, outbox and sinks. Zero runtime dependencies. (published unscoped until the @sessionpipe npm org exists; the code is the same)",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

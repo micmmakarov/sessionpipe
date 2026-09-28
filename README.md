@@ -12,9 +12,10 @@ at all.
 [![Spec: CC BY 4.0](https://img.shields.io/badge/spec-CC%20BY%204.0-blue)](spec/LICENSE)
 [![DCO](https://img.shields.io/badge/contributions-DCO-informational)](DCO)
 
-> Status: **pre-release**. The repository is being built milestone by milestone in
-> the open; see [ROADMAP.md](ROADMAP.md) for what exists today. Nothing is published
-> to npm until v0.1.0.
+> Status: **pre-release** (0.1.x). On npm: `sessionpipe` (the CLI), `sessionpipe-core`,
+> `sessionpipe-receiver`, `sessionpipe-conformance`. The three library packages are
+> published unscoped until the `@sessionpipe` npm org exists; the code is identical and
+> the scoped names will be added as aliases. See [ROADMAP.md](ROADMAP.md).
 
 ## Install
 
@@ -77,10 +78,10 @@ you point it anywhere.**
 | [`spec/`](spec/) | The protocol: envelope, events, tiers, HTTP binding, control channel, adapters (CC BY 4.0) |
 | [`schemas/v1/`](schemas/v1/) | JSON Schemas, generated from the code; also served at `https://sessionpipe.org/schema/v1/` |
 | [`conformance/`](conformance/) | Real hook payloads per harness, redaction vectors, delivery scenarios |
-| [`packages/core`](packages/core) | `@sessionpipe/core`: types, adapters, privacy filter, outbox, sinks (zero dependencies) |
+| [`packages/core`](packages/core) | `sessionpipe-core` (`@sessionpipe/core` once the org exists): types, adapters, privacy filter, outbox, sinks (zero dependencies) |
 | [`packages/cli`](packages/cli) | `sessionpipe`: install, sink, status, doctor, tail |
-| [`packages/receiver`](packages/receiver) | `@sessionpipe/receiver`: one process, JSONL files, a page you can answer from a phone |
-| [`packages/conformance`](packages/conformance) | `@sessionpipe/conformance`: scores a receiver or an adapter |
+| [`packages/receiver`](packages/receiver) | `sessionpipe-receiver`: one process, JSONL files, a page you can answer from a phone |
+| [`packages/conformance`](packages/conformance) | `sessionpipe-conformance`: scores a receiver or an adapter |
 | [`website/`](website/) | [sessionpipe.org](https://sessionpipe.org), rendered from `spec/` |
 
 Who receives: [sessionpipe.org/receivers](https://sessionpipe.org/receivers/).

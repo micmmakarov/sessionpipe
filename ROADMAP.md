@@ -5,7 +5,7 @@ that closed it. Downloads are tracked weekly once published.
 
 | # | Milestone | Days | Done | Closing commit |
 |---|-----------|-----:|:----:|----------------|
-| M0 | Repository, legal, CI | 1 | ☑ | c8f2c30; sessionpipe@0.1.0 published 2026-09-28; scoped packages wait for the @sessionpipe npm org |
+| M0 | Repository, legal, CI | 1 | ☑ | c8f2c30; all four packages published 2026-09-28: sessionpipe, sessionpipe-core, sessionpipe-receiver, sessionpipe-conformance (unscoped until the @sessionpipe org exists) |
 | M1 | Spec v1, schemas, fixtures | 3 | ◐ | 6a4cade (spec, schemas, Codex + partial Claude Code fixtures; Gemini CLI, Antigravity and Claude Code tool-event recordings pending) |
 | M2 | Core + CLI + 4 adapters (Claude Code, Codex, Gemini CLI, Antigravity) | 5 | ◐ | built; sessionpipe@0.1.0 on npm; hook p50 25 ms wall / 1 ms in-process; installed on the maintainer's Mac (Gemini CLI not present there); 123 tests |
 | M3 | HTTP sink + reference receiver + conformance runner | 3 | ☐ | |
