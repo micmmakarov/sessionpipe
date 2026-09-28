@@ -191,7 +191,12 @@ export async function runJob(
 const BATCH = 50;
 const MAX_PER_RUN = 500;
 
-/** Drain every sink from its cursor: this session first, then any backlog. */
+/** Drain every sink from its cursor: this session first, then any backlog. Events
+ *  from many sessions are packed into one batch of up to BATCH, so a first
+ *  install's 400-session backfill is nine POSTs, not four hundred (the receiver's
+ *  write limit ended the first replay at 278 events, 2026-09-28). A cursor moves
+ *  only after its batch was acknowledged; a refused batch stops the sink for this
+ *  run and the next worker starts from the same cursors. */
 export async function flush(
   state: string,
   sinkConfigs: SinkConfig[],
@@ -209,37 +214,58 @@ export async function flush(
     const cursors = new Cursors(state, sink.name);
     const c = cursors.read();
     let sent = 0;
-    for (const ref of refs) {
-      if (sent >= MAX_PER_RUN) break;
-      let offset = c[cursors.key(ref)] ?? 0;
-      let stalled = false;
-      while (sent < MAX_PER_RUN) {
-        const { events, offset: next } = outbox.read(ref, offset, BATCH);
-        if (!events.length) break;
-        const filtered = events
-          .map((e) => filterEvent(e, sink.tier, sink.pii, { home: os.homedir() }))
-          .filter((e): e is Event => !!e);
-        let ok = true;
-        if (filtered.length) {
-          const res = await sink.send(filtered);
-          ok = res.ok;
-          if (!ok) {
-            log(state, `sink ${sink.name}: ${res.status ?? ""} ${res.error ?? ""} → ${res.action ?? "retry"}`);
-            if (res.action === "pause" || res.action === "lower-tier") applySinkVerdict(sink.name, res);
-            if (res.action === "drop") ok = true; // a batch the receiver will never take: skip it
-          }
-          if (ok) sent += filtered.length;
+    let stalled = false;
+    // Pull filtered events session by session into one batch; remember where each
+    // session's offset would land if the batch goes through.
+    let batch: Event[] = [];
+    let pending: Record<string, number> = {};
+    const send = async (): Promise<boolean> => {
+      if (!batch.length) {
+        Object.assign(c, pending);
+        pending = {};
+        cursors.write(c);
+        return true;
+      }
+      const res = await sink.send(batch);
+      if (!res.ok) {
+        log(state, `sink ${sink.name}: ${res.status ?? ""} ${res.error ?? ""} → ${res.action ?? "retry"}`);
+        if (res.action === "pause" || res.action === "lower-tier") applySinkVerdict(sink.name, res);
+        if (res.action !== "drop") {
+          batch = [];
+          pending = {};
+          return false;
         }
-        if (!ok) {
-          stalled = true;
-          break;
+      }
+      sent += batch.length;
+      Object.assign(c, pending);
+      cursors.write(c);
+      batch = [];
+      pending = {};
+      return true;
+    };
+    for (const ref of refs) {
+      if (stalled || sent >= MAX_PER_RUN) break;
+      let offset = pending[cursors.key(ref)] ?? c[cursors.key(ref)] ?? 0;
+      for (;;) {
+        const room = BATCH - batch.length;
+        const { events, offset: next } = outbox.read(ref, offset, room);
+        if (!events.length) break;
+        for (const e of events) {
+          const f = filterEvent(e, sink.tier, sink.pii, { home: os.homedir() });
+          if (f) batch.push(f);
         }
         offset = next;
-        c[cursors.key(ref)] = offset;
-        cursors.write(c);
+        pending[cursors.key(ref)] = offset;
+        if (batch.length >= BATCH) {
+          if (!(await send())) {
+            stalled = true;
+            break;
+          }
+          if (sent >= MAX_PER_RUN) break;
+        }
       }
-      if (stalled) break;
     }
+    if (!stalled && (batch.length || Object.keys(pending).length)) if (!(await send())) stalled = true;
     delivered[sink.name] = sent;
   }
   return delivered;
