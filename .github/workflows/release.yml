@@ -15,6 +15,10 @@ concurrency: release-${{ github.ref }}
 jobs:
   release:
     name: Version PR or publish
+    # Off until the maintainer has done the first bare `npm publish` of each package
+    # and enabled trusted publishing; then the repo variable RELEASES_ENABLED=true
+    # turns this on (ROADMAP.md, step 2).
+    if: vars.RELEASES_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
