@@ -28,7 +28,7 @@ that closed it. Downloads are tracked weekly once published.
   receive tier 0–3 events; `sessionpipe tail` shows a live session; hook p50 < 150 ms
   by `sessionpipe doctor`; every adapter fixture passes; uninstall leaves configs
   byte-identical.
-- **M3** — `npx @sessionpipe/receiver` runs on a laptop and in Docker; conformance
+- **M3** — `npx sessionpipe-receiver` runs on a laptop and in Docker; conformance
   scores it 100 %; the HTTP sink retries on 5xx, splits on 413, drops on 4xx.
 - **M4** — site live on sessionpipe.org over HTTPS; `/protocol/` from `spec/`;
   `/schema/v1/event.json` resolves as `application/json`; redirects from the other

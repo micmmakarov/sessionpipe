@@ -30,7 +30,7 @@ sessionpipe status
 ## The reference receiver
 
 ```sh
-npx @sessionpipe/receiver --port 7357 --token <t> --max-tier 3
+npx sessionpipe-receiver --port 7357 --token <t> --max-tier 3
 ```
 
 or in Docker: `docker run -p 7357:7357 -v sessionpipe:/data ghcr.io/micmmakarov/sessionpipe-receiver`. Open `http://localhost:7357/` for the page: sessions grouped needs-you / working / recent, live.

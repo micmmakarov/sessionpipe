@@ -1,10 +1,10 @@
 # Receivers
 
-Who speaks the protocol. A listing carries a conformance badge that CI re-checks by running `@sessionpipe/conformance` against the origin at tier 0.
+Who speaks the protocol. A listing carries a conformance badge that CI re-checks by running `sessionpipe-conformance` against the origin at tier 0.
 
 | Receiver | max_tier | Capabilities | Conformance |
 |----------|:--------:|--------------|-------------|
-| [@sessionpipe/receiver](https://github.com/micmmakarov/sessionpipe/tree/main/packages/receiver) (reference) | 3 | events, backfill, forget, control, native | pending (M3) |
+| [sessionpipe-receiver](https://github.com/micmmakarov/sessionpipe/tree/main/packages/receiver) (reference) | 3 | events, backfill, forget, control, native | pending (M3) |
 | [spacesheep.dev](https://spacesheep.dev) | 2 | events, backfill, forget, control | pending (M5) |
 
 ## List yours

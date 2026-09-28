@@ -1,4 +1,4 @@
-# @sessionpipe/receiver
+# sessionpipe-receiver
 
 The sessionpipe reference receiver: one process, JSONL files, a page you can answer from a phone.
 
