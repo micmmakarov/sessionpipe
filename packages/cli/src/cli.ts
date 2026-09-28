@@ -459,7 +459,10 @@ function doctor(): void {
   const t = timing();
   if (t && t.p50 > 150)
     warnings.push(`hook p50 is ${t.p50} ms (target < 150). Is node on a slow disk or a network share?`);
-  if (has("--json")) return out(JSON.stringify(report, null, 2));
+  if (has("--json")) {
+    out(JSON.stringify(report, null, 2));
+    return;
+  }
   out(`  sessionpipe ${VERSION} · node ${process.version} at ${report.node_path}`);
   out(`  config ${tilde(configFile())} · state ${tilde(state)}`);
   for (const [h, st] of Object.entries(report.harnesses as Record<string, { file: string; state: string }[]>))
