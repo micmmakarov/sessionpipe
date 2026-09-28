@@ -1,6 +1,6 @@
 {
   "name": "@sessionpipe/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "sessionpipe core: protocol types, harness adapters, privacy filter and redaction rulesets, outbox and sinks. Zero runtime dependencies.",
   "license": "Apache-2.0",
   "type": "module",
@@ -48,8 +48,7 @@
   },
   "dependencies": {},
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "devDependencies": {
     "zod": "^4.6.5"

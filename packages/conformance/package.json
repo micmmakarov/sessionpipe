@@ -1,6 +1,6 @@
 {
   "name": "@sessionpipe/conformance",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Runs the sessionpipe conformance fixtures against a receiver URL or an adapter.",
   "license": "Apache-2.0",
   "type": "module",
@@ -46,11 +46,10 @@
     "build": "node ../../scripts/build.mjs conformance"
   },
   "dependencies": {
-    "@sessionpipe/core": "0.0.0",
+    "@sessionpipe/core": "0.1.0",
     "zod": "^4.6.5"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   }
 }
