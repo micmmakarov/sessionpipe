@@ -50,8 +50,8 @@ export class Outbox {
       // A missing counter with an existing outbox: recover from the file's last line.
       n = this.lastSeqInFile(ref) + 1;
     }
-    mkdirSync(path.dirname(f), { recursive: true });
-    writeFileSync(f, String(n + 1));
+    mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
+    writeFileSync(f, String(n + 1), { mode: 0o600 });
     return n;
   }
 
@@ -70,8 +70,8 @@ export class Outbox {
 
   append(ref: OutboxRef, events: Event[]): void {
     if (!events.length) return;
-    mkdirSync(this.dir(ref.harness), { recursive: true });
-    appendFileSync(this.file(ref), `${events.map((e) => JSON.stringify(e)).join("\n")}\n`);
+    mkdirSync(this.dir(ref.harness), { recursive: true, mode: 0o700 });
+    appendFileSync(this.file(ref), `${events.map((e) => JSON.stringify(e)).join("\n")}\n`, { mode: 0o600 });
   }
 
   /** Every session file, newest first. */
@@ -174,9 +174,9 @@ export class Cursors {
   }
   write(c: Record<string, number>): void {
     const f = this.file();
-    mkdirSync(path.dirname(f), { recursive: true });
+    mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
     const tmp = `${f}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(c));
+    writeFileSync(tmp, JSON.stringify(c), { mode: 0o600 });
     renameSync(tmp, f);
   }
   key(ref: OutboxRef): string {
@@ -187,7 +187,7 @@ export class Cursors {
 /** A lock per session so two workers never interleave. Stale after 5 min. */
 export function takeLock(root: string, ref: OutboxRef, staleMs = 5 * 60_000): (() => void) | null {
   const dir = path.join(root, "locks");
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const f = path.join(dir, `${safeId(ref.harness)}-${safeId(ref.session)}.lock`);
   try {
     if (Date.now() - statSync(f).mtimeMs > staleMs) unlinkSync(f);

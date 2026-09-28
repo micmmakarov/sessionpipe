@@ -66,6 +66,28 @@ export interface InstallReport {
   file: string;
   changed: boolean;
   note?: string;
+  /** The file did not exist before this install; uninstall may delete it when empty. */
+  created?: boolean;
+  /** The file was left alone (not plain JSON, another tool's slot); `note` says why. */
+  skipped?: boolean;
+}
+
+export interface InstallOptions {
+  /** No sink takes tier ≥ 1: hook one tool event per harness (the heartbeat needs
+   *  one), not every one — each hook is a Node start the harness waits for. */
+  lean?: boolean;
+  /** Files sessionpipe created on an earlier install (from the config), so
+   *  uninstall may delete them once they are empty again. */
+  created?: string[];
+}
+
+export type InstalledState = "current" | "stale" | "missing" | "misplaced" | "inactive";
+
+export interface InstalledReport {
+  file: string;
+  state: InstalledState;
+  /** Why (an inactive harness, a slot another tool holds). */
+  note?: string;
 }
 
 export interface Adapter {
@@ -76,13 +98,10 @@ export interface Adapter {
   detect(env?: NodeJS.ProcessEnv): boolean;
   /** Config files the installer would write. */
   configFiles(env?: NodeJS.ProcessEnv): string[];
-  install(cmd: HookCommand, env?: NodeJS.ProcessEnv): InstallReport[];
-  uninstall(env?: NodeJS.ProcessEnv): InstallReport[];
-  /** Is our hook present and current in the given file? */
-  installed(
-    cmd: HookCommand,
-    env?: NodeJS.ProcessEnv,
-  ): { file: string; state: "current" | "stale" | "missing" | "misplaced" }[];
+  install(cmd: HookCommand, env?: NodeJS.ProcessEnv, opts?: InstallOptions): InstallReport[];
+  uninstall(env?: NodeJS.ProcessEnv, opts?: InstallOptions): InstallReport[];
+  /** Is our hook present, current, and will the harness run it? */
+  installed(cmd: HookCommand, env?: NodeJS.ProcessEnv, opts?: InstallOptions): InstalledReport[];
   fromHook(input: HookInput): HookResult | null;
   readTranscript(file: string, fromLine: number): TranscriptRead;
   facts(

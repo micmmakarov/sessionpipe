@@ -3,13 +3,14 @@
 // Config: ~/.gemini/settings.json `hooks` key, same array-of-groups shape as Claude
 // Code but timeouts in MILLISECONDS and a `name` per handler. stdout must be JSON or
 // empty. Its own telemetry defaults logPrompts on; the installer says so once.
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { HOME } from "../paths.js";
 import { ends, parseLines } from "../readers/files.js";
 import { readGemini } from "../readers/transcripts.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
-import type { Adapter, HookInput, HookResult, SessionFacts } from "./types.js";
+import type { Adapter, HookInput, HookResult, InstallOptions, SessionFacts } from "./types.js";
 
 const NAME = "gemini-cli";
 export const GEMINI_EVENTS = [
@@ -26,6 +27,37 @@ const OPTS = { matcherFor: (e: string) => (/Tool/.test(e) ? ".*" : undefined), t
 const geminiDir = (env: NodeJS.ProcessEnv) => env.GEMINI_CLI_HOME || path.join(HOME, ".gemini");
 const settings = (env: NodeJS.ProcessEnv) => path.join(geminiDir(env), "settings.json");
 const validTool = (n: unknown): n is string => typeof n === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(n);
+const eventsFor = (lean?: boolean) => (lean ? GEMINI_EVENTS.filter((e) => e !== "BeforeTool") : [...GEMINI_EVENTS]);
+
+/** Before 0.46 the hooks system is off unless tools.enableHooks is true (issue #11). */
+export function geminiHooksActive(settingsFile: string): { active: boolean; note?: string } {
+  let tools: { enableHooks?: unknown } | undefined;
+  try {
+    tools = (JSON.parse(readFileSync(settingsFile, "utf8")) as { tools?: { enableHooks?: unknown } }).tools;
+  } catch {}
+  if (tools?.enableHooks === true) return { active: true };
+  if (tools?.enableHooks === false)
+    return { active: false, note: "inactive: tools.enableHooks is false in settings.json" };
+  let version = "";
+  try {
+    version = execFileSync("gemini", ["--version"], {
+      encoding: "utf8",
+      timeout: 4000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return {
+      active: true,
+      note: "could not run `gemini --version`; hooks need tools.enableHooks on versions before 0.46",
+    };
+  }
+  const m = /(\d+)\.(\d+)/.exec(version);
+  if (m && (Number(m[1]) > 0 || Number(m[2]) >= 46)) return { active: true };
+  return {
+    active: false,
+    note: `inactive: Gemini CLI ${version || "?"} runs hooks only with "tools": {"enableHooks": true} in settings.json`,
+  };
+}
 
 export const geminiCli: Adapter = {
   name: NAME,
@@ -33,11 +65,25 @@ export const geminiCli: Adapter = {
   // ~/.gemini also belongs to Antigravity; Gemini CLI is here when its settings or its chat logs exist.
   detect: (env = process.env) => existsSync(settings(env)) || existsSync(path.join(geminiDir(env), "tmp")),
   configFiles: (env = process.env) => [settings(env)],
-  install: (cmd, env = process.env) => [installClaudeShaped(settings(env), NAME, GEMINI_EVENTS, cmd, OPTS)],
-  uninstall: (env = process.env) => [uninstallClaudeShaped(settings(env), GEMINI_EVENTS)],
-  installed: (cmd, env = process.env) => [
-    { file: settings(env), state: installedClaudeShaped(settings(env), NAME, GEMINI_EVENTS, cmd, OPTS) },
+  install: (cmd, env = process.env, opts: InstallOptions = {}) => {
+    const r = installClaudeShaped(settings(env), NAME, eventsFor(opts.lean), cmd, OPTS);
+    const a = geminiHooksActive(settings(env));
+    return [a.note && !r.skipped ? { ...r, note: [r.note, a.note].filter(Boolean).join("; ") } : r];
+  },
+  uninstall: (env = process.env, opts: InstallOptions = {}) => [
+    uninstallClaudeShaped(settings(env), GEMINI_EVENTS, { created: opts.created?.includes(settings(env)) }),
   ],
+  installed: (cmd, env = process.env, opts: InstallOptions = {}) => {
+    const state = installedClaudeShaped(settings(env), NAME, eventsFor(opts.lean), cmd, OPTS);
+    const a = geminiHooksActive(settings(env));
+    return [
+      {
+        file: settings(env),
+        state: state === "current" && !a.active ? "inactive" : state,
+        ...(a.note ? { note: a.note } : {}),
+      },
+    ];
+  },
 
   fromHook(input: HookInput): HookResult | null {
     const event = input.argv[1] ?? "";

@@ -25,7 +25,7 @@ export interface SinkConfig {
 export interface Config {
   machine?: string;
   sinks: SinkConfig[];
-  harnesses: Record<string, { enabled?: boolean }>;
+  harnesses: Record<string, { enabled?: boolean; created?: string[] }>;
   update_check?: boolean;
   keep_days?: number;
 }

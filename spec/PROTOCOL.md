@@ -97,7 +97,7 @@ Per-type `data` shapes are normative in
 | `session.backfill` | 0 | `started_at`, `last_at`, `turns?` | One per historical session found in local files at install. `seq` is 0 and the session block carries what the files say. |
 | `session.forgotten` | 0 | — | The person ran `sessionpipe forget`. A receiver MUST delete everything it holds for the session and answer as for any accepted event. |
 | `turn.started` | 0 | `turn_id?`; tier 1 adds `prompt_chars` | A prompt was submitted. |
-| `turn.ended` | 0 | `turn_id?`, `reason`: `stop` · `interrupt` · `error`, `ms?` | The Stop / AfterAgent / agentStop hook. |
+| `turn.ended` | 0 | `turn_id?`, `reason`: `stop` · `interrupt` · `error`, `ms?`; tier 1 adds `error` (the harness's error class when the reason is `error`) | The Stop / AfterAgent / agentStop hook; Claude Code's `StopFailure` (a turn that ended on an API error) with `reason: error`. |
 | `turn.transcript` | 2 | `turn` (integer), `user`, `assistant` (each ≤ 20 000 chars, redacted), `at` | Read from the harness's transcript file by the worker after a turn ends; one event per completed exchange, in order. |
 | `tool.started` | 1 | `tool`, `call_id?`, `turn_id?`, `agent_id?` (set when a subagent made the call); tier 3 adds `input` | Pre-tool hook. OPTIONAL for senders whose harness has none. |
 | `tool.ended` | 1 | `tool`, `call_id?`, `turn_id?`, `agent_id?`, `ms?`, `ok`, `error?`; tier 3 adds `input`, `output` (each ≤ 64 KB) | Post-tool hook. A tool name is `[A-Za-z0-9_.:-]{1,120}`; MCP tools keep the harness's own spelling. |

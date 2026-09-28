@@ -56,7 +56,7 @@ presents that as its own reading.
 |---|---|
 | Config | `settings.json` in **every** config dir: `~/.claude`, `$CLAUDE_CONFIG_DIR`, and any `~/.claude-*` holding `projects/` or `settings.json` (one per account; hooks written to one never fire for the others). Timeouts in seconds. |
 | Hook shape | `{"hooks":{"<Event>":[{"matcher":"","hooks":[{"type":"command","command":"…","timeout":5}]}]}}`; the matcher is only present on tool and permission events. |
-| Mapping | `SessionStart` → `session.started` (`source` ← `source` / `trigger`) · `UserPromptSubmit` → `turn.started` (`turn_id` ← `prompt_id`, `prompt_chars`) · `PreToolUse` → `tool.started` · `PostToolUse` → `tool.ended` ok · `PostToolUseFailure` → `tool.ended` !ok · `PermissionRequest` → `attention.needed` permission · `Notification` → `attention.needed` (`permission_prompt` → permission, `idle_prompt` → idle, `elicitation_dialog` → elicitation, others → question) · `Stop` → `turn.ended` stop · `SubagentStart`/`SubagentStop` → `subagent.*` · `PreCompact`/`PostCompact` → `context.compacted` · `SessionEnd` → `session.ended` (`reason`: `clear` · `logout` · `exit` · `prompt_input_exit`→`exit` · other). |
+| Mapping | `SessionStart` → `session.started` (`source` ← `source` / `trigger`) · `UserPromptSubmit` → `turn.started` (`turn_id` ← `prompt_id`, `prompt_chars`) · `PreToolUse` → `tool.started` · `PostToolUse` → `tool.ended` ok · `PostToolUseFailure` → `tool.ended` !ok · `PermissionRequest` → `attention.needed` permission · `Notification` → `attention.needed` (`permission_prompt` → permission, `idle_prompt` → idle, `elicitation_dialog` → elicitation, others → question) · `Stop` → `turn.ended` stop · `StopFailure` → `turn.ended` error (`error` = the API error class) · `SubagentStart`/`SubagentStop` → `subagent.*` · `PreCompact`/`PostCompact` → `context.compacted` · `SessionEnd` → `session.ended` (`reason`: `clear` · `logout` · `exit` · `prompt_input_exit`→`exit` · other). |
 | Ids in stdin | `session_id`, `prompt_id`, `cwd`, `transcript_path`, `tool_name`, `tool_use_id`, `agent_id`, `permission_mode`, `hook_event_name`. |
 | Env | `CLAUDE_CODE_HOST_SESSION_ID` (`local_…`): the desktop app's id for the session → `session.url` `claude://code/continue/<id>` when no bridge link exists. `CLAUDE_PROJECT_DIR`. |
 | Transcript (tier 2) | `<config>/projects/<cwd-slug>/<session_id>.jsonl`; records `type: user\|assistant` with `message.content` a string or text parts. Skip `isMeta`, `isSidechain`, non-`human` `origin.kind`, injected `<tag>…</tag>` blocks. |
@@ -67,7 +67,7 @@ Fixtures recorded 2026-09-28 on Claude Code 2.1.258 (one `claude -p` run): `Sess
 `UserPromptSubmit`, `PreToolUse` / `PostToolUse` for Bash, Read and Agent (with
 `duration_ms` and, inside the subagent, `agent_id`), `PermissionRequest` (no
 `tool_use_id`; carries `permission_suggestions`), `SubagentStart` / `SubagentStop`, `Stop`,
-`SessionEnd`. Still pending real payloads: `PostToolUseFailure`, `Notification`,
+`SessionEnd`, `StopFailure` (`error: server_error`, forced with an unreachable API). Still pending real payloads: `PostToolUseFailure`, `Notification`,
 `PreCompact` / `PostCompact` (a failing `cat` arrived as a `PostToolUse` with the error in
 `tool_response`).
 
