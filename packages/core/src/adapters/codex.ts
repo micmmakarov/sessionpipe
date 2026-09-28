@@ -1,0 +1,364 @@
+// SPDX-License-Identifier: Apache-2.0
+// Codex CLI (OpenAI) — docs: https://learn.chatgpt.com/docs/hooks
+// Config: ~/.codex/hooks.json (Claude-shaped, 12 events, timeouts in seconds) AND
+// `notify` at the top level of config.toml as the fallback when hooks are off or
+// not yet trusted (non-managed hooks need a /hooks review in the CLI). An existing
+// notify (Codex Computer Use) is chained through --previous-notify, never replaced.
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { HOME } from "../paths.js";
+import { ends, parseLines, recentFiles } from "../readers/files.js";
+import { readCodex } from "../readers/transcripts.js";
+import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
+import * as toml from "./codex-config.js";
+import type { Adapter, BackfillRow, HookCommand, HookInput, HookResult, SessionFacts } from "./types.js";
+
+const NAME = "codex";
+export const CODEX_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PostToolUse",
+  "PermissionRequest",
+  "Stop",
+  "Interrupt",
+  "SubagentStart",
+  "SubagentStop",
+  "PreCompact",
+  "PostCompact",
+  "SessionEnd",
+] as const;
+const OPTS = { matcherFor: (e: string) => (/Tool|Permission/.test(e) ? "" : undefined), timeout: 5 };
+
+const codexHome = (env: NodeJS.ProcessEnv) => env.CODEX_HOME || path.join(HOME, ".codex");
+const hooksFile = (env: NodeJS.ProcessEnv) => path.join(codexHome(env), "hooks.json");
+const configFile = (env: NodeJS.ProcessEnv) => path.join(codexHome(env), "config.toml");
+const sessionsDir = (env: NodeJS.ProcessEnv) => path.join(codexHome(env), "sessions");
+
+const validTool = (n: unknown): n is string => typeof n === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(n);
+const endReason = (r: unknown): "clear" | "logout" | "exit" | "other" =>
+  r === "clear" || r === "logout" || r === "exit" ? r : "other";
+
+function installNotify(cmd: HookCommand, env: NodeJS.ProcessEnv) {
+  const file = configFile(env);
+  let text = "";
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {}
+  const argv = cmd([NAME, "notify"]).argv;
+  const line = `notify = ${JSON.stringify(argv)}`;
+  const n = toml.readNotify(text);
+  const write = (next: string) => {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, next);
+  };
+  if (n && !n.other) {
+    if (!n.misplaced && JSON.stringify(n.argv) === JSON.stringify(argv))
+      return { file, changed: false, note: "notify current" };
+    write(toml.withNotify(text, line));
+    return {
+      file,
+      changed: true,
+      note: n.misplaced
+        ? "notify moved to the top level (it sat inside a [table], where Codex never reads it)"
+        : "notify updated",
+    };
+  }
+  if (n?.other) {
+    const prev = toml.previousNotify(n.argv);
+    if (toml.isComputerUse(n.argv)) {
+      if (prev && toml.OURS.test(JSON.stringify(prev))) {
+        if (JSON.stringify(prev) === JSON.stringify(argv))
+          return { file, changed: false, note: "notify current (after Codex Computer Use)" };
+      }
+      if (!prev || toml.OURS.test(JSON.stringify(prev))) {
+        const next = toml.replaceNotify(text, `notify = ${toml.withPreviousRaw(n.raw, argv)}`);
+        if (next) {
+          write(next);
+          return { file, changed: true, note: "chained after Codex Computer Use (--previous-notify)" };
+        }
+      }
+    }
+    return {
+      file,
+      changed: false,
+      note: `left alone: notify runs ${n.raw.slice(0, 80)} (hooks.json carries the events; the notify fallback is off)`,
+    };
+  }
+  write(toml.withNotify(text, line));
+  return { file, changed: true, note: "notify set at the top level" };
+}
+
+function uninstallNotify(env: NodeJS.ProcessEnv) {
+  const file = configFile(env);
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return { file, changed: false };
+  }
+  const n = toml.readNotify(text);
+  if (!n) return { file, changed: false };
+  if (!n.other) {
+    writeFileSync(file, toml.withoutNotify(text));
+    return { file, changed: true };
+  }
+  const prev = toml.previousNotify(n.argv);
+  if (toml.isComputerUse(n.argv) && prev && toml.OURS.test(JSON.stringify(prev))) {
+    const next = toml.replaceNotify(text, `notify = ${toml.stripPreviousRaw(n.raw)}`);
+    if (next) writeFileSync(file, next);
+    return { file, changed: true };
+  }
+  return { file, changed: false };
+}
+
+function findRollout(threadId: string, env: NodeJS.ProcessEnv): string | null {
+  let best: string | null = null;
+  const walk = (dir: string, depth: number) => {
+    let names: string[] = [];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const n of names.sort().reverse()) {
+      const p = path.join(dir, n);
+      if (n.endsWith(".jsonl") && n.includes(threadId)) {
+        best = p;
+        return;
+      }
+      if (depth < 3) {
+        walk(p, depth + 1);
+        if (best) return;
+      }
+    }
+  };
+  walk(sessionsDir(env), 0);
+  return best;
+}
+
+export const codex: Adapter = {
+  name: NAME,
+  events: CODEX_EVENTS,
+  detect: (env = process.env) => existsSync(codexHome(env)),
+  configFiles: (env = process.env) => [hooksFile(env), configFile(env)],
+  install: (cmd, env = process.env) => [
+    installClaudeShaped(hooksFile(env), NAME, CODEX_EVENTS, cmd, OPTS),
+    installNotify(cmd, env),
+  ],
+  uninstall: (env = process.env) => [uninstallClaudeShaped(hooksFile(env), CODEX_EVENTS), uninstallNotify(env)],
+  installed: (cmd, env = process.env) => {
+    const out: { file: string; state: "current" | "stale" | "missing" | "misplaced" }[] = [
+      { file: hooksFile(env), state: installedClaudeShaped(hooksFile(env), NAME, CODEX_EVENTS, cmd, OPTS) },
+    ];
+    let text = "";
+    try {
+      text = readFileSync(configFile(env), "utf8");
+    } catch {}
+    const n = toml.readNotify(text);
+    const argv = cmd([NAME, "notify"]).argv;
+    const prev = n ? toml.previousNotify(n.argv) : null;
+    const ours = n && (!n.other || (prev && JSON.stringify(prev) === JSON.stringify(argv)));
+    out.push({
+      file: configFile(env),
+      state:
+        !n || (n.other && !ours)
+          ? "missing"
+          : n.misplaced
+            ? "misplaced"
+            : JSON.stringify(n.argv) === JSON.stringify(argv) || (prev && JSON.stringify(prev) === JSON.stringify(argv))
+              ? "current"
+              : "stale",
+    });
+    return out;
+  },
+
+  fromHook(input: HookInput): HookResult | null {
+    const event = input.argv[1] ?? "";
+    let s: Record<string, unknown> = {};
+    if (event === "notify") {
+      // Codex's notify passes one JSON argument: {"type":"agent-turn-complete","thread-id":…,"turn-id":…,"cwd":…}
+      const raw = input.argv.find((a) => a.startsWith("{")) ?? input.stdin;
+      try {
+        s = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      } catch {}
+      const id = (s["thread-id"] ?? s.thread_id ?? s["session-id"] ?? s.session_id) as string | undefined;
+      if (!id) return null;
+      const r: HookResult = {
+        session: { id: String(id), cwd: typeof s.cwd === "string" ? s.cwd : input.cwd },
+        events: [
+          {
+            type: "turn.ended",
+            data: { reason: "stop", ...(typeof s["turn-id"] === "string" ? { turn_id: s["turn-id"] } : {}) },
+            harnessEvent: "notify",
+          },
+        ],
+        hints: {},
+      };
+      const file = findRollout(String(id), input.env as NodeJS.ProcessEnv);
+      if (file) r.transcript = file;
+      return r;
+    }
+    try {
+      s = input.stdin ? (JSON.parse(input.stdin) as Record<string, unknown>) : {};
+    } catch {}
+    const id = s.session_id as string | undefined;
+    if (!id) return null;
+    const session: HookResult["session"] = { id: String(id), cwd: typeof s.cwd === "string" ? s.cwd : input.cwd };
+    if (typeof s.model === "string") session.model = s.model;
+    const turn_id = typeof s.turn_id === "string" ? s.turn_id : undefined;
+    const tool = validTool(s.tool_name) ? s.tool_name : undefined;
+    const call_id = typeof s.tool_use_id === "string" ? s.tool_use_id : undefined;
+    const ev = (type: string, data: Record<string, unknown>) => ({ type, data: prune(data), harnessEvent: event });
+    const events: HookResult["events"] = [];
+    switch (event) {
+      case "SessionStart":
+        events.push(
+          ev("session.started", {
+            source:
+              typeof s.source === "string" && ["startup", "resume", "clear", "compact", "fork"].includes(s.source)
+                ? s.source
+                : "unknown",
+          }),
+        );
+        break;
+      case "UserPromptSubmit":
+        events.push(
+          ev("turn.started", {
+            turn_id,
+            prompt_chars: typeof s.prompt === "string" ? [...s.prompt].length : undefined,
+          }),
+        );
+        break;
+      case "PreToolUse":
+        if (tool) events.push(ev("tool.started", { tool, call_id, turn_id, input: s.tool_input }));
+        break;
+      case "PostToolUse":
+        if (tool)
+          events.push(
+            ev("tool.ended", { tool, call_id, turn_id, ok: true, input: s.tool_input, output: s.tool_response }),
+          );
+        break;
+      case "PermissionRequest":
+        events.push(
+          ev("attention.needed", { attention_id: call_id ?? `perm-${Date.now()}`, kind: "permission", tool }),
+        );
+        break;
+      case "Stop":
+        events.push(ev("turn.ended", { turn_id, reason: "stop" }));
+        break;
+      case "Interrupt":
+        events.push(ev("turn.ended", { turn_id, reason: "interrupt" }));
+        break;
+      case "SubagentStart":
+        events.push(
+          ev("subagent.started", {
+            agent_id: String(s.agent_id ?? s.subagent_id ?? ""),
+            agent_type: typeof s.agent_type === "string" ? s.agent_type : undefined,
+          }),
+        );
+        break;
+      case "SubagentStop":
+        events.push(
+          ev("subagent.ended", {
+            agent_id: String(s.agent_id ?? s.subagent_id ?? ""),
+            agent_type: typeof s.agent_type === "string" ? s.agent_type : undefined,
+          }),
+        );
+        break;
+      case "PreCompact":
+        events.push(ev("context.compacted", { trigger: s.trigger === "manual" ? "manual" : "auto" }));
+        break;
+      case "PostCompact":
+        break;
+      case "SessionEnd":
+        events.push(ev("session.ended", { reason: endReason(s.reason) }));
+        break;
+      default:
+        return null;
+    }
+    const r: HookResult = { session, events, hints: {} };
+    if (typeof s.transcript_path === "string") r.transcript = s.transcript_path;
+    return r;
+  },
+
+  readTranscript(file, fromLine) {
+    let text = "";
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      return { turns: [], line: fromLine };
+    }
+    return readCodex(text.split("\n"), fromLine);
+  },
+
+  facts(session, transcript): SessionFacts {
+    const out: SessionFacts = {};
+    if (transcript) Object.assign(out, codexFacts(transcript));
+    return out;
+  },
+
+  backfill(sinceMs, env = process.env): BackfillRow[] {
+    const rows: BackfillRow[] = [];
+    for (const f of recentFiles(sessionsDir(env), 3, sinceMs, (n) => /^rollout-.*\.jsonl$/.test(n))) {
+      const m = /([0-9a-f]{8}-[0-9a-f-]{27,})\.jsonl$/i.exec(path.basename(f));
+      if (!m?.[1]) continue;
+      const facts = codexFacts(f);
+      if (!facts.started_at || !facts.last_at) continue;
+      const { started_at, last_at, first_ask: _fa, harness_version: _hv, ...rest } = facts;
+      rows.push({ session: { id: m[1], ...rest }, started_at, last_at });
+    }
+    return rows;
+  },
+};
+
+function prune<T extends Record<string, unknown>>(o: T): T {
+  for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k];
+  return o;
+}
+
+/** Codex keeps no title; its first real ask stands in. */
+export function codexFacts(file: string): SessionFacts {
+  const { head, tail } = ends(file, 128 * 1024, 64 * 1024);
+  const H = parseLines(head);
+  const T = parseLines(tail);
+  const out: SessionFacts = {};
+  const meta = H.find((j) => j.type === "session_meta" && j.payload) as
+    | { payload?: { cwd?: string; cli_version?: string; git?: { branch?: string; repository_url?: string } } }
+    | undefined;
+  if (meta?.payload) {
+    const p = meta.payload;
+    if (p.cwd) out.cwd = p.cwd;
+    if (p.cli_version) out.harness_version = String(p.cli_version);
+    if (p.git?.branch) out.branch = p.git.branch;
+    if (p.git?.repository_url) out.repo = String(p.git.repository_url).replace(/\/\/[^/@]*@/, "//");
+  }
+  const ctx = H.concat(T)
+    .reverse()
+    .find((j) => j.type === "turn_context" && (j.payload as { model?: string } | undefined)?.model) as
+    | { payload?: { model?: string } }
+    | undefined;
+  if (ctx?.payload?.model) out.model = ctx.payload.model;
+  for (const j of H) {
+    const p = j.payload as { type?: string; role?: string; content?: { type?: string; text?: string }[] } | undefined;
+    if (j.type !== "response_item" || !p || p.type !== "message" || p.role !== "user") continue;
+    const text = (p.content ?? [])
+      .filter((b) => b && b.type === "input_text" && typeof b.text === "string")
+      .map((b) => b.text as string)
+      .join("\n")
+      .trim();
+    if (!text || /^<[a-z_-]+>/i.test(text)) continue;
+    const line = text.split("\n").find((l) => l.trim()) ?? "";
+    out.title = line.length > 80 ? `${line.slice(0, 80).replace(/\s+\S*$/, "")}…` : line;
+    out.title_source = "first-ask";
+    break;
+  }
+  const times = H.concat(T)
+    .map((j) => Date.parse(String(j.timestamp ?? "")))
+    .filter((n) => n > 0);
+  if (times.length) {
+    out.started_at = Math.min(...times);
+    out.last_at = Math.max(...times);
+  }
+  return out;
+}

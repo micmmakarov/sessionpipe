@@ -146,7 +146,7 @@ The runner sends and expects, in this order; each is a fixture under
 | oversize | a batch over `max_events` or `max_bytes` | 413 |
 | tier | an event with `tier` > `max_tier` | 403 with `max_tier` |
 | protocol | `sessionpipe-protocol: 99` | 400 `unsupported_protocol` |
-| auth | a wrong token | 401 |
+| auth | a wrong bearer (`auth: "wrong"` in the fixture) | 401 |
 | unknown-type | `type: "x.y"` | 202, stored, retrievable |
 | forget | `session.forgotten`, then a read | 202, then nothing |
 | control | a queued message, a poll, an ack | 200 with the message; 204 after the ack |

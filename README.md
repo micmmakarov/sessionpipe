@@ -35,14 +35,16 @@ sessionpipe tail            # watch events locally, no server needed
 
 ```
 $ sessionpipe tail --tier 1
-00:41:02 claude-code 8c13…  session.started   source=startup  ~/spacesheep main
-00:41:09 claude-code 8c13…  turn.started      prompt_chars=61
-00:41:11 claude-code 8c13…  tool.started      Read
-00:41:11 claude-code 8c13…  tool.ended        Read ok 38ms
-00:41:14 claude-code 8c13…  tool.started      Bash
-00:41:16 claude-code 8c13…  tool.ended        Bash ok 1830ms
-00:41:31 claude-code 8c13…  attention.needed  permission Bash "git push origin …"
+sessionpipe tail · tier 1 · ~/.local/state/sessionpipe/outbox (Ctrl-C to stop)
+02:56:19 codex       01a0…  session.started   source=startup  ~/spacesheep main
+02:56:20 codex       01a0…  turn.started      prompt_chars=147
+02:56:20 codex       01a0…  tool.started      Bash
+02:56:21 codex       01a0…  tool.ended        Bash ok
+02:56:21 codex       01a0…  turn.ended        stop
+02:56:22 codex       01a0…  session.ended     reason=other
 ```
+
+(A real Codex 0.157.1 run on 28 Sep 2026, through the hook, the worker and the outbox.)
 
 ## Privacy tiers
 

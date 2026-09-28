@@ -47,6 +47,12 @@ const result = await build({
   sourcemap: true,
   metafile: true,
   external,
+  alias: plan.bundleWorkspace
+    ? {
+        "@sessionpipe/core": path.join(root, "packages/core/src/index.ts"),
+        "@sessionpipe/core/schema": path.join(root, "packages/core/schema/v1.ts"),
+      }
+    : {},
   banner: { js: `// ${pkg.name} ${pkg.version} · Apache-2.0 · https://sessionpipe.org` },
   define: { __SESSIONPIPE_VERSION__: JSON.stringify(pkg.version) },
   legalComments: "none",
