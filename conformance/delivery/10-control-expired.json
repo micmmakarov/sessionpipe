@@ -1,0 +1,30 @@
+{
+  "name": "control-expired",
+  "spec": "CONTROL.md §3",
+  "capability": "control",
+  "steps": [
+    {
+      "enqueue": {
+        "session": "conformance:conf-{run}",
+        "message": {
+          "kind": "permission.answer",
+          "for": "att-1",
+          "decision": "allow",
+          "expires_in_s": 1
+        }
+      }
+    },
+    {
+      "wait_s": 2
+    },
+    {
+      "poll": {
+        "session": "conformance:conf-{run}",
+        "wait": 1
+      },
+      "expect": {
+        "status": 204
+      }
+    }
+  ]
+}

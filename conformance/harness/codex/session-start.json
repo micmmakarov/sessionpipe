@@ -1,0 +1,39 @@
+{
+  "harness": "codex",
+  "event": "SessionStart",
+  "recorded": {
+    "at": "2026-09-28T02:08:33.416Z",
+    "harness_version": "0.157.1",
+    "how": "codex exec --dangerously-bypass-hook-trust with a recording hook in ~/.codex/hooks.json"
+  },
+  "input": {
+    "argv": [
+      "codex",
+      "SessionStart"
+    ],
+    "stdin": "{\"session_id\":\"01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65\",\"transcript_path\":\"/Users/mmakarov/.codex/sessions/2026/09/27/rollout-2026-09-27T19-08-31-01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65.jsonl\",\"cwd\":\"/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws\",\"hook_event_name\":\"SessionStart\",\"model\":\"gpt-6-astra\",\"permission_mode\":\"bypassPermissions\",\"source\":\"startup\"}",
+    "env": {},
+    "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "session.started",
+      "harness": {
+        "name": "codex",
+        "event": "SessionStart"
+      },
+      "session": {
+        "id": "01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65",
+        "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws",
+        "model": "gpt-6-astra",
+        "seq": "*"
+      },
+      "data": {
+        "source": "startup"
+      }
+    }
+  ]
+}

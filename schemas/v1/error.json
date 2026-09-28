@@ -1,0 +1,27 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/error.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "reason": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "supported": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "max_tier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    }
+  },
+  "required": [
+    "reason"
+  ]
+}

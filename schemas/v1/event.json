@@ -1,0 +1,160 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/event.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^(?:native|[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)+)$"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}(?:Z))$"
+    },
+    "tier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "harness": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "event": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "session": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "machine": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "cwd": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "title_source": {
+          "type": "string",
+          "enum": [
+            "custom",
+            "harness",
+            "first-ask"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 1024,
+          "format": "uri"
+        },
+        "account_id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "seq"
+      ]
+    },
+    "privacy": {
+      "type": "object",
+      "properties": {
+        "rulesets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*@\\d+$"
+          }
+        },
+        "pii": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rulesets",
+        "pii"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "protocol",
+    "id",
+    "type",
+    "time",
+    "tier",
+    "harness",
+    "session",
+    "privacy",
+    "data"
+  ]
+}

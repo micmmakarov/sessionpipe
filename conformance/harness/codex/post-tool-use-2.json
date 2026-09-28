@@ -1,0 +1,46 @@
+{
+  "harness": "codex",
+  "event": "PostToolUse",
+  "recorded": {
+    "at": "2026-09-28T02:08:40.411Z",
+    "harness_version": "0.157.1",
+    "how": "codex exec --dangerously-bypass-hook-trust with a recording hook in ~/.codex/hooks.json"
+  },
+  "input": {
+    "argv": [
+      "codex",
+      "PostToolUse"
+    ],
+    "stdin": "{\"session_id\":\"01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65\",\"turn_id\":\"01a0e5c5-5bf6-7233-8f1a-2c5e4d560849\",\"transcript_path\":\"/Users/mmakarov/.codex/sessions/2026/09/27/rollout-2026-09-27T19-08-31-01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65.jsonl\",\"cwd\":\"/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws\",\"hook_event_name\":\"PostToolUse\",\"model\":\"gpt-6-astra\",\"permission_mode\":\"bypassPermissions\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat README.md\"},\"tool_response\":\"hello\\n\",\"tool_use_id\":\"exec-12dafd8d-5635-4062-8890-38522dc03366\"}",
+    "env": {},
+    "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "tool.ended",
+      "harness": {
+        "name": "codex",
+        "event": "PostToolUse"
+      },
+      "session": {
+        "id": "01a0e5c5-5b2f-7c60-9287-31f9f0aa9f65",
+        "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws",
+        "model": "gpt-6-astra",
+        "seq": "*"
+      },
+      "data": {
+        "tool": "Bash",
+        "call_id": "exec-12dafd8d-5635-4062-8890-38522dc03366",
+        "turn_id": "01a0e5c5-5bf6-7233-8f1a-2c5e4d560849",
+        "ok": true,
+        "input": {
+          "command": "cat README.md"
+        },
+        "output": "hello\n"
+      }
+    }
+  ]
+}

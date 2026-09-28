@@ -1,0 +1,41 @@
+{
+  "name": "control-double-ack",
+  "spec": "CONTROL.md §3",
+  "capability": "control",
+  "steps": [
+    {
+      "enqueue": {
+        "session": "conformance:conf-{run}",
+        "message": {
+          "kind": "cancel",
+          "expires_in_s": 60
+        }
+      }
+    },
+    {
+      "poll": {
+        "session": "conformance:conf-{run}",
+        "wait": 1
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "ack": {
+        "outcome": "unsupported"
+      },
+      "expect": {
+        "status": 202
+      }
+    },
+    {
+      "ack": {
+        "outcome": "unsupported"
+      },
+      "expect": {
+        "status": 202
+      }
+    }
+  ]
+}

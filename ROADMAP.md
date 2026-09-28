@@ -5,7 +5,7 @@ that closed it. Downloads are tracked weekly once published.
 
 | # | Milestone | Days | Done | Closing commit |
 |---|-----------|-----:|:----:|----------------|
-| M0 | Repository, legal, CI | 1 | ☐ | |
+| M0 | Repository, legal, CI | 1 | ☑ | c8f2c30 (npm placeholders: maintainer step) |
 | M1 | Spec v1, schemas, fixtures | 3 | ☐ | |
 | M2 | Core + CLI + 4 adapters (Claude Code, Codex, Gemini CLI, Antigravity) | 5 | ☐ | |
 | M3 | HTTP sink + reference receiver + conformance runner | 3 | ☐ | |

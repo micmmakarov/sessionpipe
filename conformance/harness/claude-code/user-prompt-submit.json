@@ -1,0 +1,42 @@
+{
+  "harness": "claude-code",
+  "event": "UserPromptSubmit",
+  "recorded": {
+    "at": "2026-09-28T02:05:05.270Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> with a recording hook"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "UserPromptSubmit"
+    ],
+    "stdin": "{\"session_id\":\"3bd5639e-04f7-44e6-a4c2-2f9bb68adad6\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-private-tmp-claude-501--Users-mmakarov-spacesheep-7a42d90e-8d27-45a0-b353-a9b496f19454-scratchpad-rec-ws/3bd5639e-04f7-44e6-a4c2-2f9bb68adad6.jsonl\",\"cwd\":\"/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws\",\"prompt_id\":\"be2f5ed1-6667-4423-83ef-d6476444a198\",\"permission_mode\":\"default\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"Run ls, then read README.md, then try to run: echo hi > out.txt (if that is refused, just say so). Finish with the single word done.\"}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+    },
+    "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "turn.started",
+      "harness": {
+        "name": "claude-code",
+        "event": "UserPromptSubmit"
+      },
+      "session": {
+        "id": "3bd5639e-04f7-44e6-a4c2-2f9bb68adad6",
+        "cwd": "/private/tmp/claude-501/-Users-mmakarov-spacesheep/7a42d90e-8d27-45a0-b353-a9b496f19454/scratchpad/rec/ws",
+        "seq": "*"
+      },
+      "data": {
+        "turn_id": "be2f5ed1-6667-4423-83ef-d6476444a198",
+        "prompt_chars": 132
+      }
+    }
+  ]
+}
