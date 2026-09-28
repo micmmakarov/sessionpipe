@@ -1,0 +1,206 @@
+// SPDX-License-Identifier: Apache-2.0
+// The outbox: append-only JSONL per (harness, session) under
+// <state>/outbox/<harness>/<session>.jsonl, a per-session seq counter, a per-sink
+// cursor that moves only when the sink acknowledged, and a per-session lock so two
+// workers never interleave. Never lose, never duplicate.
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import path from "node:path";
+import { safeId } from "./paths.js";
+import type { Event } from "./types.js";
+
+export interface OutboxRef {
+  harness: string;
+  session: string;
+}
+
+export class Outbox {
+  constructor(readonly root: string) {}
+
+  dir(harness: string): string {
+    return path.join(this.root, "outbox", safeId(harness));
+  }
+  file(ref: OutboxRef): string {
+    return path.join(this.dir(ref.harness), `${safeId(ref.session)}.jsonl`);
+  }
+  private seqFile(ref: OutboxRef): string {
+    return path.join(this.dir(ref.harness), `${safeId(ref.session)}.seq`);
+  }
+
+  /** The next seq for a session, persisted (survives a hibernating machine and a
+   *  restart; an in-memory counter would restart at 0 and collide). */
+  nextSeq(ref: OutboxRef): number {
+    const f = this.seqFile(ref);
+    let n = 0;
+    try {
+      n = Number(readFileSync(f, "utf8")) || 0;
+    } catch {
+      // A missing counter with an existing outbox: recover from the file's last line.
+      n = this.lastSeqInFile(ref) + 1;
+    }
+    mkdirSync(path.dirname(f), { recursive: true });
+    writeFileSync(f, String(n + 1));
+    return n;
+  }
+
+  private lastSeqInFile(ref: OutboxRef): number {
+    const f = this.file(ref);
+    if (!existsSync(f)) return -1;
+    const lines = readFileSync(f, "utf8").trim().split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const j = JSON.parse(lines[i] ?? "") as Event;
+        if (typeof j.session?.seq === "number") return j.session.seq;
+      } catch {}
+    }
+    return -1;
+  }
+
+  append(ref: OutboxRef, events: Event[]): void {
+    if (!events.length) return;
+    mkdirSync(this.dir(ref.harness), { recursive: true });
+    appendFileSync(this.file(ref), `${events.map((e) => JSON.stringify(e)).join("\n")}\n`);
+  }
+
+  /** Every session file, newest first. */
+  sessions(): OutboxRef[] {
+    const out: { ref: OutboxRef; mtime: number }[] = [];
+    const base = path.join(this.root, "outbox");
+    if (!existsSync(base)) return [];
+    for (const h of readdirSync(base)) {
+      const d = path.join(base, h);
+      let names: string[] = [];
+      try {
+        names = readdirSync(d).filter((n) => n.endsWith(".jsonl"));
+      } catch {
+        continue;
+      }
+      for (const n of names) {
+        try {
+          out.push({ ref: { harness: h, session: n.slice(0, -6) }, mtime: statSync(path.join(d, n)).mtimeMs });
+        } catch {}
+      }
+    }
+    return out.sort((a, b) => b.mtime - a.mtime).map((x) => x.ref);
+  }
+
+  /** Read events after byte offset `from`; returns them and the new offset. Lines
+   *  are read whole; a partial trailing line (a write in progress) is left. */
+  read(ref: OutboxRef, from: number, maxEvents = 500): { events: Event[]; offset: number } {
+    const f = this.file(ref);
+    if (!existsSync(f)) return { events: [], offset: from };
+    const size = statSync(f).size;
+    if (from >= size) return { events: [], offset: from };
+    const fd = openSync(f, "r");
+    try {
+      const buf = Buffer.alloc(Math.min(size - from, 8 * 1024 * 1024));
+      const n = readSync(fd, buf, 0, buf.length, from);
+      const text = buf.subarray(0, n).toString("utf8");
+      const events: Event[] = [];
+      let offset = from;
+      let pos = 0;
+      while (events.length < maxEvents) {
+        const nl = text.indexOf("\n", pos);
+        if (nl < 0) break;
+        const line = text.slice(pos, nl);
+        pos = nl + 1;
+        offset = from + Buffer.byteLength(text.slice(0, pos), "utf8");
+        if (!line.trim()) continue;
+        try {
+          events.push(JSON.parse(line) as Event);
+        } catch {}
+      }
+      return { events, offset };
+    } finally {
+      closeSync(fd);
+    }
+  }
+
+  /** Files older than `days` are pruned; the cursor files with them. */
+  prune(days: number, now = Date.now()): number {
+    let n = 0;
+    const cutoff = now - days * 86_400_000;
+    for (const ref of this.sessions()) {
+      const f = this.file(ref);
+      try {
+        if (statSync(f).mtimeMs < cutoff) {
+          unlinkSync(f);
+          try {
+            unlinkSync(this.seqFile(ref));
+          } catch {}
+          n++;
+        }
+      } catch {}
+    }
+    return n;
+  }
+
+  delete(ref: OutboxRef): void {
+    for (const f of [this.file(ref), this.seqFile(ref)]) {
+      try {
+        unlinkSync(f);
+      } catch {}
+    }
+  }
+}
+
+/** Per-sink cursor: byte offset per session file, moved only on a 2xx. */
+export class Cursors {
+  constructor(
+    readonly root: string,
+    readonly sink: string,
+  ) {}
+  private file(): string {
+    return path.join(this.root, "cursors", `${safeId(this.sink)}.json`);
+  }
+  read(): Record<string, number> {
+    try {
+      return JSON.parse(readFileSync(this.file(), "utf8")) as Record<string, number>;
+    } catch {
+      return {};
+    }
+  }
+  write(c: Record<string, number>): void {
+    const f = this.file();
+    mkdirSync(path.dirname(f), { recursive: true });
+    const tmp = `${f}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(c));
+    renameSync(tmp, f);
+  }
+  key(ref: OutboxRef): string {
+    return `${ref.harness}/${ref.session}`;
+  }
+}
+
+/** A lock per session so two workers never interleave. Stale after 5 min. */
+export function takeLock(root: string, ref: OutboxRef, staleMs = 5 * 60_000): (() => void) | null {
+  const dir = path.join(root, "locks");
+  mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, `${safeId(ref.harness)}-${safeId(ref.session)}.lock`);
+  try {
+    if (Date.now() - statSync(f).mtimeMs > staleMs) unlinkSync(f);
+    else return null;
+  } catch {}
+  try {
+    writeFileSync(f, String(process.pid), { flag: "wx" });
+  } catch {
+    return null;
+  }
+  return () => {
+    try {
+      unlinkSync(f);
+    } catch {}
+  };
+}

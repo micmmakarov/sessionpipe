@@ -37,8 +37,9 @@ for (const f of files) {
   // The redaction fixtures hold inputs that MUST look like secrets; only their `out` side is checked.
   const isVector = f.includes(`${path.sep}redaction${path.sep}`);
   const vec = isVector ? JSON.parse(text) : null;
-  const subject = vec ? JSON.stringify((Array.isArray(vec) ? vec : (vec.cases ?? [])).map((c) => c.out ?? "")) : text;
-  const hit = redact ? redact(subject) !== subject : FALLBACK.some((re) => re.test(subject));
+  // Each `out` on its own: joining them would manufacture patterns no file holds.
+  const subjects = vec ? (Array.isArray(vec) ? vec : (vec.cases ?? [])).map((c) => String(c.out ?? "")) : [text];
+  const hit = subjects.some((subject) => (redact ? redact(subject) !== subject : FALLBACK.some((re) => re.test(subject))));
   if (hit) {
     bad++;
     console.error(`unredacted secret-shaped string in ${path.relative(root, f)}`);

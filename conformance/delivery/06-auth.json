@@ -4,7 +4,7 @@
   "steps": [
     {
       "send": {
-        "token": "wrong",
+        "auth": "wrong",
         "events": [
           {
             "protocol": 1,

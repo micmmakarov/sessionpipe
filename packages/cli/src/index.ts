@@ -1,3 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-/** Package entry. Filled in by the milestone that builds this package (see ROADMAP.md). */
-export const PROTOCOL_VERSION = 1 as const;
+/** sessionpipe — the client. Programmatic surface: run a hook job, flush sinks. */
+
+export { HttpSink } from "./http-sink.js";
+export { buildSinks, factsState, flush, type Job, runJob } from "./run.js";
