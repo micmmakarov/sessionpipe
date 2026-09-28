@@ -12,7 +12,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @sessionpipe/core && npm run build -w sessionpipe -w @sessionpipe/receiver -w @sessionpipe/conformance",
+    "build": "npm run build -w sessionpipe-core && npm run build -w sessionpipe -w sessionpipe-receiver -w sessionpipe-conformance",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
