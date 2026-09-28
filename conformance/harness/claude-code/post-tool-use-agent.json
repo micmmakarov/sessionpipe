@@ -1,0 +1,60 @@
+{
+  "harness": "claude-code",
+  "event": "PostToolUse",
+  "recorded": {
+    "at": "2026-09-28T03:44:54.410Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> --allowedTools Bash(ls:*),Read,Agent with a recording hook; the prompt asked for ls, a Read, a failing cat, a refused redirect and an Explore subagent"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "PostToolUse"
+    ],
+    "stdin": "{\"session_id\":\"ed6c7665-589f-40c7-b7b4-e38ee662b7bc\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/scratchpad\",\"prompt_id\":\"5e6e20e7-82a4-4865-8967-b2c9adae76c4\",\"permission_mode\":\"default\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Agent\",\"tool_input\":{\"description\":\"List files in working directory\",\"prompt\":\"List all files in the current working directory /Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"subagent_type\":\"Explore\"},\"tool_response\":{\"isAsync\":true,\"status\":\"async_launched\",\"agentId\":\"adae41131ac7691bb\",\"description\":\"List files in working directory\",\"resolvedModel\":\"claude-haiku-4-5-20251001\",\"prompt\":\"List all files in the current working directory /Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"outputFile\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/tasks/adae41131ac7691bb.output\",\"canReadOutputFile\":true},\"tool_use_id\":\"toolu_017oLmiTcF9euCiKM71oNAmf\",\"duration_ms\":5}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+    },
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "tool.ended",
+      "harness": {
+        "name": "claude-code",
+        "event": "PostToolUse"
+      },
+      "session": {
+        "id": "ed6c7665-589f-40c7-b7b4-e38ee662b7bc",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2",
+        "seq": "*"
+      },
+      "data": {
+        "tool": "Agent",
+        "call_id": "toolu_017oLmiTcF9euCiKM71oNAmf",
+        "turn_id": "5e6e20e7-82a4-4865-8967-b2c9adae76c4",
+        "ms": 5,
+        "ok": true,
+        "input": {
+          "description": "List files in working directory",
+          "prompt": "List all files in the current working directory /Users/mmakarov/.local/state/sessionpipe/record/ws2",
+          "subagent_type": "Explore"
+        },
+        "output": {
+          "isAsync": true,
+          "status": "async_launched",
+          "agentId": "adae41131ac7691bb",
+          "description": "List files in working directory",
+          "resolvedModel": "claude-haiku-4-5-20251001",
+          "prompt": "List all files in the current working directory /Users/mmakarov/.local/state/sessionpipe/record/ws2",
+          "outputFile": "/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/tasks/adae41131ac7691bb.output",
+          "canReadOutputFile": true
+        }
+      }
+    }
+  ]
+}

@@ -99,8 +99,8 @@ Per-type `data` shapes are normative in
 | `turn.started` | 0 | `turn_id?`; tier 1 adds `prompt_chars` | A prompt was submitted. |
 | `turn.ended` | 0 | `turn_id?`, `reason`: `stop` · `interrupt` · `error`, `ms?` | The Stop / AfterAgent / agentStop hook. |
 | `turn.transcript` | 2 | `turn` (integer), `user`, `assistant` (each ≤ 20 000 chars, redacted), `at` | Read from the harness's transcript file by the worker after a turn ends; one event per completed exchange, in order. |
-| `tool.started` | 1 | `tool`, `call_id?`, `turn_id?`; tier 3 adds `input` | Pre-tool hook. OPTIONAL for senders whose harness has none. |
-| `tool.ended` | 1 | `tool`, `call_id?`, `ms?`, `ok`, `error?`; tier 3 adds `input`, `output` (each ≤ 64 KB) | Post-tool hook. A tool name is `[A-Za-z0-9_.:-]{1,120}`; MCP tools keep the harness's own spelling. |
+| `tool.started` | 1 | `tool`, `call_id?`, `turn_id?`, `agent_id?` (set when a subagent made the call); tier 3 adds `input` | Pre-tool hook. OPTIONAL for senders whose harness has none. |
+| `tool.ended` | 1 | `tool`, `call_id?`, `turn_id?`, `agent_id?`, `ms?`, `ok`, `error?`; tier 3 adds `input`, `output` (each ≤ 64 KB) | Post-tool hook. A tool name is `[A-Za-z0-9_.:-]{1,120}`; MCP tools keep the harness's own spelling. |
 | `files.changed` | 1 | `paths[]` (repo-relative or `~`-relative) | File-edit hooks (Cursor, Kiro, Goose), or paths lifted from a write tool's input. |
 | `attention.needed` | 0 | `attention_id`, `kind`: `permission` · `question` · `elicitation` · `idle` · `error`; tier 1 adds `tool`, `message` (redacted, ≤ 200) | PermissionRequest, Notification, permission.asked. Tier-0 receivers learn "needs you" without the words. |
 | `attention.cleared` | 0 | `attention_id`, `how`: `answered` · `cancelled` · `timeout` · `unknown` | The next event that proves the prompt was resolved (a tool ran, a turn ended), or a control answer. |

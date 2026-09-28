@@ -1,0 +1,42 @@
+{
+  "harness": "claude-code",
+  "event": "Stop",
+  "recorded": {
+    "at": "2026-09-28T03:44:56.581Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> --allowedTools Bash(ls:*),Read,Agent with a recording hook; the prompt asked for ls, a Read, a failing cat, a refused redirect and an Explore subagent"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "Stop"
+    ],
+    "stdin": "{\"session_id\":\"ed6c7665-589f-40c7-b7b4-e38ee662b7bc\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/scratchpad\",\"prompt_id\":\"5e6e20e7-82a4-4865-8967-b2c9adae76c4\",\"permission_mode\":\"default\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"last_assistant_message\":\"The Explore agent is running in the background. Waiting for it to complete...\",\"background_tasks\":[{\"id\":\"adae41131ac7691bb\",\"type\":\"subagent\",\"status\":\"running\",\"description\":\"List files in working directory\",\"agent_type\":\"Explore\"}],\"session_crons\":[]}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+    },
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "turn.ended",
+      "harness": {
+        "name": "claude-code",
+        "event": "Stop"
+      },
+      "session": {
+        "id": "ed6c7665-589f-40c7-b7b4-e38ee662b7bc",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2",
+        "seq": "*"
+      },
+      "data": {
+        "turn_id": "5e6e20e7-82a4-4865-8967-b2c9adae76c4",
+        "reason": "stop"
+      }
+    }
+  ]
+}

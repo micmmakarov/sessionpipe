@@ -1,0 +1,42 @@
+{
+  "harness": "claude-code",
+  "event": "UserPromptSubmit",
+  "recorded": {
+    "at": "2026-09-28T03:44:58.885Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p --settings <hooks> --allowedTools Bash(ls:*),Read,Agent with a recording hook; the prompt asked for ls, a Read, a failing cat, a refused redirect and an Explore subagent"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "UserPromptSubmit"
+    ],
+    "stdin": "{\"session_id\":\"ed6c7665-589f-40c7-b7b4-e38ee662b7bc\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws2\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/scratchpad\",\"prompt_id\":\"3db1ccd3-51bb-4cff-8427-faa965420e04\",\"permission_mode\":\"default\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"<task-notification>\\n<task-id>adae41131ac7691bb</task-id>\\n<tool-use-id>toolu_017oLmiTcF9euCiKM71oNAmf</tool-use-id>\\n<output-file>/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws2/ed6c7665-589f-40c7-b7b4-e38ee662b7bc/tasks/adae41131ac7691bb.output</output-file>\\n<status>completed</status>\\n<summary>Agent \\\"List files in working directory\\\" finished</summary>\\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\\n<result>Here are all the files in the current working directory `/Users/mmakarov/.local/state/sessionpipe/record/ws2`:\\n\\n1. **.git/** - Git repository directory\\n2. **README.md** - Markdown file (6 bytes)\\n\\nThe directory is a git repository with only a README.md file at the root level.</result>\\n<usage><subagent_tokens>12363</subagent_tokens><tool_uses>1</tool_uses><duration_ms>4438</duration_ms></usage>\\n</task-notification>\"}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+    },
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "turn.started",
+      "harness": {
+        "name": "claude-code",
+        "event": "UserPromptSubmit"
+      },
+      "session": {
+        "id": "ed6c7665-589f-40c7-b7b4-e38ee662b7bc",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws2",
+        "seq": "*"
+      },
+      "data": {
+        "turn_id": "3db1ccd3-51bb-4cff-8427-faa965420e04",
+        "prompt_chars": 1015
+      }
+    }
+  ]
+}

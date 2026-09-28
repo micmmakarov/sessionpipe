@@ -63,9 +63,13 @@ presents that as its own reading.
 | Facts | Title: the per-pid registry `<config>/sessions/<pid>.json` (`name` with `nameSource` user → `custom`, auto/hook/peer → `harness`; `derived` is never a title), found through process ancestry because a `--continue --remote-control` session files its entry under another id; then `custom-title` / `ai-title` records; then the first human ask cut to 50 chars (`first-ask`). URL: registry `bridgeSessionId` → `https://claude.ai/code/<session_…>`, else `bridge_status` / `bridge-session` records. Account: `oauthAccount.accountUuid` in the config dir's `.claude.json` (never the email). Model: last assistant record's `message.model`. |
 | Quirks | Running sessions pick up hook changes live from 2.1.280. `type: "http"` handler exists (native lane). A prompt with pasted images can put the first ask megabytes into the file: stream to it, cap at 16 MB. |
 
-Fixtures recorded 2026-09-28 on Claude Code 2.1.258: `SessionStart`, `UserPromptSubmit`,
-`SessionEnd`. Tool, permission, notification, stop, subagent and compact payloads:
-*(recording pending: the machine's CLI was signed out; recorders are in place)*.
+Fixtures recorded 2026-09-28 on Claude Code 2.1.258 (one `claude -p` run): `SessionStart`,
+`UserPromptSubmit`, `PreToolUse` / `PostToolUse` for Bash, Read and Agent (with
+`duration_ms` and, inside the subagent, `agent_id`), `PermissionRequest` (no
+`tool_use_id`; carries `permission_suggestions`), `SubagentStart` / `SubagentStop`, `Stop`,
+`SessionEnd`. Still pending real payloads: `PostToolUseFailure`, `Notification`,
+`PreCompact` / `PostCompact` (a failing `cat` arrived as a `PostToolUse` with the error in
+`tool_response`).
 
 ## Codex (`codex`) — M2
 

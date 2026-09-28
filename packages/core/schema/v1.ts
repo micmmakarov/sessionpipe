@@ -148,12 +148,15 @@ export const EventData = z.object({
     tool: ToolName,
     call_id: z.string().max(128).optional(),
     turn_id: z.string().max(128).optional(),
+    /** Set when a subagent made the call. */
+    agent_id: z.string().max(128).optional(),
     input: z.unknown().optional(),
   }),
   "tool.ended": Loose.extend({
     tool: ToolName,
     call_id: z.string().max(128).optional(),
     turn_id: z.string().max(128).optional(),
+    agent_id: z.string().max(128).optional(),
     ms: z.int().min(0).optional(),
     ok: z.boolean(),
     error: z.string().max(2000).optional(),
