@@ -14,7 +14,16 @@ import { ends, parseLines, recentFiles, scanLines } from "../readers/files.js";
 import { gitFacts } from "../readers/git.js";
 import { isInjected, readClaude } from "../readers/transcripts.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
-import type { Adapter, BackfillRow, FactsState, HookCommand, HookInput, HookResult, SessionFacts } from "./types.js";
+import type {
+  Adapter,
+  BackfillRow,
+  FactsState,
+  HookCommand,
+  HookInput,
+  HookResult,
+  InstallOptions,
+  SessionFacts,
+} from "./types.js";
 
 const NAME = "claude-code";
 export const CLAUDE_EVENTS = [
@@ -31,7 +40,11 @@ export const CLAUDE_EVENTS = [
   "PreCompact",
   "PostCompact",
   "SessionEnd",
+  "StopFailure",
 ] as const;
+/** With no sink above tier 0 only the heartbeat needs a tool event: one, not three (issue #12). */
+const LEAN_SKIP = new Set(["PreToolUse", "PostToolUseFailure"]);
+const eventsFor = (lean?: boolean) => (lean ? CLAUDE_EVENTS.filter((e) => !LEAN_SKIP.has(e)) : [...CLAUDE_EVENTS]);
 const OPTS = { matcherFor: (e: string) => (/Tool|Permission/.test(e) ? "" : undefined), timeout: 5 };
 const DESKTOP_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 
@@ -74,13 +87,16 @@ export const claudeCode: Adapter = {
   events: CLAUDE_EVENTS,
   detect: (env = process.env) => claudeDirs(env).some((d) => existsSync(d)),
   configFiles: (env = process.env) => claudeDirs(env).map(settingsIn),
-  install: (cmd, env = process.env) =>
-    claudeDirs(env).map((d) => installClaudeShaped(settingsIn(d), NAME, CLAUDE_EVENTS, cmd, OPTS)),
-  uninstall: (env = process.env) => claudeDirs(env).map((d) => uninstallClaudeShaped(settingsIn(d), CLAUDE_EVENTS)),
-  installed: (cmd, env = process.env) =>
+  install: (cmd, env = process.env, opts: InstallOptions = {}) =>
+    claudeDirs(env).map((d) => installClaudeShaped(settingsIn(d), NAME, eventsFor(opts.lean), cmd, OPTS)),
+  uninstall: (env = process.env, opts: InstallOptions = {}) =>
+    claudeDirs(env).map((d) =>
+      uninstallClaudeShaped(settingsIn(d), CLAUDE_EVENTS, { created: opts.created?.includes(settingsIn(d)) }),
+    ),
+  installed: (cmd, env = process.env, opts: InstallOptions = {}) =>
     claudeDirs(env).map((d) => ({
       file: settingsIn(d),
-      state: installedClaudeShaped(settingsIn(d), NAME, CLAUDE_EVENTS, cmd, OPTS),
+      state: installedClaudeShaped(settingsIn(d), NAME, eventsFor(opts.lean), cmd, OPTS),
     })),
 
   fromHook(input: HookInput): HookResult | null {
@@ -177,6 +193,17 @@ export const claudeCode: Adapter = {
         break;
       case "Stop":
         events.push(ev("turn.ended", { turn_id, reason: "stop" }));
+        break;
+      case "StopFailure":
+        // The turn ended on an API error (rate_limit, overloaded, authentication_failed,
+        // server_error …); the payload key is `error` (issue #10, recorded 2026-09-28).
+        events.push(
+          ev("turn.ended", {
+            turn_id,
+            reason: "error",
+            error: typeof s.error === "string" ? s.error.slice(0, 200) : undefined,
+          }),
+        );
         break;
       case "SubagentStart":
         events.push(

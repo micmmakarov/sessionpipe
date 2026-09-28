@@ -136,6 +136,8 @@ export const EventData = z.object({
   "turn.ended": Loose.extend({
     turn_id: z.string().max(128).optional(),
     reason: z.enum(["stop", "interrupt", "error"]),
+    /** The harness's error class when reason is error (rate_limit, overloaded, authentication_failed, server_error …). */
+    error: z.string().max(200).optional(),
     ms: z.int().min(0).optional(),
   }),
   "turn.transcript": Loose.extend({

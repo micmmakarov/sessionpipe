@@ -1,0 +1,43 @@
+{
+  "harness": "claude-code",
+  "event": "StopFailure",
+  "recorded": {
+    "at": "2026-09-28T20:07:04.399Z",
+    "harness_version": "2.1.258",
+    "how": "claude -p with ANTHROPIC_BASE_URL pointed at a closed port: the turn ended on ECONNREFUSED (issue #10)"
+  },
+  "input": {
+    "argv": [
+      "claude-code",
+      "StopFailure"
+    ],
+    "stdin": "{\"session_id\":\"aeeb688d-9834-46c0-a6b0-2418ec276222\",\"transcript_path\":\"/Users/mmakarov/.claude/projects/-Users-mmakarov--local-state-sessionpipe-record-ws3/aeeb688d-9834-46c0-a6b0-2418ec276222.jsonl\",\"cwd\":\"/Users/mmakarov/.local/state/sessionpipe/record/ws3\",\"scratchpad_dir\":\"/private/tmp/claude-501/-Users-mmakarov--local-state-sessionpipe-record-ws3/aeeb688d-9834-46c0-a6b0-2418ec276222/scratchpad\",\"prompt_id\":\"04dece82-efb1-4791-aee2-6a5a6af24788\",\"hook_event_name\":\"StopFailure\",\"error\":\"server_error\",\"last_assistant_message\":\"API Error: Connection refused — a firewall or proxy may be blocking it (ECONNREFUSED)\"}\n",
+    "env": {
+      "CLAUDE_CODE_HOST_SESSION_ID": "local_b531f993-3e6a-4b62-b61b-880e981b0490",
+      "CLAUDE_PROJECT_DIR": "/Users/mmakarov/.local/state/sessionpipe/record/ws3"
+    },
+    "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws3"
+  },
+  "expect": [
+    {
+      "id": "*",
+      "time": "*",
+      "tier": "*",
+      "type": "turn.ended",
+      "harness": {
+        "name": "claude-code",
+        "event": "StopFailure"
+      },
+      "session": {
+        "id": "aeeb688d-9834-46c0-a6b0-2418ec276222",
+        "cwd": "/Users/mmakarov/.local/state/sessionpipe/record/ws3",
+        "seq": "*"
+      },
+      "data": {
+        "turn_id": "04dece82-efb1-4791-aee2-6a5a6af24788",
+        "reason": "error",
+        "error": "server_error"
+      }
+    }
+  ]
+}

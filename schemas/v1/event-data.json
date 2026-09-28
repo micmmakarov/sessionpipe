@@ -106,6 +106,10 @@
             "error"
           ]
         },
+        "error": {
+          "type": "string",
+          "maxLength": 200
+        },
         "ms": {
           "type": "integer",
           "minimum": 0,

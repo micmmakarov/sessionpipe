@@ -54,7 +54,7 @@ try {
     const id = sessionIdOf(stdin);
     if (!id || !beatDue(id)) finish(false);
   }
-  mkdirSync(path.join(state, "jobs"), { recursive: true });
+  mkdirSync(path.join(state, "jobs"), { recursive: true, mode: 0o700 });
   const job = {
     harness,
     event,
@@ -72,7 +72,7 @@ try {
     at: Date.now(),
   };
   const jobFile = path.join(state, "jobs", `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
-  writeFileSync(jobFile, JSON.stringify(job));
+  writeFileSync(jobFile, JSON.stringify(job), { mode: 0o600 });
   if (!env.SESSIONPIPE_NO_WORKER) {
     const worker = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker.js");
     const p = spawn(process.execPath, [worker, jobFile], { detached: true, stdio: "ignore", windowsHide: true, env });
@@ -118,8 +118,8 @@ function beatDue(id: string): boolean {
     if (Date.now() - statSync(stamp).mtimeMs < 60_000) return false;
   } catch {}
   try {
-    mkdirSync(path.dirname(stamp), { recursive: true });
-    writeFileSync(stamp, "");
+    mkdirSync(path.dirname(stamp), { recursive: true, mode: 0o700 });
+    writeFileSync(stamp, "", { mode: 0o600 });
   } catch {}
   return true;
 }

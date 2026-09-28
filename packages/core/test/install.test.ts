@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Install writes only our entries; uninstall leaves every config file byte-identical
 // to before — with someone else's hooks in place, on every harness's file shape.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -110,5 +110,55 @@ describe("install / uninstall", () => {
     );
     antigravity.uninstall(env);
     expect(readFileSync(file, "utf8")).toBe(before);
+  });
+});
+
+describe("issue #8: files that are not plain JSON, and byte-identical round trips", () => {
+  it("leaves a settings.json with a comment untouched and says why", () => {
+    const file = path.join(home, ".gemini", "settings.json");
+    const before =
+      '{\n  // Gemini CLI accepts comments in this file\n  "security": { "auth": { "selectedType": "oauth-personal" } }\n}\n';
+    writeFileSync(file, before);
+    const r = geminiCli.install(cmd, env)[0]!;
+    expect(r.skipped).toBe(true);
+    expect(r.note).toContain("comments");
+    expect(readFileSync(file, "utf8")).toBe(before);
+    expect(geminiCli.uninstall(env)[0]?.skipped).toBe(true);
+    expect(readFileSync(file, "utf8")).toBe(before);
+  });
+  it("keeps a file's indent and missing final newline", () => {
+    const file = path.join(home, ".gemini", "settings.json");
+    const before = '{\n    "theme": "dark"\n}';
+    writeFileSync(file, before);
+    geminiCli.install(cmd, env);
+    const after = readFileSync(file, "utf8");
+    expect(after.startsWith('{\n    "theme": "dark",\n    "hooks"')).toBe(true);
+    expect(after.endsWith("\n")).toBe(false);
+    geminiCli.uninstall(env);
+    expect(readFileSync(file, "utf8")).toBe(before);
+  });
+  it("deletes a file sessionpipe created once uninstall empties it", () => {
+    const file = path.join(home, ".codex", "hooks.json");
+    const r = codex.install(cmd, env)[0]!;
+    expect(r.created).toBe(true);
+    codex.uninstall(env, { created: [file] });
+    expect(existsSync(file)).toBe(false);
+  });
+});
+
+describe("issue #12: a lean install hooks one tool event", () => {
+  it("claude-code: no PreToolUse or PostToolUseFailure without a tier-1 sink; a later full install adds them", () => {
+    const file = path.join(home, ".claude", "settings.json");
+    claudeCode.install(cmd, env, { lean: true });
+    const lean = JSON.parse(readFileSync(file, "utf8")).hooks;
+    expect(lean.PostToolUse).toBeDefined();
+    expect(lean.PreToolUse).toBeUndefined();
+    expect(lean.PostToolUseFailure).toBeUndefined();
+    expect(lean.StopFailure).toBeDefined();
+    expect(claudeCode.installed(cmd, env, { lean: true }).find((r) => r.file === file)?.state).toBe("current");
+    expect(claudeCode.installed(cmd, env, { lean: false }).find((r) => r.file === file)?.state).toBe("stale");
+    claudeCode.install(cmd, env, { lean: false });
+    expect(JSON.parse(readFileSync(file, "utf8")).hooks.PreToolUse).toBeDefined();
+    expect(claudeCode.installed(cmd, env, { lean: true }).find((r) => r.file === file)?.state).toBe("stale");
   });
 });

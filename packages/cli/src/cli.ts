@@ -3,8 +3,8 @@
 // sessionpipe: install once, hook everything, choose per sink what leaves.
 //   install · uninstall · sink add|list|remove|test · status · doctor · tail ·
 //   backfill · forget · replay · update · hook · worker
-import { execFileSync, spawn } from "node:child_process";
-import { readdirSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -138,8 +138,29 @@ async function install(): Promise<void> {
   if (viaNpx) {
     out(`  Installing sessionpipe@${VERSION} globally, so the hooks start in milliseconds…`);
     try {
-      execFileSync("npm", ["install", "-g", `sessionpipe@${VERSION}`], { stdio: ["ignore", "ignore", "inherit"] });
-      const bin = process.platform === "win32" ? "sessionpipe.cmd" : "sessionpipe";
+      // Homebrew's default prefix is the versioned Cellar folder that `brew upgrade
+      // node` deletes, and its bin is not on PATH (issue #13): install into ~/.local
+      // there, and run the copy from the prefix we installed into.
+      let prefix = "";
+      try {
+        prefix = execFileSync("npm", ["prefix", "-g"], {
+          encoding: "utf8",
+          timeout: 15000,
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
+      } catch {}
+      const target = /\/Cellar\/node(?:@\d+)?\/[^/]+/.test(prefix) ? path.join(os.homedir(), ".local") : prefix;
+      execFileSync("npm", ["install", "-g", `sessionpipe@${VERSION}`, ...(target ? ["--prefix", target] : [])], {
+        stdio: ["ignore", "ignore", "inherit"],
+      });
+      const bin =
+        process.platform === "win32"
+          ? path.join(target, "sessionpipe.cmd")
+          : target
+            ? path.join(target, "bin", "sessionpipe")
+            : "sessionpipe";
+      if (target && target !== prefix)
+        out(`  Installed into ${target}; make sure ${path.join(target, "bin")} is on your PATH.`);
       execFileSync(bin, args, { stdio: "inherit", shell: process.platform === "win32" });
       return;
     } catch {
@@ -152,6 +173,10 @@ async function install(): Promise<void> {
   const cfg = readConfig();
   const machine = flag("--machine");
   if (machine) cfg.machine = machine.slice(0, 80);
+  // A sink URL given here is added first, so the install knows whether it needs
+  // every tool event or only the heartbeat's one.
+  const sinkUrl = flag("--sink");
+  if (sinkUrl) await sinkAdd(sinkUrl, cfg);
   const adapters = selectedAdapters();
   if (!adapters.length) {
     out(
@@ -160,24 +185,13 @@ async function install(): Promise<void> {
     return;
   }
   out(`  Machine: ${machineName(cfg, os.hostname())}`);
-  const hc = hookCommand();
-  for (const a of adapters) {
-    const reports = a.install(hc);
-    cfg.harnesses[a.name] = { enabled: true };
-    for (const r of reports)
-      out(
-        `  ${r.changed ? "✓" : "="} ${a.name}: ${tilde(r.file)}${r.note ? ` — ${r.note}` : r.changed ? " written" : " already current"}`,
-      );
-    if (a.name === "gemini-cli")
-      out("    note: Gemini CLI's own telemetry defaults logPrompts on; that is Google's setting, not sessionpipe's.");
-    if (a.name === "codex")
-      out(
-        "    note: Codex runs non-managed hooks only after you trust them: open Codex and run /hooks once. The notify fallback reports turn ends meanwhile.",
-      );
-  }
+  const lean = isLean(cfg);
+  if (lean)
+    out(
+      "  No sink above tier 0: hooking one tool event per harness (the heartbeat's). `sink add … --tier 1` or higher hooks the rest.",
+    );
+  installHarnesses(adapters, cfg, lean);
   writeConfig(cfg);
-  const sinkUrl = flag("--sink");
-  if (sinkUrl) await sinkAdd(sinkUrl, cfg);
   const days = Number(flag("--backfill") ?? 30);
   if (days > 0) backfillRows(adapters, days, cfg);
   out("");
@@ -190,10 +204,45 @@ async function install(): Promise<void> {
   out("  Sessions already running pick up hooks on their next start (Claude Code ≥ 2.1.280 picks them up live).");
 }
 
-function uninstall(): void {
-  for (const a of ADAPTERS) {
-    for (const r of a.uninstall()) if (r.changed) out(`  ✓ ${a.name}: hooks removed from ${tilde(r.file)}`);
+/** No sink takes tier ≥ 1: the harness only needs one tool event (issue #12). */
+function isLean(cfg: Config): boolean {
+  return !cfg.sinks.some((s) => !s.paused && Math.min(s.tier, s.max_tier ?? 3) >= 1);
+}
+
+/** Write the hooks for these harnesses; remember which files sessionpipe created. */
+function installHarnesses(adapters: readonly (typeof ADAPTERS)[number][], cfg: Config, lean: boolean): void {
+  const hc = hookCommand();
+  for (const a of adapters) {
+    const prev = cfg.harnesses[a.name] ?? {};
+    const created = new Set(prev.created ?? []);
+    const reports = a.install(hc, process.env, { lean, created: [...created] });
+    for (const r of reports) {
+      if (r.created) created.add(r.file);
+      const mark = r.skipped ? "!" : r.changed ? "✓" : "=";
+      out(
+        `  ${mark} ${a.name}: ${tilde(r.file)}${r.note ? ` — ${r.note}` : r.changed ? " written" : " already current"}`,
+      );
+    }
+    cfg.harnesses[a.name] = { enabled: true, ...(created.size ? { created: [...created] } : {}) };
+    if (a.name === "gemini-cli")
+      out("    note: Gemini CLI's own telemetry defaults logPrompts on; that is Google's setting, not sessionpipe's.");
+    if (a.name === "codex" && !reports.some((r) => r.skipped))
+      out(
+        "    note: Codex runs non-managed hooks only after you approve them: start `codex` and accept the hook review. The notify fallback reports turn ends meanwhile.",
+      );
   }
+}
+
+function uninstall(): void {
+  const cfg = readConfig();
+  for (const a of ADAPTERS) {
+    const created = cfg.harnesses[a.name]?.created ?? [];
+    for (const r of a.uninstall(process.env, { created }))
+      if (r.changed) out(`  ✓ ${a.name}: ${r.note ?? `hooks removed from ${tilde(r.file)}`}`);
+      else if (r.skipped) out(`  ! ${a.name}: ${tilde(r.file)} — ${r.note}`);
+    delete cfg.harnesses[a.name];
+  }
+  writeConfig(cfg);
   if (!has("--keep-state"))
     out(
       `  Outbox and state kept under ${tilde(state)} (delete it yourself, or pass nothing: it prunes after ${readConfig().keep_days ?? 30} days).`,
@@ -372,7 +421,10 @@ function status(): void {
   out(`  machine:  ${machineName(cfg, os.hostname())}   sessionpipe ${VERSION}   state ${tilde(state)}`);
   for (const a of ADAPTERS) {
     if (!a.detect() && !cfg.harnesses[a.name]) continue;
-    for (const r of a.installed(hc)) out(`  ${a.name.padEnd(12)} ${tilde(r.file).padEnd(44)} ${r.state}`);
+    for (const r of a.installed(hc, process.env, { lean: isLean(cfg) }))
+      out(
+        `  ${a.name.padEnd(12)} ${tilde(r.file).padEnd(44)} ${r.state}${r.state !== "current" && r.note ? ` — ${r.note}` : ""}`,
+      );
   }
   if (!cfg.sinks.length) out("  sinks:    none (events stay in the local outbox)");
   for (const s of cfg.sinks) {
@@ -390,12 +442,50 @@ function status(): void {
     );
   }
   const t = timing();
-  if (t) out(`  hook:     p50 ${t.p50} ms · p95 ${t.p95} ms over ${t.n} runs`);
+  if (t)
+    out(
+      `  hook:     in-process p50 ${t.p50} ms over ${t.n} runs (\`sessionpipe doctor\` measures the wall clock the harness waits)`,
+    );
   const jobs = jobsDir(state);
   try {
     const n = readdirSync(jobs).length;
     if (n) out(`  jobs:     ${n} waiting`);
   } catch {}
+}
+
+/** Spawn the hook the way a harness does and time the whole process (issue #12:
+ *  the in-process clock misses Node's startup, ~200 ms on an older Intel Mac). */
+function hookWall(runs = 8): { n: number; p50: number; p95: number } | null {
+  const hook = path.join(distDir, "hook.js");
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "sessionpipe-doctor-"));
+  const env = {
+    ...process.env,
+    SESSIONPIPE_STATE: tmp,
+    SESSIONPIPE_CONFIG: path.join(tmp, "config.json"),
+    SESSIONPIPE_NO_WORKER: "1",
+  };
+  const input = JSON.stringify({
+    session_id: "doctor",
+    hook_event_name: "PostToolUse",
+    tool_name: "Bash",
+    cwd: process.cwd(),
+  });
+  const times: number[] = [];
+  try {
+    for (let i = 0; i < runs; i++) {
+      const t0 = process.hrtime.bigint();
+      const r = spawnSync(process.execPath, [hook, "claude-code", "PostToolUse"], { input, env, encoding: "utf8" });
+      if (r.status !== 0) return null;
+      times.push(Number(process.hrtime.bigint() - t0) / 1e6);
+    }
+  } catch {
+    return null;
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  times.sort((a, b) => a - b);
+  const q = (p: number) => Math.round(times[Math.min(times.length - 1, Math.floor(p * times.length))] ?? 0);
+  return { n: times.length, p50: q(0.5), p95: q(0.95) };
 }
 
 function timing(): { n: number; p50: number; p95: number } | null {
@@ -426,6 +516,7 @@ function doctor(): void {
     harnesses: {},
     sinks: [],
     timing: timing(),
+    hook_wall_ms: hookWall(),
     warnings: [] as string[],
   };
   const warnings = report.warnings as string[];
@@ -435,8 +526,15 @@ function doctor(): void {
     );
   for (const a of ADAPTERS) {
     if (!a.detect()) continue;
-    const st = a.installed(hc);
-    (report.harnesses as Record<string, unknown>)[a.name] = st.map((r) => ({ file: tilde(r.file), state: r.state }));
+    const st = a.installed(hc, process.env, { lean: isLean(cfg) });
+    (report.harnesses as Record<string, unknown>)[a.name] = st.map((r) => ({
+      file: tilde(r.file),
+      state: r.state,
+      ...(r.note ? { note: r.note } : {}),
+    }));
+    for (const r of st)
+      if (r.state === "inactive")
+        warnings.push(`${a.name}: hooks are written but the harness will not run them — ${r.note ?? ""}`);
     for (const r of st)
       if (r.state === "stale")
         warnings.push(
@@ -459,9 +557,11 @@ function doctor(): void {
       paused: s.paused ?? null,
       token: s.token ? `${s.token.slice(0, 4)}…` : null,
     });
-  const t = timing();
-  if (t && t.p50 > 150)
-    warnings.push(`hook p50 is ${t.p50} ms (target < 150). Is node on a slow disk or a network share?`);
+  const w = report.hook_wall_ms as { p50: number; p95: number; n: number } | null;
+  if (w && w.p50 > 150)
+    warnings.push(
+      `the harness waits ${w.p50} ms per hook (p50, target < 150): that is Node's own startup on this machine. A lean install (no sink above tier 0) hooks fewer events.`,
+    );
   if (has("--json")) {
     out(JSON.stringify(report, null, 2));
     return;
@@ -474,7 +574,17 @@ function doctor(): void {
     out(
       `  sink ${s.name.padEnd(16)} tier ${s.tier}${s.max_tier !== null ? ` (receiver max ${s.max_tier})` : ""}${s.paused ? ` PAUSED ${s.paused}` : ""}`,
     );
-  out(t ? `  hook p50 ${t.p50} ms · p95 ${t.p95} ms over ${t.n} runs` : "  hook timing: no runs yet");
+  const t = report.timing as { p50: number; p95: number; n: number } | null;
+  out(
+    w
+      ? `  hook wall clock (what the harness waits): p50 ${w.p50} ms · p95 ${w.p95} ms over ${w.n} spawns`
+      : "  hook wall clock: could not spawn dist/hook.js",
+  );
+  out(
+    t
+      ? `  hook in-process: p50 ${t.p50} ms · p95 ${t.p95} ms over the last ${t.n} runs`
+      : "  hook in-process: no runs yet",
+  );
   for (const w of warnings) out(`  ! ${w}`);
   if (!warnings.length) out("  no warnings");
 }

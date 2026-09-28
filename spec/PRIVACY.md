@@ -44,7 +44,7 @@ sentence: `password: [redacted]`. What it matches:
 | Vendor token shapes | `ghp_…`, `github_pat_…`, `glpat-…`, `xox[abposre]-…`, Slack and Discord webhook URLs, `sk-…` (OpenAI, Anthropic, DeepSeek, OpenRouter), `sk_live_` / `rk_test_` (Stripe), `whsec_…`, `AIza…`, `ya29.…`, `GOCSPX-…`, AWS access key ids, `xai-`, `gsk_`, `pplx-`, `hf_`, `pcsk_`, `npm_`, `pypi-`, SendGrid, Shopify, DigitalOcean, Linear, Notion, Supabase, Figma, Doppler, Granola, spacesheep `ss_`, Telegram bot tokens, JWTs, PEM private-key blocks (including one cut off mid-paste). |
 | URL credentials | `scheme://user:password@host` → the password goes, user and host stay. |
 | Authorization headers | `Bearer`, `Basic`, `Token` followed by a credential. |
-| Assignments | `NAME=value`, `NAME: value`, `NAME => value` where NAME names a secret (`DB_PASSWORD`, `apiKey`, `client-secret`, `*_KEY`, `*token*` …) — but not `password_hash`, `tokenizer`, `max_tokens: 4096`. Only a secret name may consume a value, so `https:` never swallows a `?token=` behind it. |
+| Assignments | `NAME=value`, `NAME: value`, `NAME => value` where NAME names a secret (`DB_PASSWORD`, `apiKey`, `client-secret`, `*_KEY`, `*token*` …) — but not `password_hash`, `tokenizer`, `max_tokens: 4096`, and not a bare `pass:` (a count after "Verification pass:" is prose, not a credential). Only a secret name may consume a value, so `https:` never swallows a `?token=` behind it. |
 | Prose | "password is Hunter2!", "the token was …", "set the password to …" — only when the value looks generated (letters and digits, or three character classes), so "the password is wrong" stays. |
 
 Placeholders are left alone: `<your-key>`, `${VAR}`, `process.env.X`, `string`,

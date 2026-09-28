@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // What a worker run does, as a function so tests and `sessionpipe replay` share it.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -15,6 +25,7 @@ import {
   makeEvent,
   Outbox,
   readConfig,
+  redactDeep,
   type Session,
   type Sink,
   type SinkConfig,
@@ -41,9 +52,47 @@ export interface Job {
   at: number;
 }
 
+/** A job file the worker will pick up: random suffix, 0600, in a 0700 dir. */
+export function enqueueJob(state: string, job: Job): string {
+  const jobs = jobsDir(state);
+  mkdirSync(jobs, { recursive: true, mode: 0o700 });
+  const f = path.join(jobs, `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
+  writeFileSync(f, JSON.stringify(job), { mode: 0o600 });
+  return f;
+}
+
+/** Jobs another worker left behind (a lost lock race, a killed worker): every
+ *  worker sweeps the ones older than `olderThanMs` before it exits, so no event
+ *  is lost (ground rule 4). Each is removed before it runs, so two sweepers
+ *  never run one twice. */
+export async function sweepJobs(state: string, olderThanMs = 3000, limit = 20): Promise<number> {
+  const jobs = jobsDir(state);
+  let names: string[] = [];
+  try {
+    names = readdirSync(jobs).filter((n) => n.endsWith(".json"));
+  } catch {
+    return 0;
+  }
+  let ran = 0;
+  for (const n of names.sort().slice(0, limit)) {
+    const f = path.join(jobs, n);
+    let job: Job | null = null;
+    try {
+      if (Date.now() - statSync(f).mtimeMs < olderThanMs) continue;
+      job = JSON.parse(readFileSync(f, "utf8")) as Job;
+      unlinkSync(f);
+    } catch {
+      continue;
+    }
+    await runJob(job, { state }).catch(() => {});
+    ran++;
+  }
+  return ran;
+}
+
 export function log(state: string, line: string): void {
   try {
-    mkdirSync(state, { recursive: true });
+    mkdirSync(state, { recursive: true, mode: 0o700 });
     const f = path.join(state, "log");
     try {
       if (statSync(f).size > 1024 * 1024) renameSync(f, `${f}.1`);
@@ -67,8 +116,8 @@ export function factsState(state: string): FactsState {
       const cur = this.get(h, s);
       const next = { ...cur, ...patch };
       if (JSON.stringify(next) === JSON.stringify(cur)) return;
-      mkdirSync(path.dirname(file(h, s)), { recursive: true });
-      writeFileSync(file(h, s), JSON.stringify(next));
+      mkdirSync(path.dirname(file(h, s)), { recursive: true, mode: 0o700 });
+      writeFileSync(file(h, s), JSON.stringify(next), { mode: 0o600 });
     },
   };
 }
@@ -99,13 +148,16 @@ export async function runJob(
   if (!r || !r.session.id) return { events: [], delivered: {} };
   const outbox = new Outbox(state);
   const ref = { harness: job.harness, session: r.session.id };
-  const release = takeLock(state, ref);
+  // Hooks of one session fire close together (parallel subagents, issue #9): wait
+  // for the lock with a short backoff before giving the job back to the queue.
+  let release = takeLock(state, ref);
+  for (let wait = 50; !release && wait <= 3200; wait *= 2) {
+    await new Promise((res) => setTimeout(res, wait));
+    release = takeLock(state, ref);
+  }
   if (!release) {
-    // Another worker holds this session: leave the job for it by re-queueing.
-    log(state, `${job.harness} ${job.event}: session ${r.session.id} locked, re-queued`);
-    const jobs = path.join(state, "jobs");
-    mkdirSync(jobs, { recursive: true });
-    writeFileSync(path.join(jobs, `${Date.now().toString(36)}-requeue.json`), JSON.stringify(job));
+    log(state, `${job.harness} ${job.event}: session ${r.session.id} locked for 6 s, re-queued`);
+    enqueueJob(state, job);
     return { events: [], delivered: {} };
   }
   try {
@@ -175,7 +227,13 @@ export async function runJob(
       if (read.turns.length)
         facts.save(job.harness, r.session.id, { transcript_line: read.line, transcript_turns: turnNo });
     }
-    outbox.append(ref, events);
+    // At rest the outbox holds redacted strings (advisory GHSA-8f6f-c3c9-j5p6): the
+    // tier-3 fields stay, with their secrets already gone; filterEvent runs the same
+    // idempotent pass again per sink.
+    outbox.append(
+      ref,
+      events.map((e) => ({ ...e, session: redactDeep(e.session), data: redactDeep(e.data) })),
+    );
     log(
       state,
       `${job.harness} ${job.event}: ${events.map((e) => e.type).join(",") || "nothing"} (${r.session.id.slice(0, 8)})`,

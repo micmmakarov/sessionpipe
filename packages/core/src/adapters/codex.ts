@@ -11,7 +11,16 @@ import { ends, parseLines, recentFiles } from "../readers/files.js";
 import { readCodex } from "../readers/transcripts.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
 import * as toml from "./codex-config.js";
-import type { Adapter, BackfillRow, HookCommand, HookInput, HookResult, SessionFacts } from "./types.js";
+import type {
+  Adapter,
+  BackfillRow,
+  HookCommand,
+  HookInput,
+  HookResult,
+  InstalledReport,
+  InstallOptions,
+  SessionFacts,
+} from "./types.js";
 
 const NAME = "codex";
 export const CODEX_EVENTS = [
@@ -29,6 +38,7 @@ export const CODEX_EVENTS = [
   "SessionEnd",
 ] as const;
 const OPTS = { matcherFor: (e: string) => (/Tool|Permission/.test(e) ? "" : undefined), timeout: 5 };
+const eventsFor = (lean?: boolean) => (lean ? CODEX_EVENTS.filter((e) => e !== "PreToolUse") : [...CODEX_EVENTS]);
 
 const codexHome = (env: NodeJS.ProcessEnv) => env.CODEX_HOME || path.join(HOME, ".codex");
 const hooksFile = (env: NodeJS.ProcessEnv) => path.join(codexHome(env), "hooks.json");
@@ -82,7 +92,8 @@ function installNotify(cmd: HookCommand, env: NodeJS.ProcessEnv) {
     return {
       file,
       changed: false,
-      note: `left alone: notify runs ${n.raw.slice(0, 80)} (hooks.json carries the events; the notify fallback is off)`,
+      skipped: true,
+      note: `notify belongs to ${(n.argv?.[0] ?? n.raw).replace(/^.*\//, "").slice(0, 40)}; left alone. Codex will report nothing until you approve the hooks: start \`codex\` and accept the hook review`,
     };
   }
   write(toml.withNotify(text, line));
@@ -142,14 +153,21 @@ export const codex: Adapter = {
   events: CODEX_EVENTS,
   detect: (env = process.env) => existsSync(codexHome(env)),
   configFiles: (env = process.env) => [hooksFile(env), configFile(env)],
-  install: (cmd, env = process.env) => [
-    installClaudeShaped(hooksFile(env), NAME, CODEX_EVENTS, cmd, OPTS),
+  install: (cmd, env = process.env, opts: InstallOptions = {}) => [
+    installClaudeShaped(hooksFile(env), NAME, eventsFor(opts.lean), cmd, OPTS),
     installNotify(cmd, env),
   ],
-  uninstall: (env = process.env) => [uninstallClaudeShaped(hooksFile(env), CODEX_EVENTS), uninstallNotify(env)],
-  installed: (cmd, env = process.env) => {
-    const out: { file: string; state: "current" | "stale" | "missing" | "misplaced" }[] = [
-      { file: hooksFile(env), state: installedClaudeShaped(hooksFile(env), NAME, CODEX_EVENTS, cmd, OPTS) },
+  uninstall: (env = process.env, opts: InstallOptions = {}) => [
+    uninstallClaudeShaped(hooksFile(env), CODEX_EVENTS, { created: opts.created?.includes(hooksFile(env)) }),
+    uninstallNotify(env),
+  ],
+  installed: (cmd, env = process.env, opts: InstallOptions = {}) => {
+    const out: InstalledReport[] = [
+      {
+        file: hooksFile(env),
+        state: installedClaudeShaped(hooksFile(env), NAME, eventsFor(opts.lean), cmd, OPTS),
+        note: "Codex runs non-managed hooks only after the review in `codex` (/hooks); until then nothing is reported unless the notify fallback is ours",
+      },
     ];
     let text = "";
     try {

@@ -4,12 +4,21 @@
 // "sessionpipe". stdin is camelCase with NO event name (it rides in argv). Every
 // hook must print `{}`; non-JSON is a deny. Timeouts in seconds. No session end
 // exists. Ported from spacesheep-cli lib/sessions.js (facts, remote url, projects).
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { HOME } from "../paths.js";
 import { ends, parseLines } from "../readers/files.js";
 import { readAntigravity } from "../readers/transcripts.js";
-import { readJson } from "./claude-shaped.js";
+import { formatJson, readJsonFile } from "./claude-shaped.js";
 import type {
   Adapter,
   BackfillRow,
@@ -17,6 +26,7 @@ import type {
   HookCommand,
   HookInput,
   HookResult,
+  InstallOptions,
   InstallReport,
   SessionFacts,
 } from "./types.js";
@@ -32,10 +42,13 @@ const dataDirs = (env: NodeJS.ProcessEnv) =>
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const validTool = (n: unknown): n is string => typeof n === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(n);
 
-function entry(cmd: HookCommand) {
+function entry(cmd: HookCommand, lean?: boolean) {
   const handler = (e: string) => ({ type: "command", command: cmd([NAME, e]).command, timeout: 5 });
   const out: Record<string, unknown> = { enabled: true };
-  for (const e of AG_EVENTS) out[e] = /Tool/.test(e) ? [{ matcher: "*", hooks: [handler(e)] }] : [handler(e)];
+  for (const e of AG_EVENTS) {
+    if (lean && e === "PreToolUse") continue;
+    out[e] = /Tool/.test(e) ? [{ matcher: "*", hooks: [handler(e)] }] : [handler(e)];
+  }
   return out;
 }
 
@@ -45,32 +58,49 @@ export const antigravity: Adapter = {
   detect: (env = process.env) =>
     existsSync(path.join(gemini(env), "config")) || dataDirs(env).some((d) => existsSync(d)),
   configFiles: (env = process.env) => [hooksFile(env)],
-  install(cmd, env = process.env): InstallReport[] {
+  install(cmd, env = process.env, opts: InstallOptions = {}): InstallReport[] {
     const file = hooksFile(env);
-    const hooks = readJson(file);
-    const e = entry(cmd);
+    const f = readJsonFile(file);
+    if (!f.ok) return [{ file, changed: false, skipped: true, note: `${f.reason}; not touched` }];
+    const hooks = f.value;
+    const e = entry(cmd, opts.lean);
     if (JSON.stringify(hooks[HOOK_NAME]) === JSON.stringify(e)) return [{ file, changed: false }];
     hooks[HOOK_NAME] = e;
     mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, `${JSON.stringify(hooks, null, 2)}\n`);
+    writeFileSync(file, formatJson(hooks, f));
     return [
-      { file, changed: true, note: "hooks.json is read when a conversation starts; open ones report after a restart" },
+      {
+        file,
+        changed: true,
+        created: !f.existed,
+        note: "hooks.json is read when a conversation starts; open ones report after a restart",
+      },
     ];
   },
-  uninstall(env = process.env): InstallReport[] {
+  uninstall(env = process.env, opts: InstallOptions = {}): InstallReport[] {
     const file = hooksFile(env);
     if (!existsSync(file)) return [{ file, changed: false }];
-    const hooks = readJson(file);
+    const f = readJsonFile(file);
+    if (!f.ok) return [{ file, changed: false, skipped: true, note: `${f.reason}; not touched` }];
+    const hooks = f.value;
     if (!(HOOK_NAME in hooks)) return [{ file, changed: false }];
     delete hooks[HOOK_NAME];
-    writeFileSync(file, `${JSON.stringify(hooks, null, 2)}\n`);
+    if (opts.created?.includes(file) && !Object.keys(hooks).length) {
+      unlinkSync(file);
+      return [{ file, changed: true, note: "removed (sessionpipe created it)" }];
+    }
+    writeFileSync(file, formatJson(hooks, f));
     return [{ file, changed: true }];
   },
-  installed(cmd, env = process.env) {
+  installed(cmd, env = process.env, opts: InstallOptions = {}) {
     const file = hooksFile(env);
-    const have = readJson(file)[HOOK_NAME];
+    const f = readJsonFile(file);
+    const have = f.ok ? f.value[HOOK_NAME] : undefined;
     return [
-      { file, state: !have ? "missing" : JSON.stringify(have) === JSON.stringify(entry(cmd)) ? "current" : "stale" },
+      {
+        file,
+        state: !have ? "missing" : JSON.stringify(have) === JSON.stringify(entry(cmd, opts.lean)) ? "current" : "stale",
+      },
     ];
   },
 

@@ -32,6 +32,19 @@ sessionpipe sink add https://your-receiver.example --tier 1
 sessionpipe tail            # watch events locally, no server needed
 ```
 
+### From source
+
+```sh
+git clone https://github.com/micmmakarov/sessionpipe && cd sessionpipe
+npm ci --ignore-scripts && npm run build && npm test
+npm pack -w sessionpipe
+npm install -g --prefix ~/.local sessionpipe-*.tgz     # ~/.local/bin on PATH; never the clone itself
+sessionpipe install
+```
+
+The CLI tarball bundles core, so it needs no other package. Don't `npm link` the
+clone: the hooks would point into it, and moving the clone would break every harness.
+
 ## What a session looks like
 
 ```

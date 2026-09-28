@@ -91,7 +91,7 @@ function redactAssignments(text: string): string {
 export function isSecretName(name: string): boolean {
   if (/^[A-Z0-9_]+_KEY$/.test(name)) return true;
   const flat = name.toLowerCase().replace(/[_-]/g, "");
-  return /(?:pass(?:word|wd|phrase|code)?|pwd|secret|secretkey|secretaccesskey|clientsecret|apikey|accesskey|accesstoken|authtoken|refreshtoken|privatekey|token|credential|creds)s?$/.test(
+  return /(?:pass(?:word|wd|phrase|code)|pwd|secret|secretkey|secretaccesskey|clientsecret|apikey|accesskey|accesstoken|authtoken|refreshtoken|privatekey|token|credential|creds)s?$/.test(
     flat,
   );
 }
