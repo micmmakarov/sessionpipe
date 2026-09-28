@@ -66,7 +66,7 @@ function rewriteLinks(md, map, dirPrefix) {
 
 marked.use({ gfm: true, headerIds: true, mangle: false });
 
-function page({ title, description, body, pathname, edit, license }) {
+function page({ title, description, body, pathname, edit, license, jsonld }) {
   const canonical = SITE + pathname;
   const navHtml = nav
     .map(
@@ -90,13 +90,18 @@ function page({ title, description, body, pathname, edit, license }) {
 <meta property="og:url" content="${canonical}">
 <meta property="og:image" content="${SITE}/og.png">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#3b3fd8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1220" media="(prefers-color-scheme: dark)">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+${jsonld ? `<script type="application/ld+json">${JSON.stringify(jsonld)}</script>` : ""}
 <style>${css}</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><a class="brand" href="/" aria-label="sessionpipe home"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h5l2-5 4 10 2-5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>sessionpipe</a><nav aria-label="Site">${navHtml}</nav></header>
 <main id="main">${body}</main>
-<footer><p>${license === "spec" ? 'This page is part of the sessionpipe protocol specification, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.' : "Code is Apache-2.0; the specification is CC BY 4.0."} ${edit ? `<a href="${edit}">Edit on GitHub</a> ·` : ""} <a href="/security/">Security</a> · <a href="/legal/">Legal &amp; privacy</a> · <a href="/governance/">Governance</a> · <a href="/changelog/">Changelog</a></p><p>No cookies, no analytics, nothing loaded from anyone else. Hosted on GitHub Pages. sessionpipe ${version}.</p></footer>
+<footer><p>${license === "spec" ? 'This page is part of the sessionpipe protocol specification, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.' : "Code is Apache-2.0; the specification is CC BY 4.0."} ${edit ? `<a href="${edit}">Edit on GitHub</a> ·` : ""} <a href="/security/">Security</a> · <a href="/legal/">Legal &amp; privacy</a> · <a href="/governance/">Governance</a> · <a href="/changelog/">Changelog</a></p><p>No cookies, no analytics, nothing loaded from anyone else. Hosted on GitHub Pages. sessionpipe ${version}.</p><p>Started by the people behind <a href="https://spacesheep.dev">spacesheep</a>, and given to the community as an open protocol: Apache-2.0 code, CC BY 4.0 spec, no CLA.</p></footer>
 </body>
 </html>
 `;
@@ -167,9 +172,20 @@ const specNav = `<nav class="subnav" aria-label="Protocol"><a href="/protocol/">
 for (const [pathname, file, title, description] of specs) {
   const md = rewriteLinks(read(file), specPath, "");
   const body = `${specNav}<article class="prose">${marked.parse(md)}</article>`;
+  const jsonld = {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: title,
+    description,
+    url: SITE + pathname,
+    license: "https://creativecommons.org/licenses/by/4.0/",
+    isPartOf: { "@type": "WebSite", name: "sessionpipe", url: SITE },
+    author: { "@type": "Organization", name: "sessionpipe" },
+  };
   write(
     pathname,
     page({
+      jsonld,
       title,
       description,
       body,
@@ -252,13 +268,78 @@ for (const [pathname, file, title, description] of [
 }
 
 // --- home ---------------------------------------------------------------------------
+const FAQ = [
+  [
+    "What is sessionpipe?",
+    "An open protocol, and a small client, that turns the hooks coding agents already fire (Claude Code, Codex, Gemini CLI, Antigravity, Cursor, Copilot CLI and more) into one uniform stream of session events: started, working on a tool, needs you, ended. You choose per destination how much leaves your machine.",
+  ],
+  [
+    "Does it work with Claude Code hooks?",
+    "Yes. <code>sessionpipe install</code> writes Claude Code's SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PermissionRequest, Notification, Stop, Subagent and Compact hooks into every config dir on the machine, and maps them to protocol events. Codex hooks, Gemini CLI hooks and Antigravity hooks work the same way.",
+  ],
+  [
+    "What are the privacy tiers?",
+    "Tier 0 is presence (session state, timing, folder, model, title). Tier 1 adds tool names, durations and file paths. Tier 2 adds your prompts and the assistant's text. Tier 3 adds tool input and output. A sink is configured at a tier; the receiver declares its maximum; the lower wins. Secrets are redacted on your machine above tier 0, always.",
+  ],
+  [
+    "Do I need a server?",
+    "No. <code>sessionpipe tail</code> follows the local outbox with no sink configured. When you want a receiver, run the reference one on your laptop, point at any HTTPS endpoint that speaks the protocol, or use a hosted receiver such as spacesheep.",
+  ],
+  [
+    "Is there telemetry?",
+    "None. The client reports only to the sinks you configure, this website has no analytics or cookies, and the optional version check is a plain read of the npm registry that you can turn off.",
+  ],
+  [
+    "Who maintains it, and under what license?",
+    "Michael Makarov, with a written path to more maintainers. Code is Apache-2.0, the specification is CC BY 4.0, contributions are under the Developer Certificate of Origin with no CLA.",
+  ],
+];
 {
   const diagram = (name) => read(`website/src/diagrams/${name}.svg`);
   let home = read("website/src/pages/home.html");
   home = home.replace(/\{\{diagram:([a-z-]+)\}\}/g, (_, n) => diagram(n));
+  home = home.replace(
+    "{{faq}}",
+    `<section class="block" id="faq"><h2>Questions people ask</h2>${FAQ.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join("")}</section>`,
+  );
+  const jsonld = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE}/#website`,
+        name: "sessionpipe",
+        url: SITE,
+        description: "An open protocol and client for what your coding agents are doing.",
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${SITE}/#app`,
+        name: "sessionpipe",
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "macOS, Linux, Windows",
+        softwareVersion: version,
+        license: "https://www.apache.org/licenses/LICENSE-2.0",
+        codeRepository: "https://github.com/micmmakarov/sessionpipe",
+        url: SITE,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        description:
+          "Hooks for Claude Code, Codex, Gemini CLI, Antigravity and other coding agents; four privacy tiers; secrets removed on your machine; sends to your server or to none.",
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQ.map(([q, a]) => ({
+          "@type": "Question",
+          name: q,
+          acceptedAnswer: { "@type": "Answer", text: a.replace(/<[^>]+>/g, "") },
+        })),
+      },
+    ],
+  };
   write(
     "/",
     page({
+      jsonld,
       title: "sessionpipe — an open protocol for what your coding agents are doing",
       description:
         "One install hooks Claude Code, Codex, Gemini CLI, Antigravity and more. Four privacy tiers, secrets removed on your machine, sent to your server or to none.",
@@ -290,10 +371,37 @@ const pages = [
   "/governance/",
   "/changelog/",
 ];
+const today = new Date().toISOString().slice(0, 10);
+const urlRow = (p) =>
+  `  <url><loc>${SITE}${p}</loc><lastmod>${today}</lastmod><priority>${p === "/" ? "1.0" : p.startsWith("/protocol") ? "0.8" : "0.5"}</priority></url>`;
 writeFileSync(
   path.join(out, "sitemap.xml"),
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map((p) => `  <url><loc>${SITE}${p}</loc></url>`).join("\n")}\n</urlset>\n`,
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map(urlRow).join("\n")}\n</urlset>\n`,
 );
+const llms = [
+  "# sessionpipe",
+  "",
+  "> An open protocol and client for what your coding agents are doing: hooks for Claude Code, Codex, Gemini CLI, Antigravity and more; four privacy tiers; secrets removed on the person's machine; events sent to a server of their choosing or to none. Apache-2.0 code, CC BY 4.0 spec.",
+  "",
+  "## Protocol",
+  "",
+  ...specs.map(([p, , t]) => `- [${t}](${SITE}${p})`),
+  `- [JSON Schemas](${SITE}/schema/)`,
+  "",
+  "## Use it",
+  "",
+  `- [Get started](${SITE}/get-started/)`,
+  `- [Receivers](${SITE}/receivers/)`,
+  "- [Source](https://github.com/micmmakarov/sessionpipe)",
+  "",
+  "## Project",
+  "",
+  `- [Security](${SITE}/security/)`,
+  `- [Governance](${SITE}/governance/)`,
+  `- [Legal and privacy](${SITE}/legal/)`,
+  "",
+];
+writeFileSync(path.join(out, "llms.txt"), llms.join("\n"));
 writeFileSync(path.join(out, "robots.txt"), `User-agent: *\nAllow: /\nSitemap: ${SITE}/sitemap.xml\n`);
 writeFileSync(path.join(out, ".nojekyll"), "");
 console.log(`site: ${pages.length} pages + schemas → website/dist`);
