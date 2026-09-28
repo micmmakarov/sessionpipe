@@ -26,13 +26,13 @@ if (existsSync(src)) {
     target: "node20",
     logLevel: "silent",
   });
-  const mod = await import(pathToFileURL(tmp).href + `?t=${Date.now()}`);
+  const mod = await import(`${pathToFileURL(tmp).href}?t=${Date.now()}`);
   const { z } = await import("zod");
   if (!mod.SCHEMAS || typeof mod.SCHEMAS !== "object")
     throw new Error("packages/core/schema/v1.ts must export SCHEMAS: Record<name, ZodType>");
   for (const [name, schema] of Object.entries(mod.SCHEMAS)) {
     const json = z.toJSONSchema(schema, { target: "draft-2020-12", io: "input", unrepresentable: "any" });
-    generated[`${name}.json`] = JSON.stringify({ $id: `${SCHEMA_BASE}${name}.json`, ...json }, null, 2) + "\n";
+    generated[`${name}.json`] = `${JSON.stringify({ $id: `${SCHEMA_BASE}${name}.json`, ...json }, null, 2)}\n`;
   }
   rmSync(path.join(root, ".tmp"), { recursive: true, force: true });
 }

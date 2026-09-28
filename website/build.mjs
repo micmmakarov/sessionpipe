@@ -2,13 +2,13 @@
 // sessionpipe.org: one Node script, no framework. Renders spec/*.md and the legal
 // files with marked into one HTML template, copies schemas/v1 (the $ids), writes
 // website/dist/. No analytics, no external requests, no cookies.
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const src = path.join(root, "website/src");
+const _src = path.join(root, "website/src");
 const out = path.join(root, "website/dist");
 const SITE = "https://sessionpipe.org";
 const read = (p) => readFileSync(path.join(root, p), "utf8");
