@@ -39,7 +39,9 @@ for (const f of files) {
   const vec = isVector ? JSON.parse(text) : null;
   // Each `out` on its own: joining them would manufacture patterns no file holds.
   const subjects = vec ? (Array.isArray(vec) ? vec : (vec.cases ?? [])).map((c) => String(c.out ?? "")) : [text];
-  const hit = subjects.some((subject) => (redact ? redact(subject) !== subject : FALLBACK.some((re) => re.test(subject))));
+  const hit = subjects.some((subject) =>
+    redact ? redact(subject) !== subject : FALLBACK.some((re) => re.test(subject)),
+  );
   if (hit) {
     bad++;
     console.error(`unredacted secret-shaped string in ${path.relative(root, f)}`);
