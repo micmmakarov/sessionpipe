@@ -225,17 +225,20 @@ async function sink(): Promise<void> {
     if (!s) return out(`  no sink named ${args[2]}`);
     const [sk] = buildSinks([s]);
     if (!sk) return out("  sink type not supported yet");
-    const e = makeEvent(
-      { type: "session.heartbeat", harnessEvent: "test", data: {} },
-      {
-        harness: { name: "sessionpipe" },
-        session: { id: `test-${Date.now()}`, seq: 0, machine: machineName(cfg, os.hostname()) },
-      },
-    );
-    const r = await sk.send([filterEvent(e, sk.tier, sk.pii) as Event]);
+    // One heartbeat, then its forget: the receiver sees the round trip and keeps no row.
+    const session = { id: `test-${Date.now()}`, machine: machineName(cfg, os.hostname()) };
+    const mk = (type: string, seq: number) =>
+      makeEvent(
+        { type, harnessEvent: "test", data: {} },
+        { harness: { name: "sessionpipe" }, session: { ...session, seq } },
+      );
+    const r = await sk.send([
+      filterEvent(mk("session.heartbeat", 0), sk.tier, sk.pii) as Event,
+      filterEvent(mk("session.forgotten", 1), sk.tier, sk.pii) as Event,
+    ]);
     out(
       r.ok
-        ? `  ✓ ${s.name}: ${r.status ?? "ok"} accepted ${r.accepted ?? 1}`
+        ? `  ✓ ${s.name}: ${r.status ?? "ok"} accepted ${r.accepted ?? 2} (a heartbeat and its forget)`
         : `  ✗ ${s.name}: ${r.status ?? ""} ${r.error ?? ""} (${r.action})`,
     );
     return;
