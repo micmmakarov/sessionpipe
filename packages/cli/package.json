@@ -1,7 +1,7 @@
 {
   "name": "sessionpipe",
-  "version": "0.0.0",
-  "description": "sessionpipe: hooks for every coding-agent harness, four privacy tiers, any sink. `npx sessionpipe install`.",
+  "version": "0.1.0",
+  "description": "sessionpipe: an open protocol for what your coding agents are doing. One install hooks Claude Code, Codex, Gemini CLI, Antigravity and more; four privacy tiers; secrets removed on your machine; sent to your server or to none.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -45,11 +45,8 @@
   "scripts": {
     "build": "node ../../scripts/build.mjs cli"
   },
-  "dependencies": {
-    "@sessionpipe/core": "0.0.0"
-  },
+  "dependencies": {},
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   }
 }
