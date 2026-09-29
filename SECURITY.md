@@ -37,6 +37,21 @@ otherwise.
 
 ## FAQ
 
+**What if a sink token leaks?** Its holder can post events to that receiver as you;
+the client never gives a sink token anything else. What else the token opens is the
+receiver's choice, so use a receiver's scoped, sessions-only token when it offers one
+(see *Sink tokens, for receivers* below) — spacesheep's is *Sessions only* in Settings →
+API keys. Revoke it at the receiver and `sessionpipe sink remove` it.
+
+**Sink tokens, for receivers.** A sink's token sits in a config file on every machine
+that reports, next to the hooks: the most-copied, least-guarded place a credential
+lives. A receiver that has accounts, APIs or data of its own should issue scoped
+tokens that open only its sessionpipe endpoints and nothing else of the account, so a
+leaked one lets its holder post session events and read nothing. Keep accepting your
+broader credentials there if people already use them, so nothing configured breaks,
+and say which kind to use. Refuse a scoped token anywhere else with 401 or 403. The
+client stores the token with mode `0600` and shows a four-character prefix at most.
+
 **Cryptography / export control.** sessionpipe uses TLS (via Node's `fetch`) and
 HMAC-SHA256 for Standard-Webhooks signature verification. It contains no encryption
 of its own and needs no export notice.
