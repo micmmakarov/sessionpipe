@@ -37,11 +37,15 @@ or in Docker: `docker run -p 7357:7357 -v sessionpipe:/data ghcr.io/micmmakarov/
 
 ## Send to spacesheep
 
+Make a **sessions-only** key at [spacesheep.dev/settings/api-keys](https://spacesheep.dev/settings/api-keys) (pick *Sessions only* beside the name), then:
+
 ```sh
-sessionpipe sink add https://spacesheep.dev --tier 2 --control --token <your ss_ key>
+npx -y sessionpipe install --sink https://spacesheep.dev --tier 2 --token <sessions-only ss_ key>
 ```
 
-`spacesheep sessions install` (CLI 2.0) does the same in one step.
+A sessions-only key can report sessions and turns and nothing else: no MCP, no deploys, no reads. It is the safe kind to leave in a sink config on every machine. A full `ss_` key still works here, but if it leaks from that file it opens the whole account.
+
+`spacesheep sessions install` (CLI 2.0) will do the same in one step.
 
 ## Send to a Slack webhook
 
