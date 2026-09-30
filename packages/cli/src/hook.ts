@@ -6,12 +6,16 @@
 // builtins imported (the build checks that). No network, no schema library, no
 // config parsing beyond one small file read for the throttle.
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ask, socketPath } from "./control/local.js";
 
 const t0 = process.hrtime.bigint();
+/** The hook's own work, when a control wait follows it (the wait is not the hook's cost). */
+let workMs: number | null = null;
 const [harness = "", event = "", ...rest] = process.argv.slice(2);
 const env = process.env;
 
@@ -54,6 +58,10 @@ try {
     const id = sessionIdOf(stdin);
     if (!id || !beatDue(id)) finish(false);
   }
+  // A Stop asks the daemon BEFORE its event goes to the worker: the worker reports the
+  // Stop to the daemon too, and a message queued for this Stop must be taken here,
+  // not rerouted because the event got there first.
+  const stopAnswer = event === "Stop" ? await (controlAsk(stdin) ?? Promise.resolve(null)) : null;
   mkdirSync(path.join(state, "jobs"), { recursive: true, mode: 0o700 });
   const job = {
     harness,
@@ -78,18 +86,88 @@ try {
     const p = spawn(process.execPath, [worker, jobFile], { detached: true, stdio: "ignore", windowsHide: true, env });
     p.unref();
   }
+  if (stopAnswer) {
+    try {
+      writeFileSync(1, `${stopAnswer}\n`);
+    } catch {}
+  }
+  // A PermissionRequest waits AFTER its event is on its way, so the receiver already
+  // shows the Allow / Deny this answer is for.
+  const ctl = event === "PermissionRequest" ? controlAsk(stdin) : null;
+  if (ctl) {
+    workMs = Number(process.hrtime.bigint() - t0) / 1e6;
+    const out = await ctl;
+    if (out) {
+      try {
+        writeFileSync(1, `${out}\n`);
+      } catch {}
+    }
+  }
   finish(true);
 } catch {
   finish(false); // the hook must be invisible to the harness
 }
 
+/** Control (spec/CONTROL.md §6, §9): only on a machine with control paired, and only
+ *  for a message the daemon itself verified. A Stop hook asks for a queued message and
+ *  answers a block with it; a PermissionRequest hook waits for the person's signed
+ *  answer while the terminal shows its own prompt, first answer wins. Anything that
+ *  goes wrong (no daemon, a timeout) prints nothing: the harness carries on as usual. */
+function controlAsk(stdin: string): Promise<string | null> | null {
+  if (harness !== "claude-code" || (event !== "Stop" && event !== "PermissionRequest")) return null;
+  if (env.SESSIONPIPE_CONTROL_JOB) return null; // a headless turn the daemon itself runs
+  const sock = socketPath(state);
+  if (
+    process.platform === "win32"
+      ? !existsSync(path.join(path.dirname(configFile()), "control.json"))
+      : !existsSync(sock)
+  )
+    return null;
+  let s: Record<string, unknown>;
+  try {
+    s = JSON.parse(stdin) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const id = typeof s.session_id === "string" ? s.session_id : "";
+  if (!id) return null;
+  const session = `claude-code:${id}`;
+  if (event === "Stop")
+    return ask(sock, { op: "stop", session, active: s.stop_hook_active === true }, 300).then((r) =>
+      r?.op === "block" ? JSON.stringify({ decision: "block", reason: r.reason }) : null,
+    );
+  // The attention id the adapter puts on attention.needed (claude-code.ts), so the
+  // receiver's Allow / Deny names this very prompt.
+  const tool =
+    typeof s.tool_name === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(s.tool_name) ? s.tool_name : undefined;
+  const turn = typeof s.prompt_id === "string" ? s.prompt_id : undefined;
+  const attention = `perm-${createHash("sha256")
+    .update(`${turn ?? ""}|${tool ?? ""}|${JSON.stringify(s.tool_input ?? null)}`)
+    .digest("hex")
+    .slice(0, 16)}`;
+  return ask(sock, { op: "permission", session, attention, ...(tool ? { tool } : {}) }, 125_000).then((r) =>
+    r?.op === "decision"
+      ? JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: "PermissionRequest",
+            decision:
+              r.behavior === "allow"
+                ? { behavior: "allow" }
+                : { behavior: "deny", message: r.message || "Denied by the owner (sessionpipe control)." },
+          },
+        })
+      : null,
+  );
+}
+
 function finish(spawned: boolean): never {
-  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  const total = Number(process.hrtime.bigint() - t0) / 1e6;
+  const ms = workMs ?? total;
   try {
     mkdirSync(state, { recursive: true });
     appendFileSync(
       path.join(state, "timing.jsonl"),
-      `${JSON.stringify({ at: Date.now(), harness, event, ms: Math.round(ms * 10) / 10, spawned })}\n`,
+      `${JSON.stringify({ at: Date.now(), harness, event, ms: Math.round(ms * 10) / 10, spawned, ...(workMs !== null ? { control_wait_ms: Math.round(total - workMs) } : {}) })}\n`,
     );
   } catch {}
   process.exit(0);

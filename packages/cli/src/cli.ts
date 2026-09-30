@@ -27,6 +27,7 @@ import {
   tilde,
   writeConfig,
 } from "@sessionpipe/core";
+import { CONTROL_HELP, controlMain, waitMain } from "./control/cli.js";
 import { buildSinks, factsState, flush, jobsDir, runJob, VERSION } from "./run.js";
 
 process.stdout.on("error", (e: NodeJS.ErrnoException) => {
@@ -106,6 +107,10 @@ async function main(): Promise<void> {
       return update();
     case "worker":
       return workerFromArgv();
+    case "control":
+      return controlMain(args, out, distDir);
+    case "wait":
+      return waitMain(args, out);
     case "hook":
       out("sessionpipe hook is dist/hook.js; harnesses run it directly");
       return;
@@ -130,6 +135,7 @@ function help(): void {
   sessionpipe tail [--session ID] [--tier N] [--harness NAME]
   sessionpipe backfill [--days 30] | forget <harness> <session> | replay --sink NAME
   sessionpipe update
+${CONTROL_HELP}
 
 Docs: https://sessionpipe.org · nothing leaves this machine until you add a sink.`);
 }
