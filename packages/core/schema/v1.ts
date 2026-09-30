@@ -318,6 +318,11 @@ export const ControlPairStart = z.object({
   harnesses: z.array(z.string().regex(/^[a-z][a-z0-9-]{0,39}$/)).max(20),
   modes: z.array(DeliveryMode),
   version: z.string().max(40),
+  /** The folders the machine lets sessions run in, for the receiver's "new session"
+   *  picker. Informational: the machine checks its own list again. */
+  folders: z.array(z.string().max(1024)).max(50).optional(),
+  /** safe: nothing that needs approval runs unattended; auto: the harness's auto mode. */
+  mode: z.enum(["safe", "auto"]).optional(),
 });
 
 /** The receiver's answer: where the person confirms, and the digits both screens show. */
@@ -351,6 +356,9 @@ export const ControlHello = z.object({
   version: z.string().max(40),
   /** Live sessions with a waiter parked on the daemon's socket. */
   waiting: z.array(SessionRef).max(500).optional(),
+  /** As in control-pair.json: informational, re-checked on the machine. */
+  folders: z.array(z.string().max(1024)).max(50).optional(),
+  mode: z.enum(["safe", "auto"]).optional(),
 });
 
 export const WellKnown = z.object({
