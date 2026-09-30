@@ -14,7 +14,7 @@ import { loadSdk } from "./sdk.js";
 import { controlFile, controlState, readControl } from "./store.js";
 import { waitForMessage, waitSession } from "./wait.js";
 
-export const CONTROL_HELP = `  sessionpipe control pair <receiver> [--folder DIR]… [--mode safe|auto] [--token T] [--name N]
+export const CONTROL_HELP = `  sessionpipe control pair <receiver> [--folder DIR]… [--mode safe|auto] [--token T] [--name N] [--no-service]
   sessionpipe control status | keys [remove <id>] | off [<receiver>] | run
   sessionpipe wait [--session <harness>:<id>]      (a session runs this in the background)`;
 
@@ -56,7 +56,9 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       try {
         cli = realpathSync(cli);
       } catch {}
-      out(`  Daemon: ${installService({ node: process.execPath, cli })}`);
+      if (argv.includes("--no-service"))
+        out("  Daemon: not installed as a service (--no-service); run `sessionpipe control run` yourself");
+      else out(`  Daemon: ${installService({ node: process.execPath, cli })}`);
       return;
     }
     case "keys": {
