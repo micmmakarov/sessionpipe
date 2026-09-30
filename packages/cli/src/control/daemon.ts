@@ -850,6 +850,9 @@ export class ControlDaemon {
       ["-p", "--output-format", "json", ...mf.args, "--session-id", ref.id, frame(cmd.text as string, r.url)],
       { cwd, env: claudeEnv(undefined, this.deps.env), timeoutMs: JOB_TIMEOUT_MS },
     );
+    // The transcript this run just wrote is ours: the next message must not read it as a
+    // live session (a fork instead of a resume).
+    this.lastEnd.set(ref.id, this.deps.now());
     const out = this.outcome(res);
     if ("failed" in out) return this.finish(r, id, { outcome: "failed", detail: out.failed });
     this.finish(r, id, { outcome: "delivered", mode: "resume", reply: out.reply }, sent);

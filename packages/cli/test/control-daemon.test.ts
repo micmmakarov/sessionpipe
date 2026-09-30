@@ -322,6 +322,11 @@ describe.runIf(unix)("delivery", () => {
     const q = await rx.send({ kind: "start", session: `claude-code:${NEW}`, cwd: project, text: "hello" });
     expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
     expect(readFileSync(claudeLog, "utf8")).toContain("--session-id");
+    // The next message resumes it: the transcript the start just wrote is the daemon's own.
+    const dir = path.join(configDir, "projects", project.replace(/[^a-zA-Z0-9]/g, "-"));
+    writeFileSync(path.join(dir, `${NEW}.jsonl`), `${JSON.stringify({ type: "user", cwd: project })}\n`);
+    const q2 = await rx.send({ session: `claude-code:${NEW}`, text: "again" });
+    expect(await rx.waitAck(q2.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
   });
 
   it("a key added while it runs (control pair again) is trusted on the next poll", async () => {
