@@ -282,7 +282,9 @@ export const ControlMessage = z.object({
 
 export const ControlPoll = z.object({ messages: z.array(ControlMessage) });
 
-export const ControlOutcome = z.enum(["delivered", "expired", "unsupported", "failed", "refused"]);
+/** `taken` is the one non-final outcome: the machine verified the message and is
+ *  delivering it (a headless resume can take minutes); a final ack follows. */
+export const ControlOutcome = z.enum(["taken", "delivered", "expired", "unsupported", "failed", "refused"]);
 
 export const ControlAck = z.object({
   acks: z

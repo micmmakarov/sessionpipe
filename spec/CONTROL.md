@@ -251,14 +251,18 @@ hook waits or prints.
 
 | Outcome | Meaning |
 |---------|---------|
+| `taken` | Not final. The machine verified the message and is delivering it; a final ack follows. Sent at once when delivery may take a while (a headless resume, a start). |
 | `delivered` | The harness took it; `mode` says how, `session` names a fork or a started session. |
 | `expired` | Past `expires_at`, or the hook's window closed, or the terminal answered first. |
 | `unsupported` | No path for this kind on this harness. |
 | `failed` | A path exists and errored; `detail` says what. |
 | `refused` | Verification or the machine's policy said no; `code` says which (§5). |
 
-Every message is acked exactly once with a final outcome; a receiver MUST tolerate a
-duplicate ack for the same `id`. A receiver SHOULD log each ack's mode and its
+Every message is acked exactly once with a final outcome, optionally preceded by
+`taken`; a receiver MUST tolerate a duplicate ack for the same `id`. A receiver MUST
+NOT redeliver a `taken` message for 35 minutes (the longest headless turn plus
+slack); after that it MAY redeliver it, and a machine that already acked it finally
+repeats that ack, while one that lost it answers `refused` with `replay`. A receiver SHOULD log each ack's mode and its
 send → delivered time.
 
 ## 11. Fixtures
