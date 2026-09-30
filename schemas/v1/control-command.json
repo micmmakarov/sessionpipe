@@ -1,0 +1,75 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/control-command.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "t": {
+      "type": "string",
+      "const": "sessionpipe.control"
+    },
+    "machine": {
+      "type": "string",
+      "pattern": "^m_[A-Za-z0-9_-]{16,40}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "prompt",
+        "permission.answer",
+        "cancel",
+        "start"
+      ]
+    },
+    "session": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}:[A-Za-z0-9._:-]{1,128}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "for": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "deny"
+      ]
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "cwd": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22,64}$"
+    },
+    "iat": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "v",
+    "t",
+    "machine",
+    "kind",
+    "session",
+    "nonce",
+    "iat"
+  ]
+}

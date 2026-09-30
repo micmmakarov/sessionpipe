@@ -1,0 +1,63 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/control-hello.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "harnesses": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,39}$"
+      }
+    },
+    "modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "sdk",
+          "waiter",
+          "turn",
+          "api",
+          "resume",
+          "fork"
+        ]
+      }
+    },
+    "keys": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 16,
+        "maxLength": 1400,
+        "pattern": "^[A-Za-z0-9_-]*$"
+      }
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "waiting": {
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,39}:[A-Za-z0-9._:-]{1,128}$"
+      }
+    }
+  },
+  "required": [
+    "name",
+    "harnesses",
+    "modes",
+    "keys",
+    "version"
+  ]
+}

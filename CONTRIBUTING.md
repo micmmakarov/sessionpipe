@@ -31,6 +31,11 @@ Every PR is checked against these (they are the project's invariants, in
    site renders `spec/*.md`. Redaction rules exist once, in core.
 3. **The hook path is invisible.** `dist/hook.js` reads stdin, writes one job file,
    spawns a detached worker, exits 0 in under 150 ms p50. It imports only `node:` builtins.
+   The one exception is control (spec/CONTROL.md §6): on a machine with control paired,
+   a PermissionRequest hook may wait on the daemon's local socket for a signed answer
+   (up to the hook's own window), and a Stop hook asks the socket for a queued message
+   (a local round trip, ≤ 50 ms). Neither counts toward the 150 ms budget, and neither
+   runs at all where control is not paired.
 4. **Never lose, never duplicate.** Append-only outbox, cursor advances on 2xx only,
    `seq` per session, receivers dedupe on (harness, session, seq).
 5. **Secrets never leave.** The secrets ruleset runs above tier 0 and cannot be

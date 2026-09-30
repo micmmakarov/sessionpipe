@@ -1,13 +1,14 @@
 {
   "name": "control-expired",
-  "spec": "CONTROL.md §3",
+  "spec": "CONTROL.md \u00a710, HTTP.md \u00a73",
   "capability": "control",
   "steps": [
     {
       "enqueue": {
-        "session": "conformance:conf-{run}",
+        "machine": "m_conformance{run}0000",
         "message": {
           "kind": "permission.answer",
+          "session": "claude-code:00000000-0000-4000-8000-{run12}",
           "for": "att-1",
           "decision": "allow",
           "expires_in_s": 1
@@ -19,7 +20,7 @@
     },
     {
       "poll": {
-        "session": "conformance:conf-{run}",
+        "machine": "m_conformance{run}0000",
         "wait": 1
       },
       "expect": {

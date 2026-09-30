@@ -29,16 +29,22 @@ otherwise.
 2. **Transcripts are untrusted content.** Anything read from a harness's files or
    stdin is data: never executed, never interpolated into a shell, and redacted before
    it reaches the outbox.
-3. **The hook path must never be able to block or alter the harness.** The hook
-   exits 0 in milliseconds, writes only what the harness requires to stdout (`{}` where
-   a harness reads it), and does all work in a detached process. Control messages
-   (`spec/CONTROL.md`) are delivered only through each harness's documented hook
-   answers; nothing is ever auto-allowed and no signal is ever sent to a process.
+3. **The hook path must never be able to block or alter the harness, except to
+   deliver a signed control message.** The hook exits 0 in milliseconds, writes only
+   what the harness requires to stdout (`{}` where a harness reads it), and does all
+   work in a detached process. The one exception is a control message
+   (`spec/CONTROL.md`) that the machine itself verified — signed by a key enrolled at
+   its own terminal: then a Stop hook may answer a block with the message, and a
+   PermissionRequest hook may wait for the person's signed answer, both only through
+   the harness's documented hook answers. Nothing is ever auto-allowed, no signal is
+   ever sent to a process, and nothing a receiver says on its own can reach a hook.
 
 ## FAQ
 
 **What if a sink token leaks?** Its holder can post events to that receiver as you;
-the client never gives a sink token anything else. What else the token opens is the
+the client never gives a sink token anything else. It cannot make your machine do
+anything: a control command runs only with a signature from a key enrolled at the
+machine's own terminal, and the machine polls with its own token, minted at pairing. What else the token opens is the
 receiver's choice, so use a receiver's scoped, sessions-only token when it offers one
 (see *Sink tokens, for receivers* below) — spacesheep's is *Sessions only* in Settings →
 API keys. Revoke it at the receiver and `sessionpipe sink remove` it.
@@ -52,8 +58,9 @@ broader credentials there if people already use them, so nothing configured brea
 and say which kind to use. Refuse a scoped token anywhere else with 401 or 403. The
 client stores the token with mode `0600` and shows a four-character prefix at most.
 
-**Cryptography / export control.** sessionpipe uses TLS (via Node's `fetch`) and
-HMAC-SHA256 for Standard-Webhooks signature verification. It contains no encryption
+**Cryptography / export control.** sessionpipe uses TLS (via Node's `fetch`),
+HMAC-SHA256 for Standard-Webhooks signatures, and ECDSA P-256 / RSA PKCS#1 v1.5
+signature *verification* (WebCrypto) for control commands. It contains no encryption
 of its own and needs no export notice.
 
 **Does sessionpipe phone home?** No. There is no telemetry. The optional daily

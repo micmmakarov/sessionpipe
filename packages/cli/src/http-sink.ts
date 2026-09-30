@@ -3,10 +3,20 @@
 // token and optional Standard Webhooks signature; errors map to what the sender
 // does next. The cursor moves only on 202. Retry/backoff is the worker's cadence
 // (each hook run drains the backlog); this class reports, it does not sleep.
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { DeliveryResult, Event, Sink, SinkConfig, Tier } from "@sessionpipe/core";
 
 const TIMEOUT_MS = 15_000;
+
+/** The Standard Webhooks message id (HTTP.md §2): the same batch sent again carries
+ *  the same id, so a receiver that dedupes on webhook-id sees a retry as one message.
+ *  Derived from the events' own ids, which the outbox keeps across retries. */
+export function webhookId(events: Pick<Event, "id">[]): string {
+  return `msg_${createHash("sha256")
+    .update(events.map((e) => e.id).join(","))
+    .digest("base64url")
+    .slice(0, 32)}`;
+}
 
 export class HttpSink implements Sink {
   readonly name: string;
@@ -33,7 +43,7 @@ export class HttpSink implements Sink {
     const headers: Record<string, string> = { "content-type": "application/json", "sessionpipe-protocol": "1" };
     if (this.cfg.token) headers.authorization = `Bearer ${this.cfg.token}`;
     if (this.cfg.secret?.startsWith("whsec_")) {
-      const id = `msg_${randomUUID()}`;
+      const id = webhookId(events);
       const ts = Math.floor(Date.now() / 1000);
       const key = Buffer.from(this.cfg.secret.slice(6), "base64");
       const sig = createHmac("sha256", key).update(`${id}.${ts}.${body}`).digest("base64");

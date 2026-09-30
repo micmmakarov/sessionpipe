@@ -1,0 +1,48 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/control-pair.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "machine": {
+      "type": "string",
+      "pattern": "^m_[A-Za-z0-9_-]{16,40}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "harnesses": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,39}$"
+      }
+    },
+    "modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "sdk",
+          "waiter",
+          "turn",
+          "api",
+          "resume",
+          "fork"
+        ]
+      }
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 40
+    }
+  },
+  "required": [
+    "name",
+    "harnesses",
+    "modes",
+    "version"
+  ]
+}

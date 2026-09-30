@@ -79,10 +79,41 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 60
+        },
+        "signing": {
+          "type": "object",
+          "properties": {
+            "rp_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253
+            },
+            "algs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": -7
+                  },
+                  {
+                    "type": "number",
+                    "const": -257
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "rp_id",
+            "algs"
+          ]
         }
       },
       "required": [
-        "wait_max_s"
+        "wait_max_s",
+        "signing"
       ]
     }
   },

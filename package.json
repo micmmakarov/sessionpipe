@@ -24,7 +24,8 @@
     "site": "node website/build.mjs",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "npm run build && changeset publish"
+    "release": "npm run build && changeset publish",
+    "vectors": "SESSIONPIPE_WRITE_VECTORS=1 vitest run packages/core/test/control-vectors.gen.test.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",

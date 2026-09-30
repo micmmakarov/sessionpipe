@@ -201,6 +201,156 @@ export const ErrorResponse = z.object({
 
 export const Capability = z.enum(["events", "backfill", "forget", "control", "native"]);
 
+// --- control (CONTROL.md) ---------------------------------------------------------
+
+const B64Url = z.string().regex(/^[A-Za-z0-9_-]*$/, "base64url, no padding");
+export const MachineId = z.string().regex(/^m_[A-Za-z0-9_-]{16,40}$/, "m_ + 16–40 base64url");
+/** `<harness>:<id>`; the id follows its adapter's rule (Claude Code: a UUID). */
+export const SessionRef = z.string().regex(/^[a-z][a-z0-9-]{0,39}:[A-Za-z0-9._:-]{1,128}$/, "<harness>:<session id>");
+export const ControlKind = z.enum(["prompt", "permission.answer", "cancel", "start"]);
+export const DeliveryMode = z.enum(["sdk", "waiter", "turn", "api", "resume", "fork"]);
+
+/** The signed command, as the device writes it. The machine verifies the EXACT string
+ *  it received (control.json `cmd`) and never re-serializes it. */
+export const ControlCommand = z.object({
+  v: z.literal(1),
+  t: z.literal("sessionpipe.control"),
+  machine: MachineId,
+  kind: ControlKind,
+  session: SessionRef,
+  /** prompt, start: the message for the model. */
+  text: z.string().min(1).max(4000).optional(),
+  /** permission.answer: the attention_id being answered. */
+  for: z.string().min(1).max(128).optional(),
+  decision: z.enum(["allow", "deny"]).optional(),
+  /** Shown to the model beside a decision. */
+  note: z.string().max(2000).optional(),
+  /** start: the absolute folder the new session runs in. */
+  cwd: z.string().max(1024).optional(),
+  /** At least 16 random bytes, base64url. */
+  nonce: z.string().regex(/^[A-Za-z0-9_-]{22,64}$/),
+  /** Epoch ms, the signing device's clock. */
+  iat: z.int().min(1),
+});
+
+/** A day grant's signed string: a passkey vouches for a device key for ≤ 24 h. */
+export const ControlGrant = z.object({
+  v: z.literal(1),
+  t: z.literal("sessionpipe.grant"),
+  /** The day key: P-256 SPKI, base64url. */
+  pub: B64Url.min(1),
+  iat: z.int().min(1),
+  exp: z.int().min(1),
+  /** The receiver's WebAuthn rp id (well-known control.signing.rp_id). */
+  rp: z.string().min(1).max(253),
+});
+
+/** A WebAuthn assertion: credential id, authenticatorData, clientDataJSON, signature. */
+export const ControlAssertion = z.object({
+  cred: B64Url.min(1),
+  ad: B64Url.min(1),
+  cd: B64Url.min(1),
+  sig: B64Url.min(1),
+});
+
+/** A key enrolled on a machine: a passkey's credential id, COSE alg, SPKI. */
+export const ControlKey = z.object({
+  id: B64Url.min(16).max(1400),
+  alg: z.union([z.literal(-7), z.literal(-257)]),
+  spki: B64Url.min(1),
+});
+
+/** One message as a receiver carries it: its own envelope around the signed bytes. */
+export const ControlMessage = z.object({
+  /** The receiver's id for this message; the ack key. Not signed: the nonce inside cmd is. */
+  id: Ulid,
+  /** The command string, exactly as signed (≤ 12 000 characters). */
+  cmd: z.string().min(1).max(12_000),
+  /** The day key's ECDSA P-256 / SHA-256 signature over cmd: raw r‖s, base64url. */
+  csig: B64Url.nullable().optional(),
+  /** The grant vouching for the day key: its string plus the passkey's assertion over sha256(str). */
+  grant: ControlAssertion.extend({ str: z.string().min(1).max(2000) })
+    .nullable()
+    .optional(),
+  /** Instead of csig + grant: one passkey assertion over sha256(cmd). */
+  confirm: ControlAssertion.nullable().optional(),
+  /** The receiver's clock. */
+  at: Rfc3339,
+  /** After this the machine MUST NOT act and acks `expired`; at most 24 h after `at`. */
+  expires_at: Rfc3339,
+});
+
+export const ControlPoll = z.object({ messages: z.array(ControlMessage) });
+
+export const ControlOutcome = z.enum(["delivered", "expired", "unsupported", "failed", "refused"]);
+
+export const ControlAck = z.object({
+  acks: z
+    .array(
+      z.object({
+        id: Ulid,
+        outcome: ControlOutcome,
+        at: Rfc3339,
+        /** delivered: how it reached the session. */
+        mode: DeliveryMode.optional(),
+        /** The session that took it, when not the one named (a fork's copy, a started session). */
+        session: SessionRef.optional(),
+        /** refused: the verifier's code, or the machine's own (`folder`, `no_attention`, `busy`). */
+        code: z
+          .string()
+          .regex(/^[a-z_]{1,40}$/)
+          .optional(),
+        detail: z.string().max(500).optional(),
+        /** resume / fork / start: the agent's reply, redacted by the secrets ruleset. */
+        reply: z.string().max(20_000).optional(),
+      }),
+    )
+    .min(1),
+});
+
+/** `POST {control}/pair`, sent with the person's sink token from their own terminal. */
+export const ControlPairStart = z.object({
+  /** Set when adding a key to a machine already paired. */
+  machine: MachineId.optional(),
+  name: z.string().min(1).max(80),
+  harnesses: z.array(z.string().regex(/^[a-z][a-z0-9-]{0,39}$/)).max(20),
+  modes: z.array(DeliveryMode),
+  version: z.string().max(40),
+});
+
+/** The receiver's answer: where the person confirms, and the digits both screens show. */
+export const ControlPairStarted = z.object({
+  machine: MachineId,
+  code: z.string().regex(/^[A-Za-z0-9-]{6,32}$/),
+  url: z.url(),
+  /** Six digits the terminal and the receiver's page both show. */
+  check: z.string().regex(/^\d{6}$/),
+  expires_at: Rfc3339,
+});
+
+/** `GET {control}/pair?code=…` once the person confirmed. The machine verifies `proof`
+ *  over sha256("sessionpipe.pair:<machine>:<code>") before it trusts `key`. */
+export const ControlPaired = z.object({
+  status: z.enum(["pending", "paired", "expired"]),
+  key: ControlKey.optional(),
+  proof: ControlAssertion.optional(),
+  /** The machine's own bearer for polls, acks and hello: opens nothing else. Minted
+   *  once, at the first pairing of a machine. */
+  token: z.string().min(16).max(256).optional(),
+});
+
+/** `POST {control}/hello`: what the machine can do right now. */
+export const ControlHello = z.object({
+  name: z.string().min(1).max(80),
+  harnesses: z.array(z.string().regex(/^[a-z][a-z0-9-]{0,39}$/)).max(20),
+  modes: z.array(DeliveryMode),
+  /** Credential ids of the keys enrolled on the machine. */
+  keys: z.array(B64Url.min(16).max(1400)).max(50),
+  version: z.string().max(40),
+  /** Live sessions with a waiter parked on the daemon's socket. */
+  waiting: z.array(SessionRef).max(500).optional(),
+});
+
 export const WellKnown = z.object({
   protocol: z.array(z.int().min(1)).min(1),
   max_tier: Tier,
@@ -212,38 +362,16 @@ export const WellKnown = z.object({
     native: z.string().optional(),
   }),
   batch: z.object({ max_events: z.int().min(1).max(50), max_bytes: z.int().min(1024).max(262_144) }),
-  control: z.object({ wait_max_s: z.int().min(1).max(60) }).optional(),
-});
-
-export const ControlKind = z.enum(["permission.answer", "prompt", "cancel"]);
-
-export const ControlMessage = z.object({
-  id: Ulid,
-  kind: ControlKind,
-  /** The attention_id a permission answer is for. */
-  for: z.string().max(128).optional(),
-  decision: z.enum(["allow", "deny"]).optional(),
-  /** The prompt text. */
-  text: z.string().max(20_000).optional(),
-  /** Shown to the model beside a decision. */
-  note: z.string().max(2000).optional(),
-  at: Rfc3339,
-  expires_at: Rfc3339,
-});
-
-export const ControlPoll = z.object({ messages: z.array(ControlMessage) });
-
-export const ControlAck = z.object({
-  acks: z
-    .array(
-      z.object({
-        id: Ulid,
-        outcome: z.enum(["delivered", "expired", "unsupported", "failed"]),
-        at: Rfc3339,
-        detail: z.string().max(500).optional(),
+  control: z
+    .object({
+      wait_max_s: z.int().min(1).max(60),
+      /** How commands are signed: the WebAuthn rp id keys are enrolled for, and the algorithms. */
+      signing: z.object({
+        rp_id: z.string().min(1).max(253),
+        algs: z.array(z.union([z.literal(-7), z.literal(-257)])).min(1),
       }),
-    )
-    .min(1),
+    })
+    .optional(),
 });
 
 /** What `npm run schemas` writes to schemas/v1/<name>.json. */
@@ -255,6 +383,13 @@ export const SCHEMAS = {
   error: ErrorResponse,
   "well-known": WellKnown,
   control: ControlMessage,
+  "control-command": ControlCommand,
+  "control-grant": ControlGrant,
+  "control-key": ControlKey,
   "control-poll": ControlPoll,
   "control-ack": ControlAck,
+  "control-pair": ControlPairStart,
+  "control-pair-started": ControlPairStarted,
+  "control-paired": ControlPaired,
+  "control-hello": ControlHello,
 } as const;
