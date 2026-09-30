@@ -11,7 +11,7 @@ that closed it. Downloads are tracked weekly once published.
 | M3 | HTTP sink + reference receiver + conformance runner | 3 | ☐ | |
 | M4 | sessionpipe.org | 2 | ◐ | site + Pages workflow shipped early; DNS live; Lighthouse pending |
 | M5 | spacesheep speaks sessionpipe (in the spacesheep repo) | 2 | ◐ | receiver live 2026-09-28 (spacesheep PRs 364, 366): well-known + events route, tier 2; the maintainer's Mac reports through it (465 sessions replayed); CLI 2.0 delegation and the conformance run in spacesheep CI pending |
-| M6 | Control channel | 3 | ☐ | |
+| M6 | Control channel | 3 | ◐ | spec rewritten (PR #24: signed on the device, verified on the machine, one poll per machine); daemon, `sessionpipe wait`, Claude Code delivery modes and hook output built (P3 PR); first receiver: spacesheep |
 | M7 | Cursor, Copilot CLI, Droid, Kiro, OpenCode + OTLP sink + launch | 3 | ☐ | |
 
 ## Definitions of done

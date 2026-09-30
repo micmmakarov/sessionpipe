@@ -131,6 +131,7 @@ export interface Status {
   }[];
   waiting: string[];
   mid_turn: string[];
+  attentions: { session: string; id: string }[];
   sdk: string[];
   nonces: number;
   acks_pending: number;
@@ -222,6 +223,7 @@ export class ControlDaemon {
       }),
       waiting: [...this.live].filter(([, l]) => l.waiter).map(([k]) => k),
       mid_turn: [...this.live].filter(([, l]) => l.midTurn).map(([k]) => k),
+      attentions: [...this.live].flatMap(([k, l]) => [...l.attentions.keys()].map((id) => ({ session: k, id }))),
       sdk: [...this.sdkSessions.keys()],
       nonces: this.nonces.size,
       acks_pending: this.acks.all().length,
@@ -378,13 +380,16 @@ export class ControlDaemon {
 
   // --- receivers ------------------------------------------------------------------
 
-  private async pollLoop(r: PairedReceiver): Promise<void> {
-    const key = r.control + r.machine;
+  private async pollLoop(first: PairedReceiver): Promise<void> {
+    const key = first.control + first.machine;
     const st = { last: null as number | null, error: null as string | null, on: true };
     this.polling.set(key, st);
     let backoff = 0;
     const steps = [2000, 10_000, 60_000, 300_000];
-    while (this.running && this.cfg.receivers.some((x) => x.control + x.machine === key)) {
+    for (;;) {
+      // The current record every round: `control pair` may have added a key since.
+      const r = this.cfg.receivers.find((x) => x.control + x.machine === key);
+      if (!this.running || !r) break;
       const ctl = new AbortController();
       this.aborts.add(ctl);
       const t = setTimeout(() => ctl.abort(), 40_000);
@@ -401,7 +406,16 @@ export class ControlDaemon {
         }
         if (res.status === 200) {
           const body = (await res.json()) as { messages?: Carried[] };
-          for (const m of body.messages ?? []) await this.handle(r, m);
+          // Looked up again: a key may have been added while this poll was parked.
+          const cur = this.cfg.receivers.find((x) => x.control + x.machine === key) ?? r;
+          let fresh = 0;
+          for (const m of body.messages ?? []) {
+            if (m && !this.inflight.has(m.id)) fresh++;
+            await this.handle(cur, m);
+          }
+          // Only messages already in hand (a receiver that ignores `taken`): don't
+          // turn the long-poll into a spin.
+          if (!fresh) await sleep(2000);
           st.error = null;
           backoff = 0;
         } else if (res.status === 204) {
@@ -671,6 +685,8 @@ export class ControlDaemon {
         const l = this.liveOf(cmd.session);
         const p: TurnPending = { receiver: r, msgId: id, text, session: cmd.session, queuedAt: sent };
         l.turnQueue.push(p);
+        // It waits for the session's Stop: the receiver must not keep handing it back.
+        this.finish(r, id, { outcome: "taken" });
         const t = setTimeout(() => {
           if (this.inflight.has(id) && l.turnQueue.includes(p)) {
             l.turnQueue.splice(l.turnQueue.indexOf(p), 1);
