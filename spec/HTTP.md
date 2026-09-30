@@ -25,7 +25,7 @@ it at most daily (24 h cache); a receiver MAY set `Cache-Control`.
     "native":  "/api/sessionpipe/v1/native"
   },
   "batch":   { "max_events": 50, "max_bytes": 262144 },
-  "control": { "wait_max_s": 25 }
+  "control": { "wait_max_s": 25, "signing": { "rp": "receiver.example", "algs": [-7, -257] } }
 }
 ```
 
@@ -53,7 +53,7 @@ Request headers:
 | `content-type` | `application/json` |
 | `authorization` | `Bearer <token>` — the token the person configured for the sink. |
 | `sessionpipe-protocol` | `1` — the batch's protocol integer, so a receiver can answer 400 without parsing. |
-| `webhook-id` | OPTIONAL. A unique id for this delivery attempt's message (retries reuse it). |
+| `webhook-id` | OPTIONAL. A unique id for this batch; a retry of the same batch MUST reuse it (the reference client derives it from the batch's event ids). |
 | `webhook-timestamp` | OPTIONAL. Unix seconds. |
 | `webhook-signature` | OPTIONAL. `v1,<base64>` — HMAC-SHA256 over `<webhook-id>.<webhook-timestamp>.<body>` with the secret behind the `whsec_` prefix (base64-decoded). Several space-separated signatures MAY be present; one match is enough. A receiver that verifies MUST reject a timestamp more than 5 minutes off its clock. |
 
@@ -94,21 +94,27 @@ values, so a replay after an outage costs nothing.
 A receiver MUST record its own arrival time beside `time`. The difference is the
 delivery latency the project measures (target: p50 under 2 s on a laptop).
 
-## 3. Control: `GET {control}?session=<harness>:<id>&wait=<s>`
+## 3. Control: `GET {control}?machine=<id>&wait=<s>`
 
-Only when the well-known file lists `control`, the sink was added with `--control`,
-and a session is live. Bearer auth. The receiver holds the request up to `wait`
+Only when the well-known file lists `control` and the machine has enrolled a key
+with this receiver ([CONTROL.md §4](CONTROL.md#4-keys)). **One poll per machine**,
+authenticated with that machine's poll key (a bearer bound to one machine; a
+general account key is a `401`). The receiver holds the request up to `wait`
 seconds (≤ `wait_max_s`) and answers `200` with
-[`control-poll.json`](https://sessionpipe.org/schema/v1/control-poll.json) when a
-message is waiting, or `204` when none is. Messages are defined in
-[CONTROL.md](CONTROL.md).
+[`control-poll.json`](https://sessionpipe.org/schema/v1/control-poll.json) — up to 20
+signed envelopes for that machine — or `204` when none is waiting. Envelopes and
+what the machine checks before acting are in [CONTROL.md](CONTROL.md).
+
+A receiver that refuses to queue a command (it failed the pre-check, CONTROL.md
+§3.2) answers the *sending* side with `400 {"reason":"<code>"}`; nothing reaches the
+machine.
 
 ### `POST {control}/ack`
 
 [`control-ack.json`](https://sessionpipe.org/schema/v1/control-ack.json):
-`{"acks":[{"id","outcome":"delivered"|"expired"|"unsupported"|"failed","at","detail?"}]}`.
-A receiver MUST keep re-delivering a message on every poll until it is acked or
-its `expires_at` passes. `202` on success.
+`{"acks":[{"id","outcome":"delivered"|"expired"|"unsupported"|"refused"|"failed","mode?","code?","ms?","at","detail?"}]}`.
+A receiver MUST keep re-delivering an envelope on every poll until it is acked or
+its `expires_at` passes, and MUST accept a duplicate ack. `202` on success.
 
 ## 4. Native lane: `POST {native}/<harness>`
 
@@ -149,4 +155,7 @@ The runner sends and expects, in this order; each is a fixture under
 | auth | a wrong bearer (`auth: "wrong"` in the fixture) | 401 |
 | unknown-type | `type: "x.y"` | 202, stored, retrievable |
 | forget | `session.forgotten`, then a read | 202, then nothing |
-| control | a queued message, a poll, an ack | 200 with the message; 204 after the ack |
+| control | a signed command queued, its machine's poll, an ack | 200 with the envelope; 204 after the ack |
+| control-expired | a command past `expires_at` | 204 |
+| control-double-ack | the same ack twice | 202, 202; one outcome |
+| control-refused | an unsigned or edited command; a poll with an account key | 400 `unsigned` / `csig`; 401 |

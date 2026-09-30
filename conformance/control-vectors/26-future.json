@@ -1,0 +1,35 @@
+{
+  "name": "future",
+  "spec": "CONTROL.md §3.3 check 5: at most 5 minutes of skew",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Qx7uR2bT9kLmN4pV8sWz\",\"kind\":\"prompt\",\"session\":\"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"KvJ66CqGdawm-uKIaybky-bB\",\"iat\":1790800360000}",
+    "csig": "-zA42S6UMvGjXsXNAT4dVYoVtT6tO6rHtXImFBrv8afluW_rYPyF1z5enDbdUaxwE4OG_58SLlQJEhbNPvtSPQ",
+    "grant": {
+      "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEI1gRlZItloIAiwUm3lDLYOgm4RNIKY09AgqQnBE5lM3fBB0Vi_xwgFjMW1dyDWeAKPnAl02-da3hBkD2Ft2arA\",\"iat\":1790800000000,\"exp\":1790886400000,\"rp\":\"receiver.example\"}",
+      "cred": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiNWtCRDRJLUZvamZYY1FteDdoS0lVXzIyQktzejc0UmdQcUJubWdLckxHSSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEUCIEtuUwR8QA68VNLgpEPEmG73tJQ8KDS5PbQpinReQQ89AiEAgupRAUFVnhB31WV6Z2UfM4c5BjLcw-P-u3dG59dwupY"
+    }
+  },
+  "expect": {
+    "ok": false,
+    "code": "future"
+  }
+}

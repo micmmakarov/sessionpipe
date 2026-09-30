@@ -155,7 +155,11 @@ receiver's well-known file declares `max_tier`; the sender uses the lower.
    event reaches the outbox, and cannot be turned off per sink.
 3. **The hook path is invisible.** The process a harness spawns reads stdin, writes
    one job file, spawns a detached worker and exits 0; it writes to stdout only what
-   the harness requires. Nothing in this protocol may block or alter the harness.
+   the harness requires. Nothing in this protocol may block or alter the harness,
+   except to deliver a signed control command that passed every check on the machine
+   ([CONTROL.md §3.3](CONTROL.md#33-what-the-machine-checks-in-order-before-anything-runs)):
+   a Stop hook's block-with-reason, or a `PermissionRequest` held open (≤ 120 s) for
+   the person's answer. Both exist only while the machine has an enrolled key.
 4. **No telemetry.** A sender reports to the sinks the person configured and to
    nobody else.
 

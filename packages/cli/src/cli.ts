@@ -300,7 +300,8 @@ async function sink(): Promise<void> {
 async function sinkAdd(url: string, cfg: Config): Promise<void> {
   const tier = Math.max(0, Math.min(3, Number(flag("--tier") ?? 0))) as Tier;
   const name = flag("--name") ?? (url === "stdout" ? "stdout" : url.startsWith("file:") ? "file" : new URL(url).host);
-  const s: SinkConfig = { name, url, tier, pii: has("--pii"), control: has("--control") };
+  // Only an https receiver that lists `control` could ever take it; a file or stdout sink never does.
+  const s: SinkConfig = { name, url, tier, pii: has("--pii"), control: /^https?:\/\//.test(url) && has("--control") };
   const token = flag("--token");
   if (token) s.token = token;
   const secret = flag("--secret");
@@ -321,7 +322,15 @@ async function sinkAdd(url: string, cfg: Config): Promise<void> {
         out("  receiver does not list `control`; --control ignored");
         s.control = false;
       }
+      // Control is enrolled per machine with a passkey (`sessionpipe control pair`),
+      // not switched on per sink: CONTROL.md §10 forbids control: true until the
+      // sender implements it.
+      if (s.control) {
+        out("  --control is not implemented in this version; run `sessionpipe control pair` once it is");
+        s.control = false;
+      }
     } catch (e) {
+      s.control = false;
       out(
         `  ! ${url} has no readable /.well-known/sessionpipe (${(e as Error).message}); added anyway, at tier ${tier}`,
       );

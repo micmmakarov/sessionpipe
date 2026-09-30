@@ -1,21 +1,23 @@
 {
   "name": "control",
-  "spec": "CONTROL.md",
+  "spec": "CONTROL.md \u00a72, \u00a77",
   "capability": "control",
+  "note": "The runner pairs a test passkey with the receiver's test machine ({machine}), signs each command fresh, and polls with that machine's poll key.",
   "steps": [
     {
       "enqueue": {
-        "session": "conformance:conf-{run}",
-        "message": {
+        "machine": "{machine}",
+        "sign": {
+          "session": "claude-code:{uuid}",
           "kind": "prompt",
-          "text": "conformance ping",
-          "expires_in_s": 60
-        }
+          "text": "conformance ping"
+        },
+        "expires_in_s": 60
       }
     },
     {
       "poll": {
-        "session": "conformance:conf-{run}",
+        "machine": "{machine}",
         "wait": 1
       },
       "expect": {
@@ -23,8 +25,10 @@
         "body": {
           "messages": [
             {
-              "kind": "prompt",
-              "text": "conformance ping"
+              "id": "*",
+              "cmd": "*",
+              "csig": "*",
+              "grant": "*"
             }
           ]
         }
@@ -32,7 +36,8 @@
     },
     {
       "ack": {
-        "outcome": "delivered"
+        "outcome": "delivered",
+        "mode": "waiter"
       },
       "expect": {
         "status": 202
@@ -40,7 +45,7 @@
     },
     {
       "poll": {
-        "session": "conformance:conf-{run}",
+        "machine": "{machine}",
         "wait": 1
       },
       "expect": {

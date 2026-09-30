@@ -1,20 +1,21 @@
 {
   "name": "control-double-ack",
-  "spec": "CONTROL.md §3",
+  "spec": "CONTROL.md \u00a77",
   "capability": "control",
   "steps": [
     {
       "enqueue": {
-        "session": "conformance:conf-{run}",
-        "message": {
-          "kind": "cancel",
-          "expires_in_s": 60
-        }
+        "machine": "{machine}",
+        "sign": {
+          "session": "claude-code:{uuid}",
+          "kind": "cancel"
+        },
+        "expires_in_s": 60
       }
     },
     {
       "poll": {
-        "session": "conformance:conf-{run}",
+        "machine": "{machine}",
         "wait": 1
       },
       "expect": {
@@ -35,6 +36,15 @@
       },
       "expect": {
         "status": 202
+      }
+    },
+    {
+      "poll": {
+        "machine": "{machine}",
+        "wait": 1
+      },
+      "expect": {
+        "status": 204
       }
     }
   ]

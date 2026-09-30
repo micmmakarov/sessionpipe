@@ -1,0 +1,35 @@
+{
+  "name": "other-machine",
+  "spec": "CONTROL.md §3.3 check 2",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Zz9yX8wV7uT6sR5qP4oN\",\"kind\":\"prompt\",\"session\":\"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"N4Rb66sdg-1S6Ww9B-bEsUfW\",\"iat\":1790799700000}",
+    "csig": "tQbRetG38NJbiCydWStmB30TOBty2fqkOvmBCd7qZ9B0QisqvmtjbWvldfvWVkhHu7LTYLymTHR6s8SRgyhoqw",
+    "grant": {
+      "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEvaA1g10OrVvdu97BQtSK-tRXNUsD9aLJ6r_vPNdCDeOfzs7ZeYMS1XlkkBAkSfr38xMaz7xRjGcpZdV_H6L4Ug\",\"iat\":1790792800000,\"exp\":1790879200000,\"rp\":\"receiver.example\"}",
+      "cred": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiLU9SWnpnVl9RSFNrMEtOZ09XU3BUalczWDdub09IejNseC1vZjRTam8wNCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEQCIDjsS0C3e8SdTVilEhqljZAYZUB8Ac-cbFcBjnA60CHqAiAtjrDmeXek1vZY2EZSlSEfF_0Btbny9FRTcOZxozNOVQ"
+    }
+  },
+  "expect": {
+    "ok": false,
+    "code": "machine"
+  }
+}

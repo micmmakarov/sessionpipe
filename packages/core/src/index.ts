@@ -12,3 +12,4 @@ export { isInjected, pairTurns, readAntigravity, readClaude, readCodex, readGemi
 export * from "./sinks/index.js";
 export type * from "./types.js";
 export { isUlid, ulid } from "./ulid.js";
+export * from "./control/verify.js";

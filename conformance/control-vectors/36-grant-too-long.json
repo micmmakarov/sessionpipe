@@ -1,0 +1,35 @@
+{
+  "name": "grant-too-long",
+  "spec": "CONTROL.md §3.3 check 3: an unlock lasts ≤ 24 h",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Qx7uR2bT9kLmN4pV8sWz\",\"kind\":\"prompt\",\"session\":\"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"kJDcHmlhOGJUt1XZ6S4eKgg_\",\"iat\":1790799700000}",
+    "csig": "P3u1V8XD6SdEewj5ebzQ3YNjRcihVWPkuhZEsN-6f8JdCVbe33JysNPgutv4p87x8D2r9VxYuZm4GaVUiw6fwA",
+    "grant": {
+      "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4KmoCRvXZJWfJ6QIVXGXUFlddO6K9va164qT8sk3hwb8tum02uB3Zk3P0O5mxlsh_NqYpSD-1vbv20eSk2UeDA\",\"iat\":1790792800000,\"exp\":1790883160000,\"rp\":\"receiver.example\"}",
+      "cred": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoibmltem84Q3hmbmV2R2hzNDJneV9YSGctZE9wMGZLOTlITW11czhNSXVQWSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEUCIQC45hZugoa2g2jdIWjHxyQOXvZ24O4XDvA570f0PYuruwIgFh1s0pVS4v3rTH1nykp9m9tVh70v1p93QubrfuO2KFc"
+    }
+  },
+  "expect": {
+    "ok": false,
+    "code": "grant"
+  }
+}

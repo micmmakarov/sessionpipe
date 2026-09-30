@@ -3,21 +3,38 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "t": {
       "type": "string",
-      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+      "const": "sessionpipe.control"
+    },
+    "machine": {
+      "type": "string",
+      "pattern": "^m_[A-Za-z0-9_-]{16,40}$"
     },
     "kind": {
       "type": "string",
       "enum": [
-        "permission.answer",
         "prompt",
-        "cancel"
+        "permission.answer",
+        "cancel",
+        "start"
       ]
+    },
+    "session": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,31}:[A-Za-z0-9._-]{1,128}$"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 12000
     },
     "for": {
       "type": "string",
-      "maxLength": 128
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
     },
     "decision": {
       "type": "string",
@@ -26,29 +43,29 @@
         "deny"
       ]
     },
-    "text": {
-      "type": "string",
-      "maxLength": 20000
-    },
     "note": {
       "type": "string",
       "maxLength": 2000
     },
-    "at": {
+    "cwd": {
       "type": "string",
-      "format": "date-time",
-      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}(?:Z))$"
+      "maxLength": 400
     },
-    "expires_at": {
+    "nonce": {
       "type": "string",
-      "format": "date-time",
-      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}(?:Z))$"
+      "pattern": "^[A-Za-z0-9_-]{22,64}$"
+    },
+    "iat": {
+      "type": "number"
     }
   },
   "required": [
-    "id",
+    "v",
+    "t",
+    "machine",
     "kind",
-    "at",
-    "expires_at"
+    "session",
+    "nonce",
+    "iat"
   ]
 }

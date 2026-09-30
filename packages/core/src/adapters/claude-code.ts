@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { HOME } from "../paths.js";
+import { ulid } from "../ulid.js";
 import { ends, parseLines, recentFiles, scanLines } from "../readers/files.js";
 import { gitFacts } from "../readers/git.js";
 import { isInjected, readClaude } from "../readers/transcripts.js";
@@ -185,7 +186,7 @@ export const claudeCode: Adapter = {
       case "Notification":
         events.push(
           ev("attention.needed", {
-            attention_id: `notif-${Date.now()}`,
+            attention_id: ulid(),
             kind: notifKind(s.notification_type),
             message: typeof s.message === "string" ? s.message.slice(0, 200) : undefined,
           }),

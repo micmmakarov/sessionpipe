@@ -20,6 +20,7 @@ const walk = (d) =>
     : [];
 const harness = walk(path.join(root, "conformance/harness")).filter((f) => f.endsWith(".json"));
 const delivery = walk(path.join(root, "conformance/delivery")).filter((f) => f.endsWith(".json"));
+// (control vectors are read below, once core is built)
 if (!harness.length && !delivery.length) {
   console.log("conformance: no fixtures yet");
   process.exit(0);
@@ -78,6 +79,32 @@ for (const f of delivery) {
   } catch (e) {
     failed++;
     rows.push([rel, "FAIL", String(e.message)]);
+  }
+}
+
+// Control vectors: every signed command through core's verifier, verdict and code.
+const vectors = walk(path.join(root, "conformance/control-vectors")).filter((f) => f.endsWith(".json"));
+const coreMod = path.join(root, "packages/core/dist/index.js");
+if (vectors.length && existsSync(coreMod)) {
+  const { verifyCommand } = await import(pathToFileURL(coreMod).href);
+  for (const f of vectors.sort()) {
+    const rel = path.relative(root, f);
+    const v = JSON.parse(readFileSync(f, "utf8"));
+    const r = await verifyCommand(v.input, {
+      machine: v.machine,
+      keys: v.keys,
+      now: v.now,
+      ...(v.max_age_ms ? { maxAgeMs: v.max_age_ms } : {}),
+      ...(v.live_grant ? { liveGrant: true } : {}),
+    });
+    const want = v.expect.ok ? `ok via ${v.expect.via}` : `refused ${v.expect.code}`;
+    const got = r.ok ? `ok via ${r.via}` : `refused ${r.code}`;
+    if (want !== got) failed++;
+    rows.push([
+      rel,
+      want === got ? "ok" : "FAIL",
+      want === got ? "" : `expected ${want}, got ${got}${r.ok ? "" : ` (${r.why})`}`,
+    ]);
   }
 }
 

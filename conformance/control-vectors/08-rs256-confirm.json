@@ -1,0 +1,33 @@
+{
+  "name": "rs256-confirm",
+  "spec": "CONTROL.md §4 RS256 passkeys",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Qx7uR2bT9kLmN4pV8sWz\",\"kind\":\"prompt\",\"session\":\"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"ZuiR-sH_4xdNR3ShxgH3zpey\",\"iat\":1790799700000}",
+    "confirm": {
+      "cred": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidGVrOGNZb2wzOEV4OXFlZGNpYUJhUXJOMENWOWE0dnlTY0p0WDVvc21IdyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "QrvClERe8ffbN3DGrOYjKBSxNIuEBJp5LBrsUEZPkFZ0D5khcu0c2rDkgLaGy6U0AZdSloqA1FjGBdleZitKiBgfbnAxQvea4JQb_v_ZGwW1HcXq17f_vlFlSTodhaZDVOZqa7OdslRhlyM6ZXZha5-sfww4kH3wNHxSalF3hKWYUNn78OSEtWspi1AVS7hKDfRu6xqnGLpUQloD_7Q8egIWZCMOTlzlGSzv1n2vd72NMRvRBIYjuY1ZIpD95yLcL3LJFYgIC32nLvZ7Zd19epEZXb813eEXTWOXn-1IAIvgmR8MLxvNzAlksZv8tvv6cmKUYysNS6Y_6mgNzr92mg"
+    }
+  },
+  "expect": {
+    "ok": true,
+    "via": "confirm"
+  }
+}

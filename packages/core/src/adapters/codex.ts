@@ -9,6 +9,7 @@ import path from "node:path";
 import { HOME } from "../paths.js";
 import { ends, parseLines, recentFiles } from "../readers/files.js";
 import { readCodex } from "../readers/transcripts.js";
+import { ulid } from "../ulid.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
 import * as toml from "./codex-config.js";
 import type {
@@ -258,9 +259,7 @@ export const codex: Adapter = {
           );
         break;
       case "PermissionRequest":
-        events.push(
-          ev("attention.needed", { attention_id: call_id ?? `perm-${Date.now()}`, kind: "permission", tool }),
-        );
+        events.push(ev("attention.needed", { attention_id: call_id ?? ulid(), kind: "permission", tool }));
         break;
       case "Stop":
         events.push(ev("turn.ended", { turn_id, reason: "stop" }));

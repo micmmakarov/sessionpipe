@@ -1,0 +1,35 @@
+{
+  "name": "prompt-with-cwd",
+  "spec": "CONTROL.md §3.1 the machine finds a session's folder itself",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Qx7uR2bT9kLmN4pV8sWz\",\"kind\":\"prompt\",\"session\":\"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"WA6NdrrNm8tIar3BRS3JZ7Tj\",\"iat\":1790799700000,\"cwd\":\"/etc\"}",
+    "csig": "1BuDtY9QB9N6YiwnEWppRKMvgQBideruXX-Hi34hZ6CMryCDlZ_dm1e7_7LdQTSAwRIdMGRcNpIHBBCBHH9oTw",
+    "grant": {
+      "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEgG5qn9_P0wgnSv0Le1y7eRCY0t2ezie2FuUGgnz61-LjHsFpigCN1Jlkog028EOXZn6et7pdXRphR6mS1U_aEQ\",\"iat\":1790792800000,\"exp\":1790879200000,\"rp\":\"receiver.example\"}",
+      "cred": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiUUtUYzV5Nk94bEUyMklzaHoyUFZsOGkxOUtrR0tldDZicEc4SU1NZkQwMCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEUCIQCIY4R6g30QqjSIZteEv1owC9DNfaX9f-i2Aur3hmdl9gIgCbhuxWWD31QjV8HWFLxbzSz7RJAJato61LN19RFMbfI"
+    }
+  },
+  "expect": {
+    "ok": false,
+    "code": "malformed"
+  }
+}

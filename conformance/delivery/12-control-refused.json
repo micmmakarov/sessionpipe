@@ -1,0 +1,62 @@
+{
+  "name": "control-refused",
+  "spec": "CONTROL.md \u00a73.2",
+  "capability": "control",
+  "steps": [
+    {
+      "enqueue": {
+        "machine": "{machine}",
+        "unsigned": {
+          "session": "claude-code:{uuid}",
+          "kind": "prompt",
+          "text": "no signature"
+        },
+        "expires_in_s": 60
+      },
+      "expect": {
+        "status": 400,
+        "body": {
+          "reason": "unsigned"
+        }
+      }
+    },
+    {
+      "enqueue": {
+        "machine": "{machine}",
+        "sign": {
+          "session": "claude-code:{uuid}",
+          "kind": "prompt",
+          "text": "edited after signing"
+        },
+        "tamper": "reserialize",
+        "expires_in_s": 60
+      },
+      "expect": {
+        "status": 400,
+        "body": {
+          "reason": "csig"
+        }
+      }
+    },
+    {
+      "poll": {
+        "machine": "{machine}",
+        "wait": 1
+      },
+      "expect": {
+        "status": 204
+      }
+    },
+    {
+      "poll": {
+        "machine": "{machine}",
+        "wait": 1,
+        "auth": "account"
+      },
+      "expect": {
+        "status": 401
+      }
+    }
+  ],
+  "note": "`tamper: reserialize` = the runner signs the command, then sends JSON.stringify(JSON.parse(cmd), null, 1). `auth: account` = the poll carries a general account key, not the machine's poll key (CONTROL.md \u00a74.3)."
+}

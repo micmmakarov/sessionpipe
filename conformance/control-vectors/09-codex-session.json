@@ -1,0 +1,35 @@
+{
+  "name": "codex-session",
+  "spec": "CONTROL.md §3.1 session ids follow the adapter",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Qx7uR2bT9kLmN4pV8sWz\",\"kind\":\"prompt\",\"session\":\"codex:019a2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"9Tes9X_rCm28py_4HR6kTBLw\",\"iat\":1790799700000}",
+    "csig": "kr8fCYtxfaFay1EQi1-jyIKjhVFLiTl7rsc-U91E0mgaO4XTbe50_F76H0Ry8vm9zOfuqTKFMQ59PIolz6KF7g",
+    "grant": {
+      "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEsa4edafy-tTaUWZlAcUCPfVREYIlQejcA5t51lacnTt2Kjqt8jk0AdoX27egS_1L82_w53jzAq1oZDqiTC1sCA\",\"iat\":1790792800000,\"exp\":1790879200000,\"rp\":\"receiver.example\"}",
+      "cred": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiYWlIRXZfdXNSMXVIdGdVQzNiVlVyRUduei0tZUx3cFBxWnJxUVFXSzJfOCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEQCIC5EHHMBEMBNKltekWj3lvoRV-AO1vltjwXApb5GjindAiA9JZ849Rf7aLz6zNxEnxjzoeou9q2n5UqI3pZcETSHbw"
+    }
+  },
+  "expect": {
+    "ok": true,
+    "via": "grant"
+  }
+}

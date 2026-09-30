@@ -9,6 +9,7 @@ import path from "node:path";
 import { HOME } from "../paths.js";
 import { ends, parseLines } from "../readers/files.js";
 import { readGemini } from "../readers/transcripts.js";
+import { ulid } from "../ulid.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
 import type { Adapter, HookInput, HookResult, InstallOptions, SessionFacts } from "./types.js";
 
@@ -135,7 +136,7 @@ export const geminiCli: Adapter = {
       case "Notification":
         events.push(
           ev("attention.needed", {
-            attention_id: `notif-${Date.now()}`,
+            attention_id: ulid(),
             kind: s.notification_type === "ToolPermission" ? "permission" : "question",
             message: typeof s.message === "string" ? s.message.slice(0, 200) : undefined,
           }),

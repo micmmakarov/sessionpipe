@@ -4,6 +4,7 @@
   "type": "object",
   "properties": {
     "messages": {
+      "maxItems": 20,
       "type": "array",
       "items": {
         "type": "object",
@@ -12,32 +13,82 @@
             "type": "string",
             "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
           },
-          "kind": {
+          "cmd": {
             "type": "string",
-            "enum": [
-              "permission.answer",
-              "prompt",
-              "cancel"
+            "maxLength": 16384
+          },
+          "csig": {
+            "type": "string",
+            "minLength": 86,
+            "maxLength": 86,
+            "pattern": "^[A-Za-z0-9_-]*$"
+          },
+          "grant": {
+            "type": "object",
+            "properties": {
+              "cred": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "ad": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "cd": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "sig": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "str": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "cred",
+              "ad",
+              "cd",
+              "sig",
+              "str"
             ]
           },
-          "for": {
-            "type": "string",
-            "maxLength": 128
-          },
-          "decision": {
-            "type": "string",
-            "enum": [
-              "allow",
-              "deny"
+          "confirm": {
+            "type": "object",
+            "properties": {
+              "cred": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "ad": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "cd": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              },
+              "sig": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "cred",
+              "ad",
+              "cd",
+              "sig"
             ]
-          },
-          "text": {
-            "type": "string",
-            "maxLength": 20000
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 2000
           },
           "at": {
             "type": "string",
@@ -52,7 +103,7 @@
         },
         "required": [
           "id",
-          "kind",
+          "cmd",
           "at",
           "expires_at"
         ]

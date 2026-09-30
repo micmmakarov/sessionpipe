@@ -1,0 +1,27 @@
+{
+  "name": "localhost-http",
+  "spec": "CONTROL.md §4 http on localhost (a dev receiver)",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "z_TMSPFoDREfBWC8YPdBnMOAx60",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE_6ITz8g7ZKPKv5r_QkzmeVSV7Q7NOkDR2o-7f8rjlKCBGk2rVWwrroIutzZPCJBi-i9DM6NsdmrUTmDt8voQZg",
+      "rp": "localhost"
+    }
+  ],
+  "input": {
+    "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_Qx7uR2bT9kLmN4pV8sWz\",\"kind\":\"prompt\",\"session\":\"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"BVSaiBqB-EiC_ksAgKyKtqhd\",\"iat\":1790799700000}",
+    "confirm": {
+      "cred": "z_TMSPFoDREfBWC8YPdBnMOAx60",
+      "ad": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiS0FkWFZzNjVQV19ZRE9HQmRJMC1vSnduNDlkY21vYWh5RFZMS1k3bGZ1cyIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODc5MSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEYCIQCzpTertymr0doJJUHdKai1o9HMkUJiBnVAvSt_yWAZHwIhAO5sbktwDaVaDtue7Qru3hCIGgDfEc6I1UJ0m97u-zaS"
+    }
+  },
+  "expect": {
+    "ok": true,
+    "via": "confirm"
+  }
+}

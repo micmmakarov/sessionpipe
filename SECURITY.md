@@ -29,11 +29,18 @@ otherwise.
 2. **Transcripts are untrusted content.** Anything read from a harness's files or
    stdin is data: never executed, never interpolated into a shell, and redacted before
    it reaches the outbox.
-3. **The hook path must never be able to block or alter the harness.** The hook
-   exits 0 in milliseconds, writes only what the harness requires to stdout (`{}` where
-   a harness reads it), and does all work in a detached process. Control messages
-   (`spec/CONTROL.md`) are delivered only through each harness's documented hook
-   answers; nothing is ever auto-allowed and no signal is ever sent to a process.
+3. **The hook path must never be able to block or alter the harness — except to
+   deliver a signed control command.** The hook exits 0 in milliseconds, writes only
+   what the harness requires to stdout (`{}` where a harness reads it), and does all
+   work in a detached process. The one exception is a control command
+   (`spec/CONTROL.md`) that passed every check on the machine: the person's passkey
+   signed it and the machine verified it itself, so no receiver, sink token or
+   server can produce one. It is delivered only through each harness's documented
+   hook answers and input APIs; nothing is ever auto-allowed and no signal is ever
+   sent to a process.
+4. **A receiver can queue a control command but never forge one.** Keys are
+   enrolled only at the machine's own terminal; the daemon polls with a key bound to
+   one machine, which can read and ack that queue and nothing else.
 
 ## FAQ
 

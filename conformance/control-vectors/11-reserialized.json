@@ -1,0 +1,35 @@
+{
+  "name": "reserialized",
+  "spec": "CONTROL.md §3.3 check 1: signatures cover the exact bytes",
+  "now": 1790800000000,
+  "machine": "m_Qx7uR2bT9kLmN4pV8sWz",
+  "keys": [
+    {
+      "id": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "alg": -7,
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9KOk7DLjMJ8Gn5CQWII8TQLGFlXwk-yG8bmk4b7zSVU3PvzQ02U3978f1ww73dots8iF7RE8U6HmHmw91BVv9g",
+      "rp": "receiver.example"
+    },
+    {
+      "id": "RpnlkdOR70QkaW4ZvTmopFT6h4U",
+      "alg": -257,
+      "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYjmcmtEoBEYs7d54rENG2ABrYRno3x5YVoXYFGAeI8bZmNKy4Gp1myoSabiw-gV4-0E8_GcylXBZNva_B3ykDZ6wbt33S_3x0QMyUz2y5oEJ8-3Oym5sM_GYzZi73Vgn9tRkceUwSWSyJJmjgnCo5Hd8X9DbrwLBkycv61QcQ9VQe97lQIGnOnR6eXhKWw5bVVrJu-YgXhhvbfLpgueMHCGtqoiiOmFoIIxsCnI80bskoKyD1RC-QLbOCxfF9PPyn8FCsBPmFp_4tZ7mbOI8gF7Vzc7kAQuRlb0Yz97MYffCwvR90DQmjoqqydbN7Sa_jo_b26mZDotHkjKn5CqLwIDAQAB",
+      "rp": "receiver.example"
+    }
+  ],
+  "input": {
+    "cmd": "{\n \"v\": 1,\n \"t\": \"sessionpipe.control\",\n \"machine\": \"m_Qx7uR2bT9kLmN4pV8sWz\",\n \"kind\": \"prompt\",\n \"session\": \"claude-code:bedc5a64-3f1e-4c7a-9b2d-5e8f0a1c6d42\",\n \"text\": \"Add the Oct 8 row\",\n \"nonce\": \"6ghCSdUR_3opgUdXYN4y-ba9\",\n \"iat\": 1790799700000\n}",
+    "csig": "jNk7OfvXdY7yjku6c_2vYEehZ2WPBMpr8bqOzXdXvkGlbYI2ct6IHnuGtKyoyg3WfpcpotawYc5tWJ8mrp0T2Q",
+    "grant": {
+      "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE89zQ8mRFzK3jtraPVgLUr6x8oSkyFjtgfgxeakMznbb8dhRSVYOZcO4TD0f0BCCm_iuW-pCZKHo1z6NUOF4zag\",\"iat\":1790792800000,\"exp\":1790879200000,\"rp\":\"receiver.example\"}",
+      "cred": "IKT5d-w0g1UPi78PfsDnVKdsKJQ",
+      "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+      "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidE8tdVMzSk1ubzFxMFhuaE9FbmgxYVhGMkR2TnVoV0hfV3lUWHVQanZvayIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "sig": "MEYCIQDC51u1jZddnitOUO1vTzh-zVFEAwnighnUzI3tDvW2IwIhAJw9eLuh72TomlKC_cgCe4EB40sWjWyZ6JAq0JFCkJf0"
+    }
+  },
+  "expect": {
+    "ok": false,
+    "code": "csig"
+  }
+}

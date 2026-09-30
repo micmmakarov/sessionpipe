@@ -1,0 +1,39 @@
+{
+  "$id": "https://sessionpipe.org/schema/v1/control-grant.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "t": {
+      "type": "string",
+      "const": "sessionpipe.grant"
+    },
+    "pub": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]*$"
+    },
+    "iat": {
+      "type": "number"
+    },
+    "exp": {
+      "type": "number"
+    },
+    "rp": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253
+    }
+  },
+  "required": [
+    "v",
+    "t",
+    "pub",
+    "iat",
+    "exp",
+    "rp"
+  ]
+}

@@ -35,8 +35,12 @@ that closed it. Downloads are tracked weekly once published.
   three domains; Lighthouse accessibility ≥ 95.
 - **M5** — spacesheep.dev serves the well-known file and the events route, passes
   conformance; CLI 2.0 delegates to sessionpipe; no gap in `/sessions`.
-- **M6** — permission answers, prompt delivery at the turn boundary, cancel where the
-  harness allows; every outcome acked; fixtures for timeout, expiry, double delivery.
+- **M6** — the control channel rewritten around signed commands (spec/CONTROL.md): one
+  daemon per machine polls with a machine-bound key, verifies every command against
+  passkeys enrolled at its own terminal, and delivers it the cheapest way the harness
+  allows (sdk · waiter · turn · api · resume · fork); permission answers, prompts,
+  cancel and start; every outcome acked with its mode; one verifier in core with
+  shared vectors (conformance/control-vectors/).
 - **M7** — five more adapters on real payloads; OTLP sink in a local Grafana; launch
   materials ready.
 
