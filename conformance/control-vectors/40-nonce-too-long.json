@@ -1,0 +1,31 @@
+{
+  "name": "nonce-too-long",
+  "description": "A nonce of 65 characters.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"iat\":1790800000000}",
+      "csig": "IpT6CIabuOEByvoeVNPnCDL0HWFNegbgX9oPsIoLa5BKdmLfX_uCug45BngUHbgOX_WhmneqdwCmoCo-hY7b5A",
+      "grant": {
+        "cred": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoib2dYdmtjM2Q2U2Q5djNDSUZ2S291a2lOV3hNcEZpZG8tQTVNbWxybFkyZyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEQCIBtoo-8YcA-p1I76Yt4dsmJ7AJ7DVZpc3rGJ6nsIn2ltAiBUkH_k4KEKHAuaS5UoNAZQ620zi-UZQRZ81ZJuBrlmsQ",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzLSeQFIicqhZst3MkryVs_zVNi1co4tB_7uFYa2IaQHY5xG7vkyKV7YDZ9xS3kcmxPcgdyB7Fd5kbbPmkJbKow\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE68U0SZZ1pFkZ18a23LHhpcPO-lnyvI1ug61MWnGtKa2KcpJ7KwCmMrxEfpXYYeiI9IgvNbOO345I93Jpozm8jQ"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": false,
+    "code": "bad_nonce"
+  }
+}

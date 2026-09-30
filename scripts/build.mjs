@@ -17,7 +17,10 @@ const pkg = JSON.parse(readFileSync(path.join(pkgDir, "package.json"), "utf8"));
 /** Entries per package. `bundleWorkspace` folds @sessionpipe/* in (one file for the
  *  hook); `external` stays an import. */
 const PLANS = {
-  core: { entries: { index: "src/index.ts", schema: "schema/v1.ts" }, external: ["zod"] },
+  core: {
+    entries: { index: "src/index.ts", schema: "schema/v1.ts", control: "src/control/index.ts" },
+    external: ["zod"],
+  },
   cli: {
     entries: { index: "src/index.ts", cli: "src/cli.ts", hook: "src/hook.ts", worker: "src/worker.ts" },
     bundleWorkspace: true,
@@ -57,6 +60,15 @@ const result = await build({
   define: { __SESSIONPIPE_VERSION__: JSON.stringify(pkg.version) },
   legalComments: "none",
 });
+
+// The control verifier runs in Workers and browsers too: no imports at all.
+for (const [file, meta] of Object.entries(result.metafile.outputs)) {
+  if (!file.endsWith("/control.js") || !file.includes("packages/core/")) continue;
+  if ((meta.imports ?? []).length)
+    throw new Error(
+      `core's dist/control.js imports ${meta.imports.map((b) => b.path).join(", ")}; it must import nothing`,
+    );
+}
 
 // The hook must depend on the platform and nothing else.
 for (const [file, meta] of Object.entries(result.metafile.outputs)) {
