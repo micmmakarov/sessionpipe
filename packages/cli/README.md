@@ -22,8 +22,41 @@ sessionpipe uninstall          # every config file byte-identical again
 | 3 | + tool input and output |
 
 No telemetry. Secrets never leave (`secrets@1` runs above tier 0, always). Your
-server or none. Pre-release: the reference receiver and the control channel are
-still being built; see the [roadmap](https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md).
+server or none. Pre-release: the reference receiver is still being built; see the
+[roadmap](https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md).
+
+## Control: messages to your sessions (M6, Claude Code first)
+
+A receiver that lists `control` can carry a message from your phone to a session on
+this machine. It is signed on your device and **checked here**, against a key you
+enroll at this terminal; the receiver can queue a message but can never forge one
+([spec](https://sessionpipe.org/protocol/control/)).
+
+```sh
+sessionpipe control pair https://receiver.example --folder ~/code   # confirm with your passkey; installs the daemon
+sessionpipe control status          # receivers, parked waiters, sessions mid-turn, open permission prompts
+sessionpipe control keys [remove <id>]
+sessionpipe control off             # tell the receiver, forget its token and keys
+```
+
+One daemon per computer holds one long-poll per receiver and delivers each message the
+cheapest way the session allows: to `sessionpipe wait` parked in the session's
+background (in place, ~60 ms, no network), at the session's next Stop if it is
+mid-turn, through the Agent SDK for a session it started (if the SDK is installed), or
+as a headless `claude -p --resume` (a `--fork-session` copy when a live process holds
+it). A session stays reachable in place with zero idle turns by running, as a
+background command with the longest timeout it can (Claude Code: raise
+`BASH_MAX_TIMEOUT_MS`, else a background command is stopped after 2 hours at most):
+
+```sh
+sessionpipe wait            # Claude Code: the session id comes from CLAUDE_CODE_SESSION_ID
+```
+
+Permission prompts can be answered from the receiver too: while the terminal shows
+its prompt, the PermissionRequest hook waits for your signed answer, and whichever
+comes first wins. Nothing is ever auto-allowed. Safe mode (the default) runs headless
+turns with `--permission-mode dontAsk`, so nothing that needs approval runs while
+you're away.
 
 Docs and the protocol: [sessionpipe.org](https://sessionpipe.org) · Source:
 [github.com/micmmakarov/sessionpipe](https://github.com/micmmakarov/sessionpipe) · Apache-2.0.

@@ -44,11 +44,10 @@ export class FakeReceiver {
   other!: Passkey;
   offCalled = false;
 
-  async start(): Promise<void> {
+  async start(port = 0): Promise<void> {
     this.server = createServer((req, res) => void this.route(req, res));
-    await new Promise<void>((r) => this.server.listen(0, "127.0.0.1", () => r()));
-    const port = (this.server.address() as AddressInfo).port;
-    this.url = `http://localhost:${port}`;
+    await new Promise<void>((r) => this.server.listen(port, "127.0.0.1", () => r()));
+    this.url = `http://localhost:${(this.server.address() as AddressInfo).port}`;
     this.passkey = await Passkey.create({ rpId: "localhost", origin: this.url });
     this.other = await Passkey.create({ rpId: "localhost", origin: this.url });
     this.day = await DayKey.create();

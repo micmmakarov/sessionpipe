@@ -206,7 +206,11 @@ describe("pairing (CONTROL.md §2)", () => {
   });
 });
 
-describe("delivery", () => {
+// The daemon itself is Unix-only for now (a Windows daemon is M7): Unix sockets and a
+// shebang stand-in for claude.
+const unix = process.platform !== "win32";
+
+describe.runIf(unix)("delivery", () => {
   it("waiter: in place, in milliseconds, framed", async () => {
     await startDaemon();
     const got = waitForMessage(SESSION, { env });
@@ -227,6 +231,11 @@ describe("delivery", () => {
     const q = await rx.send({ session: SESSION, text: "also write pong" });
     await new Promise((r) => setTimeout(r, 300));
     expect(rx.finalAck(q.id)).toBeUndefined();
+    expect(rx.acks.find((a) => a.id === q.id)?.outcome).toBe("taken");
+    // Taken, so the receiver stops handing it back: the long-poll doesn't spin.
+    const polls = rx.polls.length;
+    await new Promise((r) => setTimeout(r, 500));
+    expect(rx.polls.length - polls).toBeLessThanOrEqual(2);
     const r = await ask(sock, { op: "stop", session: SESSION, active: false }, 500);
     expect(r).toMatchObject({ op: "block" });
     expect((r as { reason: string }).reason).toContain("also write pong");
@@ -315,6 +324,24 @@ describe("delivery", () => {
     expect(readFileSync(claudeLog, "utf8")).toContain("--session-id");
   });
 
+  it("a key added while it runs (control pair again) is trusted on the next poll", async () => {
+    await startDaemon();
+    const first = rx.passkey;
+    rx.passkey = await (await import("../../core/test/helpers/authenticator.js")).Passkey.create({
+      rpId: "localhost",
+      origin: rx.url,
+    });
+    try {
+      const c = cfg();
+      c.receivers[0]!.keys.push({ ...rx.passkey.key, added_at: new Date().toISOString() });
+      d!.reload(c);
+      const q = await rx.send({ session: SESSION, text: "with the new key" });
+      expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered" });
+    } finally {
+      rx.passkey = first;
+    }
+  });
+
   it("cancel with no held session is unsupported", async () => {
     await startDaemon();
     const q = await rx.send({ kind: "cancel", session: SESSION, text: undefined });
@@ -322,7 +349,7 @@ describe("delivery", () => {
   });
 });
 
-describe("permission answers (CONTROL.md §6, §7)", () => {
+describe.runIf(unix)("permission answers (CONTROL.md §6, §7)", () => {
   const ATT = "perm-5f1c0e9a2b7d4c31";
   it("an open prompt takes the signed answer", async () => {
     await startDaemon();
@@ -375,7 +402,7 @@ describe("permission answers (CONTROL.md §6, §7)", () => {
   });
 });
 
-describe("refusals (CONTROL.md §5)", () => {
+describe.runIf(unix)("refusals (CONTROL.md §5)", () => {
   it("a tampered command, a replay, a folder off the list, an expired message", { timeout: 20_000 }, async () => {
     await startDaemon({ folders: [path.join(tmp, "elsewhere")] });
     mkdirSync(path.join(tmp, "elsewhere"));
@@ -406,7 +433,7 @@ describe("refusals (CONTROL.md §5)", () => {
   });
 });
 
-describe("the built hook talks to the daemon", () => {
+describe.runIf(unix)("the built hook talks to the daemon", () => {
   const dist = path.resolve(here, "../dist/hook.js");
   const runHook = (event: string, stdin: object) =>
     new Promise<string>((resolve) => {
