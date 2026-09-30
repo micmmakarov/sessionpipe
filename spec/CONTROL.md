@@ -50,6 +50,11 @@ A key enters a machine's trust store **only from that machine's own terminal**:
    which the daemon uses for polls, acks and hellos and nothing else. A leaked hook or
    sink token then cannot read the machine's queue or ack a command away.
 
+The pairing request and every hello MAY carry the machine's allowed `folders` and its
+`mode` (`safe`: nothing that needs approval runs unattended; `auto`: the harness's auto
+mode), so a receiver can offer a folder picker for a new session. They are
+informational: the machine checks its own list again (§5 step 6).
+
 Keys are listed and removed one at a time on the machine (`sessionpipe control keys`,
 `sessionpipe control keys remove <id>`); `sessionpipe control off` removes the machine,
 its keys and its token, and tells the receiver (`POST {control}/off`). Adding another

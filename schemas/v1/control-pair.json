@@ -37,6 +37,21 @@
     "version": {
       "type": "string",
       "maxLength": 40
+    },
+    "folders": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1024
+      }
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "safe",
+        "auto"
+      ]
     }
   },
   "required": [
