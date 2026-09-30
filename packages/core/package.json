@@ -39,6 +39,10 @@
     "./schema": {
       "types": "./dist/schema/v1.d.ts",
       "import": "./dist/schema.js"
+    },
+    "./control": {
+      "types": "./dist/src/control/index.d.ts",
+      "import": "./dist/control.js"
     }
   },
   "types": "./dist/src/index.d.ts",

@@ -1,0 +1,32 @@
+{
+  "name": "valid-cancel",
+  "description": "A cancel carries nothing but the session.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"cancel\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"nonce\":\"oM8E-Vq5BgmdvNn1Y7tutA\",\"iat\":1790800000000}",
+      "csig": "HT2QY1rtf1_WLPLOuMdESpoB8PwYYHUIdgoqvrG8wr97q99phr2w3APYYh8rAFAdud8BJYsXMvGXF9epu6fK3g",
+      "grant": {
+        "cred": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoib2dYdmtjM2Q2U2Q5djNDSUZ2S291a2lOV3hNcEZpZG8tQTVNbWxybFkyZyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIFWwVEm4DUJYYT3DCIpgNPnXy1b5QUKL403QWw_D76UdAiEA4g_HLQew07kuvBdGxcrs5t83LDa2I7pcSNd3ra1-hYA",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzLSeQFIicqhZst3MkryVs_zVNi1co4tB_7uFYa2IaQHY5xG7vkyKV7YDZ9xS3kcmxPcgdyB7Fd5kbbPmkJbKow\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE68U0SZZ1pFkZ18a23LHhpcPO-lnyvI1ug61MWnGtKa2KcpJ7KwCmMrxEfpXYYeiI9IgvNbOO345I93Jpozm8jQ"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": true,
+    "via": "grant",
+    "kind": "cancel"
+  }
+}

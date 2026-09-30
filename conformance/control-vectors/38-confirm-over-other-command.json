@@ -1,0 +1,29 @@
+{
+  "name": "confirm-over-other-command",
+  "description": "A passkey confirm made for a different command.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"lQ16mJxVWtuRO5dnD4MU2w\",\"iat\":1790800000000}",
+      "confirm": {
+        "cred": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiTjZYSEpoaWZTRDJnT2VDODhsdjRadHY4dFpRczZIVm5BNVB5ZjN3QUJfRSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIDOC7r5Mh85pRh3kpURiZ1V0ReCxj6RHUxf_lJQEquByAiEAqKO_JJC7zQeMTezrMqlMqZhYsZJH6FbFJeOjviebhLE"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE68U0SZZ1pFkZ18a23LHhpcPO-lnyvI1ug61MWnGtKa2KcpJ7KwCmMrxEfpXYYeiI9IgvNbOO345I93Jpozm8jQ"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": false,
+    "code": "bad_assertion"
+  }
+}

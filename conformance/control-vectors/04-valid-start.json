@@ -1,0 +1,32 @@
+{
+  "name": "valid-start",
+  "description": "Start a new Claude Code session with a fresh UUID in an absolute folder.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"start\",\"session\":\"claude-code:0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8b\",\"text\":\"Fix the flaky test\",\"nonce\":\"Rb2pAkUvXFv0gydOsmM25g\",\"iat\":1790800000000,\"cwd\":\"/Users/misha/spacesheep\"}",
+      "csig": "pd-_pfUM7atbCAVJfn_-29grMwHPl-YqHR5lMv8hMx2oC01ZllW1Y_AuKUkWNkjpdLSYLSjUF9kAHqhuOC-XLA",
+      "grant": {
+        "cred": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoib2dYdmtjM2Q2U2Q5djNDSUZ2S291a2lOV3hNcEZpZG8tQTVNbWxybFkyZyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEQCIFrm2Pw8rIq0C3aZhwbQVgplkDkbkGEvN51qYOwVA0uQAiBt2uxvawhB6Q4T-S3FurOVjwminAEbnJz0f7ynnU-XTg",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzLSeQFIicqhZst3MkryVs_zVNi1co4tB_7uFYa2IaQHY5xG7vkyKV7YDZ9xS3kcmxPcgdyB7Fd5kbbPmkJbKow\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "l3Pp9EUpr8-FegHio9QZfuAElK6cgihS",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE68U0SZZ1pFkZ18a23LHhpcPO-lnyvI1ug61MWnGtKa2KcpJ7KwCmMrxEfpXYYeiI9IgvNbOO345I93Jpozm8jQ"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": true,
+    "via": "grant",
+    "kind": "start"
+  }
+}
