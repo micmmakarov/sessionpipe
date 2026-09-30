@@ -124,7 +124,7 @@ function help(): void {
 
   sessionpipe install [--claude-code --codex --gemini-cli --antigravity] [--machine NAME] [--backfill DAYS] [--sink URL --tier N]
   sessionpipe uninstall [--keep-state]
-  sessionpipe sink add <url|file:PATH|stdout> [--tier 0-3] [--token T] [--pii] [--control] [--name N]
+  sessionpipe sink add <url|file:PATH|stdout> [--tier 0-3] [--token T] [--pii] [--name N]
   sessionpipe sink list | remove <name> | test <name>
   sessionpipe status | doctor [--json]
   sessionpipe tail [--session ID] [--tier N] [--harness NAME]
@@ -293,14 +293,19 @@ async function sink(): Promise<void> {
     return;
   }
   out(
-    "usage: sessionpipe sink add <url|file:PATH|stdout> [--tier N] [--token T] [--pii] [--control] [--name N] | list | remove <name> | test <name>",
+    "usage: sessionpipe sink add <url|file:PATH|stdout> [--tier N] [--token T] [--pii] [--name N] | list | remove <name> | test <name>",
   );
 }
 
 async function sinkAdd(url: string, cfg: Config): Promise<void> {
   const tier = Math.max(0, Math.min(3, Number(flag("--tier") ?? 0))) as Tier;
   const name = flag("--name") ?? (url === "stdout" ? "stdout" : url.startsWith("file:") ? "file" : new URL(url).host);
-  const s: SinkConfig = { name, url, tier, pii: has("--pii"), control: has("--control") };
+  // Control is not a property of a sink: it is set up per machine, with keys enrolled
+  // at this terminal (spec/CONTROL.md §2, `sessionpipe control pair`). A sink never
+  // carries `control: true`.
+  if (has("--control"))
+    out("  --control is ignored: control is set up per machine (`sessionpipe control pair <url>`, spec/CONTROL.md)");
+  const s: SinkConfig = { name, url, tier, pii: has("--pii") };
   const token = flag("--token");
   if (token) s.token = token;
   const secret = flag("--secret");
@@ -317,10 +322,6 @@ async function sinkAdd(url: string, cfg: Config): Promise<void> {
       }
       if (wk.endpoints) (s as SinkConfig & { endpoints?: unknown }).endpoints = wk.endpoints;
       s.well_known_at = new Date().toISOString();
-      if (s.control && !(wk.capabilities ?? []).includes("control")) {
-        out("  receiver does not list `control`; --control ignored");
-        s.control = false;
-      }
     } catch (e) {
       out(
         `  ! ${url} has no readable /.well-known/sessionpipe (${(e as Error).message}); added anyway, at tier ${tier}`,
@@ -329,9 +330,7 @@ async function sinkAdd(url: string, cfg: Config): Promise<void> {
   }
   cfg.sinks = cfg.sinks.filter((x) => x.name !== name).concat([s]);
   writeConfig(cfg);
-  out(
-    `  ✓ sink ${name}: ${url} at tier ${Math.min(tier, s.max_tier ?? 3)}${s.pii ? ", pii" : ""}${s.control ? ", control" : ""}`,
-  );
+  out(`  ✓ sink ${name}: ${url} at tier ${Math.min(tier, s.max_tier ?? 3)}${s.pii ? ", pii" : ""}`);
   out(`    tier ${tier} sends: ${TIER_TEXT[Math.min(tier, s.max_tier ?? 3) as Tier]}`);
 }
 const TIER_TEXT: Record<Tier, string> = {

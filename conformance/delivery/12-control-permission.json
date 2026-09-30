@@ -1,16 +1,18 @@
 {
-  "name": "control",
-  "spec": "CONTROL.md, HTTP.md \u00a73",
+  "name": "control-permission",
+  "spec": "CONTROL.md \u00a76 permission.answer",
   "capability": "control",
   "steps": [
     {
       "enqueue": {
         "machine": "m_conformance{run}0000",
         "message": {
-          "kind": "prompt",
+          "kind": "permission.answer",
           "session": "claude-code:00000000-0000-4000-8000-{run12}",
-          "text": "conformance ping",
-          "expires_in_s": 60
+          "for": "perm-5f1c0e9a2b7d4c31",
+          "decision": "deny",
+          "note": "Not on main.",
+          "expires_in_s": 120
         }
       }
     },
@@ -36,7 +38,7 @@
     {
       "ack": {
         "outcome": "delivered",
-        "mode": "waiter"
+        "mode": "turn"
       },
       "expect": {
         "status": 202

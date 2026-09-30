@@ -25,7 +25,7 @@ it at most daily (24 h cache); a receiver MAY set `Cache-Control`.
     "native":  "/api/sessionpipe/v1/native"
   },
   "batch":   { "max_events": 50, "max_bytes": 262144 },
-  "control": { "wait_max_s": 25 }
+  "control": { "wait_max_s": 25, "signing": { "rp_id": "receiver.example", "algs": [-7, -257] } }
 }
 ```
 
@@ -37,7 +37,7 @@ it at most daily (24 h cache); a receiver MAY set `Cache-Control`.
 | `auth` | `bearer` only in v1. |
 | `endpoints` | Paths relative to the origin, or absolute URLs. |
 | `batch` | The largest request the receiver takes. A sender MUST NOT exceed either bound. Defaults when absent: 50 / 262 144. |
-| `control` | `wait_max_s`: the longest long-poll it will hold. |
+| `control` | Required when `capabilities` lists `control`. `wait_max_s`: the longest long-poll it will hold. `signing.rp_id`: the WebAuthn rp id control keys are enrolled for; `signing.algs`: the COSE algorithms it accepts (`-7`, `-257`). ([CONTROL.md §2](CONTROL.md#2-keys-and-enrollment)) |
 
 Schema: [`well-known.json`](https://sessionpipe.org/schema/v1/well-known.json).
 
@@ -94,21 +94,32 @@ values, so a replay after an outage costs nothing.
 A receiver MUST record its own arrival time beside `time`. The difference is the
 delivery latency the project measures (target: p50 under 2 s on a laptop).
 
-## 3. Control: `GET {control}?session=<harness>:<id>&wait=<s>`
+## 3. Control: `{control}`
 
-Only when the well-known file lists `control`, the sink was added with `--control`,
-and a session is live. Bearer auth. The receiver holds the request up to `wait`
-seconds (≤ `wait_max_s`) and answers `200` with
-[`control-poll.json`](https://sessionpipe.org/schema/v1/control-poll.json) when a
-message is waiting, or `204` when none is. Messages are defined in
-[CONTROL.md](CONTROL.md).
+Only when the well-known file lists `control`. The messages, keys and checks are
+[CONTROL.md](CONTROL.md); this section is the wire. One machine daemon holds **one**
+long-poll per receiver, whatever the number of sessions.
 
-### `POST {control}/ack`
+| Request | Auth | Body → answer |
+|---------|------|---------------|
+| `POST {control}/pair` | the person's sink token | [`control-pair.json`](https://sessionpipe.org/schema/v1/control-pair.json) → `201` [`control-pair-started.json`](https://sessionpipe.org/schema/v1/control-pair-started.json) |
+| `GET {control}/pair?code=<code>` | the person's sink token | → `200` [`control-paired.json`](https://sessionpipe.org/schema/v1/control-paired.json) (`pending`, `paired` with key, proof and, on a machine's first pairing, its token; `expired`) |
+| `POST {control}/hello` | the machine's token | [`control-hello.json`](https://sessionpipe.org/schema/v1/control-hello.json) → `204` |
+| `GET {control}?machine=<id>&wait=<s>` | the machine's token | → `200` [`control-poll.json`](https://sessionpipe.org/schema/v1/control-poll.json) when a message is waiting, `204` when none arrived within `wait` (≤ `wait_max_s`) |
+| `POST {control}/ack` | the machine's token | [`control-ack.json`](https://sessionpipe.org/schema/v1/control-ack.json) → `202` |
+| `POST {control}/off` | the machine's token | → `204`; the machine, its token and its queue are gone |
 
-[`control-ack.json`](https://sessionpipe.org/schema/v1/control-ack.json):
-`{"acks":[{"id","outcome":"delivered"|"expired"|"unsupported"|"failed","at","detail?"}]}`.
-A receiver MUST keep re-delivering a message on every poll until it is acked or
-its `expires_at` passes. `202` on success.
+- The machine's token opens these four machine calls for that one machine and nothing
+  else of the account. A receiver MUST refuse a sink token on them, and the machine's
+  token everywhere else.
+- A receiver MUST keep re-delivering a message on every poll until it is acked or its
+  `expires_at` passes, then drop it. A machine MAY receive the same message twice; the
+  signed nonce makes the second one a `replay`.
+- A poll is also the machine's heartbeat: a receiver MAY show a machine that polled
+  within `2 × wait_max_s` as online, and SHOULD hand a session the waiter (CONTROL.md
+  §8) only while its machine is online.
+- `401` on a machine call means the token is gone (the machine was removed): the daemon
+  stops polling that receiver and says so. `404` on `/pair?code=` means no such pairing.
 
 ## 4. Native lane: `POST {native}/<harness>`
 
@@ -149,4 +160,9 @@ The runner sends and expects, in this order; each is a fixture under
 | auth | a wrong bearer (`auth: "wrong"` in the fixture) | 401 |
 | unknown-type | `type: "x.y"` | 202, stored, retrievable |
 | forget | `session.forgotten`, then a read | 202, then nothing |
-| control | a queued message, a poll, an ack | 200 with the message; 204 after the ack |
+| control | a queued prompt, a poll, an ack | 200 with the message; 204 after the ack |
+| control-expired | a message that expires unpolled | 204 |
+| control-double-ack | the same ack twice | 202, 202 |
+| control-permission | a permission answer, a poll, an ack with its mode | 200; 202 |
+| control-unsupported | a cancel, acked `unsupported` | 202; 204 after |
+| control-redelivery | two polls with no ack | the same message both times |

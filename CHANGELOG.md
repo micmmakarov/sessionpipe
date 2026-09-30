@@ -5,5 +5,36 @@ and released in lockstep. This file records protocol-level changes.
 
 ## Unreleased
 
+- Control rewritten before anyone implemented it (CONTROL.md, HTTP.md §3; still
+  Draft, milestone M6). The old draft let whoever held a bearer token prompt an agent
+  and answer "allow"; now:
+  - **Every command is signed** on the person's device — a passkey vouches for a day
+    key, the day key signs each command (or one passkey confirm per command) — and
+    **verified on the machine** against keys enrolled at its own terminal
+    (`sessionpipe control pair`). A receiver carries and may pre-check; it can never
+    forge. One verifier, `sessionpipe-core/control` (WebCrypto only), and
+    `conformance/control-vectors/` (60 vectors) that every verifier must agree with.
+  - **One poll per machine**, not per session: `GET {control}?machine=…` with the
+    machine's own token, minted at pairing; the command names its session
+    (`<harness>:<id>`). New: `POST {control}/pair`, `GET {control}/pair?code=`,
+    `POST {control}/hello`, `POST {control}/off`.
+  - **Six delivery modes**, first fit wins (`sdk`, `waiter`, `turn`, `api`, `resume`,
+    `fork`), acked with the mode used; new kind `start`; new outcome `refused` with a
+    `code`; acks may carry `reply`.
+  - Schemas: `control.json` is now the carried envelope (`cmd`, `csig`, `grant`,
+    `confirm`); new `control-command`, `control-grant`, `control-key`, `control-pair`,
+    `control-pair-started`, `control-paired`, `control-hello`; `control-ack` gains
+    `mode`, `session`, `code`, `reply`; the well-known `control` object gains
+    `signing` (`rp_id`, `algs`).
+  - Limits fixed where the two implementations it came from disagreed: nonce 22–64
+    base64url, text ≤ 4 000 characters, command ≤ 12 000, session id per adapter.
+- Fixed contradictions: a sink never carries `control` (the CLI's `sink add --control`
+  is now ignored with a pointer to `control pair`); sessionpipe.org no longer says
+  spacesheep runs "with control"; CONTROL.md's six delivery scenarios all exist
+  (09–14); Gemini CLI's AfterAgent is in the Stop-block list; attention ids are
+  specified as the adapters mint them; a retried batch reuses its `webhook-id`
+  (derived from the events' ids); SECURITY.md and CONTRIBUTING.md name the one
+  exception to "the hook never alters the harness" — a verified control message — and
+  exempt the PermissionRequest wait from the 150 ms hook budget.
 - Protocol v1 (Draft): envelope, event vocabulary, tiers 0–3, HTTP binding,
   discovery, control channel. See `spec/`.

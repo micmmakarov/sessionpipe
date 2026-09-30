@@ -12,6 +12,8 @@ export interface SinkConfig {
   url: string;
   tier: Tier;
   pii?: boolean;
+  /** @deprecated Never set: control is per machine (spec/CONTROL.md §2). Kept so an
+   *  older config still reads. */
   control?: boolean;
   token?: string;
   /** whsec_… for Standard Webhooks signatures. */

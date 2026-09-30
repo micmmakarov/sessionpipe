@@ -81,6 +81,38 @@ for (const f of delivery) {
   }
 }
 
+// Control vectors: every signed message fits control.json (the receiver's envelope
+// fields aside), and every command a vector expects to verify fits control-command.json.
+const vectors = walk(path.join(root, "conformance/control-vectors")).filter((f) => f.endsWith(".json"));
+const Carried = S.ControlMessage.omit({ id: true, at: true, expires_at: true });
+for (const f of vectors) {
+  const rel = path.relative(root, f);
+  const problems = [];
+  try {
+    const v = JSON.parse(readFileSync(f, "utf8"));
+    if (!v.name || !v.input || !v.expect || typeof v.expect.ok !== "boolean")
+      problems.push("needs name, input, expect.ok");
+    if (v.input?.signed) {
+      const shape = Carried.safeParse(v.input.signed);
+      // Broken vectors may break the command, never the envelope's own types.
+      if (!shape.success && typeof v.input.signed.cmd === "string" && v.input.signed.cmd.length <= 12_000)
+        problems.push(`signed: ${shape.error.issues.map((x) => `${x.path.join(".")} ${x.message}`).join("; ")}`);
+      if (v.expect.ok) {
+        const c = S.ControlCommand.safeParse(JSON.parse(v.input.signed.cmd));
+        if (!c.success)
+          problems.push(`cmd: ${c.error.issues.map((x) => `${x.path.join(".")} ${x.message}`).join("; ")}`);
+      }
+    } else if (v.input?.proof) {
+      const k = S.ControlKey.safeParse(v.input.key);
+      if (!k.success) problems.push("key does not fit control-key.json");
+    } else problems.push("input needs signed or proof");
+  } catch (e) {
+    problems.push(String(e.message));
+  }
+  if (problems.length) failed++;
+  rows.push([rel, problems.length ? "FAIL" : "ok", problems.join(" | ")]);
+}
+
 // Behaviour, once the runner exists.
 const runner = path.join(root, "packages/conformance/dist/index.js");
 let ran = false;

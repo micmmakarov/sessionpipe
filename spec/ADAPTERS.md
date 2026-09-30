@@ -48,7 +48,16 @@ presents that as its own reading.
   supplies transcripts for fact tests.
 - **Ids**: `turn_id` = the harness's prompt/turn id when it has one; `call_id` = its
   tool-use id; `attention_id` = the tool-use id of the permission request when the
-  payload has one, else a ULID the sender minted.
+  payload has one, else an id the sender mints, unique within the session. Claude
+  Code's `PermissionRequest` carries no tool-use id, so its adapter mints
+  `perm-<16 hex of sha256(prompt id | tool | input)>`: the same request always names the
+  same attention, which is what a `permission.answer` has to name (CONTROL.md §6).
+  Notifications without an id are `notif-<epoch ms>`.
+- **Control** (CONTROL.md §6, §9): only on a machine with control paired, the Stop hook
+  asks the daemon's socket for a queued, verified message and may answer a block with
+  it, and the PermissionRequest hook may wait there for a verified answer. These two
+  are the only hooks that ever print for a harness that doesn't parse stdout, and they
+  are exempt from the 150 ms budget.
 
 ## Claude Code (`claude-code`) — M2
 
