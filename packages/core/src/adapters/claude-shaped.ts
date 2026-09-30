@@ -19,6 +19,9 @@ export interface ClaudeShapedOptions {
   matcherFor: (event: string) => string | undefined;
   /** Seconds (milliseconds for Gemini CLI). */
   timeout: number;
+  /** A longer timeout for one event (Claude Code's PermissionRequest, which may wait
+   *  for a verified control answer: spec/CONTROL.md §6). */
+  timeoutFor?: (event: string) => number | undefined;
   /** Extra top-level keys the file must carry (Cursor/Copilot: version: 1). */
   top?: Record<string, unknown>;
 }
@@ -89,7 +92,7 @@ function entryFor(event: string, harness: string, cmd: HookCommand, o: ClaudeSha
   const matcher = o.matcherFor(event);
   return {
     ...(matcher !== undefined ? { matcher } : {}),
-    hooks: [{ type: "command", command: cmd([harness, event]).command, timeout: o.timeout }],
+    hooks: [{ type: "command", command: cmd([harness, event]).command, timeout: o.timeoutFor?.(event) ?? o.timeout }],
   };
 }
 
