@@ -70,6 +70,8 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
       harnesses: ["claude-code"],
       modes: ["waiter", "turn", "resume", "fork"],
       version: VERSION,
+      folders: cfg.folders,
+      mode: cfg.mode,
     }),
   });
   const s = await json(started);

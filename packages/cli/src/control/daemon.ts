@@ -457,6 +457,8 @@ export class ControlDaemon {
         keys: r.keys.map((k) => k.id),
         version: VERSION,
         waiting,
+        folders: this.cfg.folders,
+        mode: this.cfg.mode,
       };
       await this.post(r, "/hello", body).catch(() => {});
     }
