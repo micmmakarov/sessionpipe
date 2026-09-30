@@ -113,7 +113,8 @@ long-poll per receiver, whatever the number of sessions.
   else of the account. A receiver MUST refuse a sink token on them, and the machine's
   token everywhere else.
 - A receiver MUST keep re-delivering a message on every poll until it is acked or its
-  `expires_at` passes, then drop it. A machine MAY receive the same message twice; the
+  `expires_at` passes, then drop it. A `taken` ack pauses redelivery for 35 minutes
+  (CONTROL.md §10); a final ack ends it. A machine MAY receive the same message twice; the
   signed nonce makes the second one a `replay`.
 - A poll is also the machine's heartbeat: a receiver MAY show a machine that polled
   within `2 × wait_max_s` as online, and SHOULD hand a session the waiter (CONTROL.md
