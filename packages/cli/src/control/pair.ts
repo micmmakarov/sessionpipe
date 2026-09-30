@@ -1,0 +1,241 @@
+// SPDX-License-Identifier: Apache-2.0
+// `sessionpipe control pair <receiver>`: a key enters this machine's trust store only
+// from this terminal (spec/CONTROL.md §2). The receiver hands back a passkey and a
+// proof over sha256("sessionpipe.pair:<machine>:<code>"); the key is trusted only once
+// the proof verifies here. Also the service files (launchd / systemd) that keep the
+// daemon running, and `control off`.
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { type TrustedKey, verifyEnrollment } from "@sessionpipe/core/control";
+import { type ControlConfig, controlState, type PairedReceiver, readControl, writeControl } from "./store.js";
+
+declare const __SESSIONPIPE_VERSION__: string;
+const VERSION = typeof __SESSIONPIPE_VERSION__ === "string" ? __SESSIONPIPE_VERSION__ : "0.0.0";
+
+export interface PairOptions {
+  url: string;
+  /** The person's sink token for this receiver (from `sink add`, or --token). */
+  token: string;
+  folders: string[];
+  mode: "safe" | "auto";
+  name: string;
+  out: (s: string) => void;
+  fetch?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  env?: NodeJS.ProcessEnv;
+}
+
+async function json(r: Response): Promise<Record<string, unknown>> {
+  try {
+    return (await r.json()) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export async function discover(url: string, f: typeof fetch): Promise<{ control: string; rpId: string }> {
+  const base = url.replace(/\/$/, "");
+  const r = await f(`${base}/.well-known/sessionpipe`);
+  if (!r.ok) throw new Error(`${base} has no sessionpipe well-known file (HTTP ${r.status})`);
+  const wk = (await r.json()) as {
+    capabilities?: string[];
+    endpoints?: { control?: string };
+    control?: { signing?: { rp_id?: string } };
+  };
+  if (!wk.capabilities?.includes("control") || !wk.endpoints?.control || !wk.control?.signing?.rp_id)
+    throw new Error(`${base} doesn't serve control yet (its well-known file lists no control.signing)`);
+  const ep = wk.endpoints.control;
+  return { control: /^https?:\/\//.test(ep) ? ep : base + ep, rpId: wk.control.signing.rp_id };
+}
+
+/** Pair (or add a key to) this machine with one receiver. Returns the saved config. */
+export async function pair(o: PairOptions): Promise<ControlConfig> {
+  const f = o.fetch ?? fetch;
+  const sleep = o.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const { control, rpId } = await discover(o.url, f);
+  const cfg: ControlConfig = readControl(o.env) ?? { name: o.name, folders: [], mode: o.mode, receivers: [] };
+  cfg.name = o.name || cfg.name;
+  cfg.mode = o.mode;
+  cfg.folders = [...new Set([...cfg.folders, ...o.folders.map((d) => path.resolve(d))])];
+  const existing = cfg.receivers.find((r) => r.control === control);
+  const auth = { authorization: `Bearer ${o.token}`, "content-type": "application/json" };
+  const started = await f(`${control}/pair`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({
+      ...(existing ? { machine: existing.machine } : {}),
+      name: cfg.name,
+      harnesses: ["claude-code"],
+      modes: ["waiter", "turn", "resume", "fork"],
+      version: VERSION,
+    }),
+  });
+  const s = await json(started);
+  if (started.status !== 201 && started.status !== 200)
+    throw new Error(
+      `the receiver refused to start pairing (HTTP ${started.status}${s.reason ? `: ${String(s.reason)}` : ""})`,
+    );
+  const machine = String(s.machine);
+  const code = String(s.code);
+  o.out("");
+  o.out(`  Open this link and confirm with your passkey (Touch ID, Face ID, a security key):`);
+  o.out(`    ${String(s.url)}`);
+  o.out(`  The page shows these digits too: ${String(s.check)}`);
+  o.out("");
+  const until = Date.parse(String(s.expires_at)) || Date.now() + 10 * 60_000;
+  for (;;) {
+    if (Date.now() > until) throw new Error("the pairing link expired; run `sessionpipe control pair` again");
+    await sleep(2000);
+    const r = await f(`${control}/pair?code=${encodeURIComponent(code)}`, { headers: auth }).catch(() => null);
+    if (!r) continue;
+    if (r.status === 404) throw new Error("the receiver lost the pairing; run `sessionpipe control pair` again");
+    const p = await json(r);
+    if (p.status === "expired") throw new Error("the pairing link expired; run `sessionpipe control pair` again");
+    if (p.status !== "paired") continue;
+    const key = p.key as TrustedKey;
+    const proof = p.proof as { cred: string; ad: string; cd: string; sig: string };
+    const v = await verifyEnrollment({ machine, code, key, proof, rpId });
+    if (!v.ok) throw new Error(`the receiver's key didn't prove itself (${v.why}); nothing was trusted`);
+    const token = existing?.token ?? (typeof p.token === "string" ? p.token : "");
+    if (!token) throw new Error("the receiver didn't hand this machine its token");
+    const rec: PairedReceiver = existing ?? {
+      url: o.url.replace(/\/$/, ""),
+      control,
+      rpId,
+      machine,
+      token,
+      keys: [],
+      paired_at: new Date().toISOString(),
+    };
+    if (!rec.keys.some((k) => k.id === key.id)) rec.keys.push({ ...key, added_at: new Date().toISOString() });
+    if (!existing) cfg.receivers.push(rec);
+    writeControl(cfg, o.env);
+    o.out(`  ✓ Paired with ${rec.url} as ${machine} · ${rec.keys.length} key(s) trusted on this machine`);
+    return cfg;
+  }
+}
+
+/** `control off [<receiver>]`: tell the receiver, forget its token and keys. */
+export async function off(o: {
+  url?: string;
+  out: (s: string) => void;
+  fetch?: typeof fetch;
+  env?: NodeJS.ProcessEnv;
+}) {
+  const f = o.fetch ?? fetch;
+  const cfg = readControl(o.env);
+  if (!cfg) return o.out("  control isn't set up on this machine");
+  const gone = cfg.receivers.filter((r) => !o.url || r.url === o.url.replace(/\/$/, ""));
+  for (const r of gone) {
+    await f(`${r.control}/off`, { method: "POST", headers: { authorization: `Bearer ${r.token}` } }).catch(() => null);
+    o.out(`  removed ${r.url} (${r.machine}, ${r.keys.length} key(s))`);
+  }
+  cfg.receivers = cfg.receivers.filter((r) => !gone.includes(r));
+  writeControl(cfg, o.env);
+  return cfg;
+}
+
+export function removeKey(id: string, env?: NodeJS.ProcessEnv): number {
+  const cfg = readControl(env);
+  if (!cfg) return 0;
+  let n = 0;
+  for (const r of cfg.receivers) {
+    const before = r.keys.length;
+    r.keys = r.keys.filter((k) => k.id !== id && !k.id.startsWith(id));
+    n += before - r.keys.length;
+  }
+  writeControl(cfg, env);
+  return n;
+}
+
+// --- the service -------------------------------------------------------------------
+
+const LABEL = "org.sessionpipe.control";
+const UNIT = "sessionpipe-control.service";
+
+export function serviceFiles(o: { node: string; cli: string; logDir: string; home?: string }) {
+  const home = o.home ?? os.homedir();
+  const xml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${LABEL}</string>
+  <key>ProgramArguments</key>
+  <array><string>${xml(o.node)}</string><string>${xml(o.cli)}</string><string>control</string><string>run</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>${xml(path.join(o.logDir, "daemon.log"))}</string>
+  <key>StandardErrorPath</key><string>${xml(path.join(o.logDir, "daemon.log"))}</string>
+</dict>
+</plist>
+`;
+  const q = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/%/g, "%%")}"`;
+  const unit = `[Unit]
+Description=sessionpipe control daemon (signed messages to your coding sessions)
+After=network-online.target
+
+[Service]
+ExecStart=${q(o.node)} ${q(o.cli)} control run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+`;
+  return {
+    plist: { file: path.join(home, "Library", "LaunchAgents", `${LABEL}.plist`), body: plist },
+    unit: { file: path.join(home, ".config", "systemd", "user", UNIT), body: unit },
+  };
+}
+
+/** Write and start the service for this platform. Returns what it did, in words. */
+export function installService(o: { node: string; cli: string; env?: NodeJS.ProcessEnv }): string {
+  const logDir = controlState(o.env);
+  mkdirSync(logDir, { recursive: true, mode: 0o700 });
+  const f = serviceFiles({ node: o.node, cli: o.cli, logDir });
+  const run = (cmd: string, args: string[]) => execFileSync(cmd, args, { stdio: "ignore", timeout: 15_000 });
+  if (process.platform === "darwin") {
+    mkdirSync(path.dirname(f.plist.file), { recursive: true });
+    writeFileSync(f.plist.file, f.plist.body);
+    const uid = String(process.getuid?.() ?? "");
+    try {
+      run("launchctl", ["bootout", `gui/${uid}/${LABEL}`]);
+    } catch {}
+    run("launchctl", ["bootstrap", `gui/${uid}`, f.plist.file]);
+    return `launchd agent ${LABEL} (log: ${path.join(logDir, "daemon.log")})`;
+  }
+  if (process.platform === "linux") {
+    mkdirSync(path.dirname(f.unit.file), { recursive: true });
+    writeFileSync(f.unit.file, f.unit.body);
+    try {
+      run("systemctl", ["--user", "daemon-reload"]);
+      run("systemctl", ["--user", "enable", "--now", UNIT]);
+      return `systemd user unit ${UNIT} (journalctl --user -u ${UNIT})`;
+    } catch {
+      return `wrote ${f.unit.file}, but systemd --user isn't reachable here; run \`sessionpipe control run\` yourself (tmux, screen)`;
+    }
+  }
+  return "no service manager for this platform yet; run `sessionpipe control run` yourself";
+}
+
+export function uninstallService(env?: NodeJS.ProcessEnv): void {
+  const f = serviceFiles({ node: "", cli: "", logDir: controlState(env) });
+  const run = (cmd: string, args: string[]) => {
+    try {
+      execFileSync(cmd, args, { stdio: "ignore", timeout: 15_000 });
+    } catch {}
+  };
+  if (process.platform === "darwin" && existsSync(f.plist.file)) {
+    run("launchctl", ["bootout", `gui/${process.getuid?.() ?? ""}/${LABEL}`]);
+    unlinkSync(f.plist.file);
+  }
+  if (process.platform === "linux" && existsSync(f.unit.file)) {
+    run("systemctl", ["--user", "disable", "--now", UNIT]);
+    unlinkSync(f.unit.file);
+    run("systemctl", ["--user", "daemon-reload"]);
+  }
+}

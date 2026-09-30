@@ -54,6 +54,7 @@ const result = await build({
     ? {
         "@sessionpipe/core": path.join(root, "packages/core/src/index.ts"),
         "@sessionpipe/core/schema": path.join(root, "packages/core/schema/v1.ts"),
+        "@sessionpipe/core/control": path.join(root, "packages/core/src/control/index.ts"),
       }
     : {},
   banner: { js: `// ${pkg.name} ${pkg.version} · Apache-2.0 · https://sessionpipe.org` },

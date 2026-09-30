@@ -36,7 +36,24 @@ import {
   tilde,
   writeConfig,
 } from "@sessionpipe/core";
+import { ask, socketPath } from "./control/local.js";
 import { HttpSink } from "./http-sink.js";
+
+async function tellDaemon(state: string, job: Job, session: string, transcript?: string): Promise<void> {
+  const sock = socketPath(state);
+  if (process.platform !== "win32" && !existsSync(sock)) return;
+  await ask(
+    sock,
+    {
+      op: "event",
+      session: `claude-code:${session}`,
+      event: job.event,
+      cwd: job.cwd,
+      ...(transcript ? { transcript } : {}),
+    },
+    300,
+  );
+}
 
 declare const __SESSIONPIPE_VERSION__: string;
 const VERSION = typeof __SESSIONPIPE_VERSION__ === "string" ? __SESSIONPIPE_VERSION__ : "0.0.0";
@@ -146,6 +163,10 @@ export async function runJob(
   if (!adapter) return { events: [], delivered: {} };
   const r = adapter.fromHook({ argv: job.argv, stdin: job.stdin, env: { ...process.env, ...job.env }, cwd: job.cwd });
   if (!r || !r.session.id) return { events: [], delivered: {} };
+  // The control daemon learns each Claude Code session's turn state from its events
+  // (a message for a session mid-turn waits for its Stop; a pending permission prompt
+  // closes when the tool runs). A local round trip, and nothing when no daemon runs.
+  if (job.harness === "claude-code") await tellDaemon(state, job, r.session.id, r.transcript);
   const outbox = new Outbox(state);
   const ref = { harness: job.harness, session: r.session.id };
   // Hooks of one session fire close together (parallel subagents, issue #9): wait

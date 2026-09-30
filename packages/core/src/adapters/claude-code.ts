@@ -45,7 +45,13 @@ export const CLAUDE_EVENTS = [
 /** With no sink above tier 0 only the heartbeat needs a tool event: one, not three (issue #12). */
 const LEAN_SKIP = new Set(["PreToolUse", "PostToolUseFailure"]);
 const eventsFor = (lean?: boolean) => (lean ? CLAUDE_EVENTS.filter((e) => !LEAN_SKIP.has(e)) : [...CLAUDE_EVENTS]);
-const OPTS = { matcherFor: (e: string) => (/Tool|Permission/.test(e) ? "" : undefined), timeout: 5 };
+const OPTS = {
+  matcherFor: (e: string) => (/Tool|Permission/.test(e) ? "" : undefined),
+  timeout: 5,
+  // The hook waits up to 125 s for a verified control answer, and only when control
+  // is paired on this machine; everywhere else it exits in milliseconds as before.
+  timeoutFor: (e: string) => (e === "PermissionRequest" ? 130 : undefined),
+};
 const DESKTOP_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 
 /** Every Claude Code config dir on this machine. */
