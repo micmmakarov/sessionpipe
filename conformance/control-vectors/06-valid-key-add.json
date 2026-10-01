@@ -1,0 +1,30 @@
+{
+  "name": "valid-key-add",
+  "description": "A trusted passkey vouches for a new device's passkey.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"key.add\",\"session\":\"sessionpipe:keys\",\"nonce\":\"3tXts3xZ_yhZ5hBiBFq3vg\",\"iat\":1790800000000,\"key\":{\"id\":\"di3XsHbTiujlcnrbfKCOTUwpu75nto_C\",\"alg\":-7,\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFzIn9n9-2oEuYjjn_KcpHu8vB-jM5IDTTCFpkkJyU9lhwAOLvYdFHDc0LMjAEtmFrVisQdapYwDnRpQb0nhudg\"},\"name\":\"iPhone\"}",
+      "confirm": {
+        "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiekZGNXN5RldXX3JVUHdZREZWc1FielJ5M2ZDSHBtbktQM2pMT0xHc0ItdyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIB729p2LYLJyTgC8dIKQsawXXz2NzTkxxqRdT_DFavROAiEAt9yQwP3gvxTzZwHK4pZkyQ4CSzUeENOy9drOgzVhCw4"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": true,
+    "via": "confirm",
+    "kind": "key.add"
+  }
+}

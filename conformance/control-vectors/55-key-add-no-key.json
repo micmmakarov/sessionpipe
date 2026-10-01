@@ -1,15 +1,15 @@
 {
-  "name": "valid-start",
-  "description": "Start a new Claude Code session with a fresh UUID in an absolute folder.",
+  "name": "key-add-no-key",
+  "description": "A key.add that names no key.",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"start\",\"session\":\"claude-code:0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8b\",\"text\":\"Fix the flaky test\",\"nonce\":\"sJzRqffiwThiT8hQ8AnzJg\",\"iat\":1790800000000,\"cwd\":\"/Users/misha/spacesheep\"}",
-      "csig": "0o8s2ObPxZVCWmnDVjE3X6Tyl8XRYgJWAL67OD9VBdImAtrJZU0are5iYdoTOw_3-mHOoD81JsT6A8L7RNl7rg",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"key.add\",\"session\":\"sessionpipe:keys\",\"nonce\":\"8FIIwhW_CN6Pf_ORaknDeQ\",\"iat\":1790800000000}",
+      "csig": "8K9ijBOJjyNm3R6vCA7TJWc0U8lmDFAO2Zs82tdPHh_d7531kr-HOnVojH4Laj80ckfANsXAOYzVb7wCDZImTA",
       "grant": {
         "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
         "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaEdIUTI4bzhjdEZZdDhUMndZb21DZ3loTE1FTWt1aE1CX0lZSlBJdjV5NCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEUCIAa8yY6aYUHRhMAdixnFoZUqUe6hsOaK-8A85ZKO7XgyAiEAmsYfQ1xqM4-RwwuXGDYNbWR1FDumf6hpA792sEPB77I",
+        "sig": "MEYCIQDGtwmONtyLIMfqBJExEFbuFPxdQdvka7x4kI2fGoMyhgIhALPc7a5dweGjUVQODKKF2OT0Pyv6dbMdFE0mkybq1yc4",
         "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUOcgSB7EWJYGONUjhdORmc2MlEVaHfbULBtHJpNmrmpF8k_8onHsXU9pDwbJoQvseL_G939XZ6K3Ew1KPwpnng\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
       }
     },
@@ -25,8 +25,7 @@
     "now": 1790800060000
   },
   "expect": {
-    "ok": true,
-    "via": "grant",
-    "kind": "start"
+    "ok": false,
+    "code": "bad_fields"
   }
 }

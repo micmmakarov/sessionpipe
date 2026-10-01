@@ -1,15 +1,15 @@
 {
-  "name": "valid-start",
-  "description": "Start a new Claude Code session with a fresh UUID in an absolute folder.",
+  "name": "wrong-machine",
+  "description": "Signed for another machine.",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"start\",\"session\":\"claude-code:0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8b\",\"text\":\"Fix the flaky test\",\"nonce\":\"sJzRqffiwThiT8hQ8AnzJg\",\"iat\":1790800000000,\"cwd\":\"/Users/misha/spacesheep\"}",
-      "csig": "0o8s2ObPxZVCWmnDVjE3X6Tyl8XRYgJWAL67OD9VBdImAtrJZU0are5iYdoTOw_3-mHOoD81JsT6A8L7RNl7rg",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_anothermachine00000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"-whoRNQieaXhDPAGVuaCVg\",\"iat\":1790800000000}",
+      "csig": "dFK-nVBatyk78k4V76XMyxcARy4PVZ0GaFtU0nfeRpZQaCBPSRYtPnF7mgGVH6gIqMUV45AOuMGslw-gjyg_sw",
       "grant": {
         "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
         "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaEdIUTI4bzhjdEZZdDhUMndZb21DZ3loTE1FTWt1aE1CX0lZSlBJdjV5NCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEUCIAa8yY6aYUHRhMAdixnFoZUqUe6hsOaK-8A85ZKO7XgyAiEAmsYfQ1xqM4-RwwuXGDYNbWR1FDumf6hpA792sEPB77I",
+        "sig": "MEYCIQCA87ZMF5fE--F1wWKovhmgeQV76r6sXOVHW5HW07QPkwIhAMahRCzgJPxbbQMoaVyVd7PYgN78VoJFm0rq3QCJT0CB",
         "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUOcgSB7EWJYGONUjhdORmc2MlEVaHfbULBtHJpNmrmpF8k_8onHsXU9pDwbJoQvseL_G939XZ6K3Ew1KPwpnng\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
       }
     },
@@ -25,8 +25,7 @@
     "now": 1790800060000
   },
   "expect": {
-    "ok": true,
-    "via": "grant",
-    "kind": "start"
+    "ok": false,
+    "code": "wrong_machine"
   }
 }

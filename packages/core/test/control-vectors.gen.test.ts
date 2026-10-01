@@ -123,6 +123,22 @@ describe.runIf(WRITE)("write control vectors", () => {
     );
     const cc = commandStr({ kind: "cancel", text: undefined });
     ok("valid-cancel", "A cancel carries nothing but the session.", await signed(pk, day, cc), "grant", "cancel");
+    // A device the machine trusts vouches for a new one (CONTROL.md §2): key.add.
+    const phone = await Passkey.create({ rpId: RP, origin: `https://${RP}` });
+    const ka = commandStr({
+      kind: "key.add",
+      session: "sessionpipe:keys",
+      text: undefined,
+      key: phone.key,
+      name: "iPhone",
+    });
+    ok(
+      "valid-key-add",
+      "A trusted passkey vouches for a new device's passkey.",
+      { cmd: ka, confirm: await pk.assert(await sha256(ka)) },
+      "confirm",
+      "key.add",
+    );
     const rs = commandStr({});
     out.push({
       name: "valid-rs256-passkey",
@@ -435,6 +451,26 @@ describe.runIf(WRITE)("write control vectors", () => {
       "bad_fields",
     );
     await shape("cancel-with-text", "A cancel carrying text.", { kind: "cancel" }, "bad_fields");
+    const someKey = { id: "AAAAAAAAAAAAAAAAAAAAAA", alg: -7, spki: "A".repeat(91) };
+    await shape(
+      "key-add-no-key",
+      "A key.add that names no key.",
+      { kind: "key.add", session: "sessionpipe:keys", text: undefined },
+      "bad_fields",
+    );
+    await shape(
+      "key-add-coding-session",
+      "A key.add must name the key store, not a coding session.",
+      { kind: "key.add", text: undefined, key: someKey },
+      "bad_session",
+    );
+    await shape(
+      "key-add-bad-alg",
+      "A key.add with an algorithm the spec doesn't allow.",
+      { kind: "key.add", session: "sessionpipe:keys", text: undefined, key: { ...someKey, alg: -8 } },
+      "bad_fields",
+    );
+    await shape("prompt-with-key", "Only a key.add carries a key.", { key: someKey }, "bad_fields");
     await shape("iat-not-integer", "A signing time that isn't an integer.", { iat: T + 0.5 }, "malformed");
     {
       const c = commandStr({ pad: "x".repeat(12_000) });

@@ -1,0 +1,31 @@
+{
+  "name": "grant-http-origin",
+  "description": "Plain http on a non-localhost rp id.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"2f057CsxJDBUKc2CqEjqvA\",\"iat\":1790800000000}",
+      "csig": "XqTxfbN8gH-BFjrX2Q32IqOpHaDQie1Yz0Do13YpDVXz3EVvH6Y6zI2Moe_GOftqFohCNejfcJTs29TPEqXp2w",
+      "grant": {
+        "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiSkRZZGw1NEhqV3dsNHNyWF9rbW9DVi1CNmNQdFFQb3BUXzVLdlJZSGtzZyIsIm9yaWdpbiI6Imh0dHA6Ly9yZWNlaXZlci5leGFtcGxlIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+        "sig": "MEYCIQCBTunovUydPms3S0cOToSO1lqtAcAldl_j1a62Vq7J5wIhALIi-IEnVYBp5AROvM-QPaRv5iMia_a85nDBmFi5EnR7",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUOcgSB7EWJYGONUjhdORmc2MlEVaHfbULBtHJpNmrmpF8k_8onHsXU9pDwbJoQvseL_G939XZ6K3Ew1KPwpnng\",\"iat\":1790799940000,\"exp\":1790803600000,\"rp\":\"receiver.example\"}"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": false,
+    "code": "bad_assertion"
+  }
+}
