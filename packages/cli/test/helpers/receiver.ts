@@ -43,6 +43,9 @@ export class FakeReceiver {
   handKey: "same" | "other" = "same";
   other!: Passkey;
   offCalled = false;
+  /** Declare control.open_pairing: pairing may start with no token and a poll_key. */
+  openPairing = false;
+  pollKey: string | null = null;
 
   async start(port = 0): Promise<void> {
     this.server = createServer((req, res) => void this.route(req, res));
@@ -138,12 +141,19 @@ export class FakeReceiver {
         auth: ["bearer"],
         endpoints: { events: "/api/sessionpipe/v1/events", control: "/api/sessionpipe/v1/control" },
         batch: { max_events: 50, max_bytes: 262144 },
-        control: { wait_max_s: 25, signing: { rp_id: "localhost", algs: [-7, -257] } },
+        control: {
+          wait_max_s: 25,
+          ...(this.openPairing ? { open_pairing: true } : {}),
+          signing: { rp_id: "localhost", algs: [-7, -257] },
+        },
       });
     const base = "/api/sessionpipe/v1/control";
     if (u.pathname === `${base}/pair` && req.method === "POST") {
-      if (!sinkAuth) return send(401);
-      await this.body(req);
+      const b = await this.body(req);
+      if (!sinkAuth) {
+        if (!this.openPairing || auth || typeof b.poll_key !== "string") return send(401);
+        this.pollKey = b.poll_key;
+      }
       return send(201, {
         machine: this.machine,
         code: this.pairCode,
@@ -153,12 +163,19 @@ export class FakeReceiver {
       });
     }
     if (u.pathname === `${base}/pair` && req.method === "GET") {
-      if (!sinkAuth) return send(401);
+      const open = this.pollKey !== null && auth === `Bearer ${this.pollKey}`;
+      if (!sinkAuth && !open) return send(401);
       if (u.searchParams.get("code") !== this.pairCode) return send(404);
       if (!this.paired) return send(200, { status: "pending" });
       const proof = await this.passkey.enroll(this.machine, this.pairCode);
       const key = this.handKey === "same" ? this.passkey.key : this.other.key;
-      return send(200, { status: "paired", key, proof, token: this.token });
+      return send(200, {
+        status: "paired",
+        key,
+        proof,
+        token: this.token,
+        ...(open ? { sink_token: "sink_from_pairing_0123456789", account: "@fake on localhost" } : {}),
+      });
     }
     if (!u.pathname.startsWith(base)) return send(404);
     if (!machineAuth) return send(401);

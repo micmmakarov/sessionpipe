@@ -202,6 +202,53 @@ describe("pairing (CONTROL.md §2)", () => {
     expect(readControl(env)?.receivers[0]?.machine).toBe(rx.machine);
     expect(out.join("\n")).toContain("123456");
   });
+  it("open pairing: no token, the poll key gets the token, the sink key is handed over, the approver is named", async () => {
+    rx.paired = true;
+    rx.handKey = "same";
+    rx.openPairing = true;
+    rx.pollKey = null;
+    const out: string[] = [];
+    let sink: string | null = null;
+    try {
+      const c = await pair({
+        url: rx.url,
+        token: null,
+        folders: [project],
+        mode: "safe",
+        name: "testbox",
+        out: (s) => out.push(s),
+        sleep: async () => {},
+        env,
+        addSink: (t) => {
+          sink = t;
+        },
+      });
+      expect(rx.pollKey).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+      expect(c.receivers[0]?.token).toBe(rx.token);
+      expect(sink).toBe("sink_from_pairing_0123456789");
+      expect(out.join("\n")).toContain("Approved by @fake on localhost");
+      // The link is not a credential: a status poll without the poll key is refused.
+      const r = await fetch(`${rx.url}/api/sessionpipe/v1/control/pair?code=${rx.pairCode}`);
+      expect(r.status).toBe(401);
+    } finally {
+      rx.openPairing = false;
+      rx.pollKey = null;
+    }
+  });
+  it("without open pairing, no token is an error in words", async () => {
+    await expect(
+      pair({
+        url: rx.url,
+        token: null,
+        folders: [project],
+        mode: "safe",
+        name: "x",
+        out: () => {},
+        sleep: async () => {},
+        env,
+      }),
+    ).rejects.toThrow(/needs a key to pair/);
+  });
   it("refuses a key swapped in by the receiver", async () => {
     rx.paired = true;
     rx.handKey = "other";

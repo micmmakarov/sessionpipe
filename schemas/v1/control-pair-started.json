@@ -9,7 +9,7 @@
     },
     "code": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9-]{6,32}$"
+      "pattern": "^[A-Za-z0-9_-]{6,32}$"
     },
     "url": {
       "type": "string",

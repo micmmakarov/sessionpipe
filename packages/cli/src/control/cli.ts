@@ -3,7 +3,7 @@
 import { existsSync, realpathSync, watchFile } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { claudeControl, claudeDirs, readConfig, stateDir } from "@sessionpipe/core";
+import { claudeControl, claudeDirs, readConfig, stateDir, writeConfig } from "@sessionpipe/core";
 
 const { detectCaps, findClaude, runClaude } = claudeControl;
 
@@ -27,14 +27,18 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
   const sub = argv[1];
   switch (sub) {
     case "pair": {
-      const url = argv[2];
-      if (!url || !/^https?:\/\//.test(url)) return out(`usage:\n${CONTROL_HELP}`);
+      // `spacesheep.dev` is enough: a bare host means https.
+      const raw = argv[2];
+      if (!raw || raw.startsWith("-")) return out(`usage:\n${CONTROL_HELP}`);
+      const url = (/^https?:\/\//.test(raw) ? raw : `https://${raw}`).replace(/\/$/, "");
       const cfg = readConfig();
-      const sink = cfg.sinks.find((s) => s.url.replace(/\/$/, "") === url.replace(/\/$/, ""));
-      const token = flag("--token") ?? sink?.token;
-      if (!token)
+      const sink = cfg.sinks.find((s) => s.url.replace(/\/$/, "") === url);
+      // No token is fine where the receiver offers open pairing: the person approves the
+      // link signed in, and that is the whole setup.
+      const token = flag("--token") ?? sink?.token ?? null;
+      if (token !== null && !/^[\x21-\x7e]+$/.test(token))
         return out(
-          `  No token for ${url}: add it as a sink first (\`sessionpipe sink add ${url} --token …\`) or pass --token.`,
+          "  That token has a character a key never has (a placeholder like ss_… pasted as is?). Leave --token out to pair with a link instead.",
         );
       const folders = flags("--folder");
       const existing = readControl();
@@ -42,6 +46,17 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       await pair({
         url,
         token,
+        // The key the receiver handed over at pairing becomes this machine's sink for it,
+        // state only (tier 0), unless one is configured already.
+        addSink: (t) => {
+          const now = readConfig();
+          if (now.sinks.some((x) => x.url.replace(/\/$/, "") === url)) return;
+          now.sinks.push({ name: new URL(url).host, url, tier: 0, pii: false, control: false, token: t });
+          writeConfig(now);
+          out(
+            `  ✓ Sink ${new URL(url).host} added (tier 0: session state, no conversation text). \`sessionpipe sink add ${url} --tier 2\` sends transcripts too.`,
+          );
+        },
         folders,
         mode: flag("--mode") === "auto" ? "auto" : (existing?.mode ?? "safe"),
         name: flag("--name") ?? existing?.name ?? cfg.machine ?? os.hostname(),

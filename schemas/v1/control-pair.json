@@ -3,6 +3,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "poll_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22,128}$"
+    },
     "machine": {
       "type": "string",
       "pattern": "^m_[A-Za-z0-9_-]{16,40}$"
