@@ -65,7 +65,7 @@ describe("sessionToolsFrom", () => {
         "mcp__plugin_spacesheep_spacesheep",
         3,
       ]),
-    ).toEqual(["mcp__spacesheep", "mcp__plugin_spacesheep_spacesheep"]);
+    ).toEqual(["mcp__spacesheep", "mcp__x__y", "mcp__plugin_spacesheep_spacesheep"]);
     expect(sessionToolsFrom("mcp__spacesheep")).toEqual([]);
   });
 });
