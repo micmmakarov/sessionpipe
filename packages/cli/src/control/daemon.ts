@@ -13,7 +13,6 @@ import { claudeControl, redactSecrets } from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
 import type { LocalReply, LocalRequest } from "./local.js";
 import { awaitAnswer, transcriptEnd } from "./reply.js";
-import { AnswerStream } from "./stream.js";
 import { type DeliveryMode, frame, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
 import {
   type Ack,
@@ -25,6 +24,7 @@ import {
   readState,
   writeState,
 } from "./store.js";
+import { AnswerStream } from "./stream.js";
 
 const {
   claudeEnv,
