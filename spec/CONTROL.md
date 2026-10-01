@@ -291,6 +291,7 @@ hook waits or prints.
 
 | Outcome | Meaning |
 |---------|---------|
+| `progress` | Not final. The answer so far, whole, in `reply`, with `seq` rising per message; a receiver keeps the highest `seq` and MAY show it as it grows. Best effort: a daemon sends at most one every few hundred milliseconds and never retries one, since the next (or the final ack) supersedes it. |
 | `taken` | Not final. The machine verified the message and is delivering it; a final ack follows. Sent at once when delivery may take a while (a headless resume, a start). |
 | `delivered` | The harness took it; `mode` says how, `session` names a fork or a started session. |
 | `expired` | Past `expires_at`, or the hook's window closed, or the terminal answered first. |

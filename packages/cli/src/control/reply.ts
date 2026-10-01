@@ -48,7 +48,14 @@ export function answerIn(lines: string[]): { done: boolean; text: string } {
 export async function awaitAnswer(
   file: string,
   from: number,
-  o: { timeoutMs: number; pollMs?: number; now?: () => number; sleep?: (ms: number) => Promise<void> },
+  o: {
+    timeoutMs: number;
+    pollMs?: number;
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+    /** The turn's text so far, each time it grows (for the progress ack). */
+    onText?: (text: string) => void;
+  },
 ): Promise<string | null> {
   const now = o.now ?? Date.now;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms).unref?.()));
@@ -74,6 +81,7 @@ export async function awaitAnswer(
       }
       const a = answerIn(lines);
       if (a.done) return a.text || null;
+      if (a.text) o.onText?.(a.text);
     }
     await sleep(o.pollMs ?? 500);
   }
