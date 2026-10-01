@@ -104,13 +104,17 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
   const machine = String(s.machine);
   const code = String(s.code);
   o.out("");
-  o.out(
-    pollKey
-      ? "  Open this link signed in, check the digits, and approve with your passkey:"
-      : "  Open this link and confirm with your passkey (Touch ID, Face ID, a security key):",
-  );
-  o.out(`    ${String(s.url)}`);
-  o.out(`  The page shows these digits too: ${String(s.check)}`);
+  const digits = String(s.check);
+  const spaced = /^\d{6}$/.test(digits) ? `${digits.slice(0, 3)} ${digits.slice(3)}` : digits;
+  if (pollKey) {
+    // Open pairing: one address for everyone, and the digits are what the person types.
+    o.out(`  Open ${String(s.url)} and enter:  ${spaced}`);
+    o.out("  then approve with your passkey (Touch ID, Face ID, a security key).");
+  } else {
+    o.out("  Open this link and confirm with your passkey (Touch ID, Face ID, a security key):");
+    o.out(`    ${String(s.url)}`);
+    o.out(`  The page shows these digits too: ${digits}`);
+  }
   o.out("");
   const until = Date.parse(String(s.expires_at)) || Date.now() + 10 * 60_000;
   for (;;) {
