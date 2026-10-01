@@ -391,6 +391,12 @@ export const WellKnown = z.object({
       wait_max_s: z.int().min(1).max(60),
       /** Pairing may start with no token: the person approves the link signed in. */
       open_pairing: z.boolean().optional(),
+      /** MCP servers (`mcp__<server>`) a session answering this receiver's message may
+       *  use without asking. MCP servers only: a daemon ignores anything else. */
+      session_tools: z
+        .array(z.string().regex(/^mcp__[A-Za-z0-9_-]{1,64}$/))
+        .max(8)
+        .optional(),
       /** How commands are signed: the WebAuthn rp id keys are enrolled for, and the algorithms. */
       signing: z.object({
         rp_id: z.string().min(1).max(253),

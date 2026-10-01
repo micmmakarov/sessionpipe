@@ -82,7 +82,13 @@ export interface SdkSession {
   readonly lastUsed: number;
 }
 export interface SdkHost {
-  start(o: { session: string; cwd: string; mode: "safe" | "auto"; configDir?: string }): SdkSession;
+  start(o: {
+    session: string;
+    cwd: string;
+    mode: "safe" | "auto";
+    configDir?: string;
+    allowedTools?: string[];
+  }): SdkSession;
 }
 
 export interface DaemonDeps {
@@ -147,6 +153,17 @@ export interface Status {
 /** The machine's own caps (CONTROL.md §6 `start`): every command is the owner's,
  *  signed, but a burst of them must not start a crowd of agents. A start beyond the
  *  caps is refused `start_limit`; a headless run beyond `headless` waits its turn. */
+/** What a receiver may let its sessions use without asking (CONTROL.md §6): its own MCP
+ *  servers, by name — never a built-in tool. The receiver is where the message came
+ *  from, so answering it there (publishing a page, replying) is the job; anything else
+ *  still needs the person's approval rule. */
+export function sessionToolsFrom(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return [
+    ...new Set(v.filter((t): t is string => typeof t === "string" && /^mcp__[A-Za-z0-9_-]{1,64}$/.test(t))),
+  ].slice(0, 8);
+}
+
 export const LIMITS = { startConcurrent: 2, startPerHour: 10, headless: 3 } as const;
 
 export class ControlDaemon {
@@ -166,6 +183,8 @@ export class ControlDaemon {
   private helloTimer: NodeJS.Timeout | null = null;
   private helloSoon: NodeJS.Timeout | null = null;
   private readonly aborts = new Set<AbortController>();
+  /** Per receiver: the MCP servers its sessions may use unattended (its well-known). */
+  private readonly sessionTools = new Map<string, string[]>();
   private startsRunning = 0;
   private startTimes: number[] = [];
   private procs = 0;
@@ -484,7 +503,32 @@ export class ControlDaemon {
     this.helloSoon.unref();
   }
 
+  /** Read each receiver's well-known for its session tools (at start, then with every hello). */
+  private async refreshSessionTools(): Promise<void> {
+    for (const r of this.cfg.receivers) {
+      try {
+        const res = await this.deps.fetch(`${r.url.replace(/\/$/, "")}/.well-known/sessionpipe`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) continue;
+        const wk = (await res.json()) as { control?: { session_tools?: unknown } };
+        const tools = sessionToolsFrom(wk.control?.session_tools);
+        const key = r.control + r.machine;
+        if (JSON.stringify(tools) !== JSON.stringify(this.sessionTools.get(key) ?? []))
+          this.deps.log(
+            `${r.url}: sessions it messages may use ${tools.length ? tools.join(", ") : "nothing extra"} without asking`,
+          );
+        this.sessionTools.set(key, tools);
+      } catch {}
+    }
+  }
+
+  private allowedFor(r: PairedReceiver): string[] {
+    return this.sessionTools.get(r.control + r.machine) ?? [];
+  }
+
   private async helloAll(): Promise<void> {
+    void this.refreshSessionTools();
     const waiting = [...this.live].filter(([, l]) => l.waiter).map(([k]) => k);
     const modes: DeliveryMode[] = ["waiter", "turn", "resume", "fork", ...(this.deps.sdk ? (["sdk"] as const) : [])];
     for (const r of this.cfg.receivers) {
@@ -812,7 +856,16 @@ export class ControlDaemon {
     await this.serial(ref.id, async () => {
       const target = this.state.copies[ref.id] ?? ref.id;
       const resume = mode === "fork" ? ["--resume", target, "--fork-session"] : ["--resume", target];
-      const args = ["-p", "--output-format", "json", ...mf.args, ...resume, frame(cmd.text as string, r.url)];
+      const allow = this.allowedFor(r);
+      const args = [
+        "-p",
+        "--output-format",
+        "json",
+        ...mf.args,
+        ...(allow.length ? [`--allowedTools=${allow.join(",")}`] : []),
+        ...resume,
+        frame(cmd.text as string, r.url),
+      ];
       this.deps.log(`${id.slice(-8)}: claude -p ${[...mf.args, ...resume].join(" ")} in ${place.folder}`);
       const res = await this.slot(() =>
         this.deps.run(claude.bin, args, {
@@ -960,7 +1013,7 @@ export class ControlDaemon {
     if (this.deps.sdk) {
       const sdk = this.deps.sdk;
       const out = await this.slot(async () => {
-        const s = sdk.start({ session: ref.id, cwd, mode: this.cfg.mode });
+        const s = sdk.start({ session: ref.id, cwd, mode: this.cfg.mode, allowedTools: this.allowedFor(r) });
         this.sdkSessions.set(ref.id, s);
         return s.send(frame(cmd.text as string, r.url));
       });
@@ -979,7 +1032,16 @@ export class ControlDaemon {
     const res = await this.slot(() =>
       this.deps.run(
         claude.bin,
-        ["-p", "--output-format", "json", ...mf.args, "--session-id", ref.id, frame(cmd.text as string, r.url)],
+        [
+          "-p",
+          "--output-format",
+          "json",
+          ...mf.args,
+          ...(this.allowedFor(r).length ? [`--allowedTools=${this.allowedFor(r).join(",")}`] : []),
+          "--session-id",
+          ref.id,
+          frame(cmd.text as string, r.url),
+        ],
         { cwd, env: claudeEnv(undefined, this.deps.env), timeoutMs: JOB_TIMEOUT_MS },
       ),
     );
