@@ -37,11 +37,13 @@ export async function loadSdk(o: {
       session,
       cwd,
       mode,
+      allowedTools,
     }: {
       session: string;
       cwd: string;
       mode: "safe" | "auto";
       configDir?: string;
+      allowedTools?: string[];
     }): SdkSession {
       const queue: unknown[] = [];
       let wake: (() => void) | null = null;
@@ -60,6 +62,7 @@ export async function loadSdk(o: {
           sessionId: session,
           cwd,
           permissionMode: mode === "auto" ? "auto" : "dontAsk",
+          ...(allowedTools?.length ? { allowedTools } : {}),
           ...(o.claudeBin ? { pathToClaudeCodeExecutable: o.claudeBin } : {}),
           env: { ...(o.env ?? process.env), SESSIONPIPE_CONTROL_JOB: "1" },
         },

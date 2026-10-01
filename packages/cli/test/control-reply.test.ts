@@ -51,3 +51,21 @@ describe("awaitAnswer", () => {
     expect(await awaitAnswer(f, 0, { timeoutMs: 150, pollMs: 20 })).toBeNull();
   });
 });
+
+describe("sessionToolsFrom", () => {
+  it("keeps MCP server names only — never a built-in tool", async () => {
+    const { sessionToolsFrom } = await import("../src/control/daemon.js");
+    expect(
+      sessionToolsFrom([
+        "mcp__spacesheep",
+        "Bash",
+        "Write",
+        "mcp__x__y",
+        "Bash(rm -rf *)",
+        "mcp__plugin_spacesheep_spacesheep",
+        3,
+      ]),
+    ).toEqual(["mcp__spacesheep", "mcp__plugin_spacesheep_spacesheep"]);
+    expect(sessionToolsFrom("mcp__spacesheep")).toEqual([]);
+  });
+});

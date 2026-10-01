@@ -236,6 +236,13 @@ A new Claude Code session with the command's session id, in `cwd`: through the A
 SDK when the daemon has it, else `claude -p --session-id`. Acked `delivered` with mode
 `sdk` or `resume`, and the reply.
 
+A receiver MAY name, in its well-known `control.session_tools`, MCP servers
+(`mcp__<server>`) that a session answering its message may use without asking: its
+own, usually, so that publishing the page it was asked for back to the receiver is not
+blocked by the machine's safe mode. A daemon passes them as allowed tools to every run
+it starts for that receiver, and MUST ignore any entry that is not an MCP server name —
+a receiver can never allow a built-in tool (a shell, a file write) on the machine.
+
 A start is a whole agent run on the person's computer, so the machine caps them
 itself, whatever a receiver sends: at most a few running at once and a few an hour
 (the reference daemon: 2 and 10, set in its control config), refused `start_limit`
