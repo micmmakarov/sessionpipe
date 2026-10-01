@@ -15,9 +15,9 @@ concurrency: release-${{ github.ref }}
 jobs:
   release:
     name: Version PR or publish
-    # Off until the maintainer has done the first bare `npm publish` of each package
-    # and enabled trusted publishing; then the repo variable RELEASES_ENABLED=true
-    # turns this on (ROADMAP.md, step 2).
+    # On once each package lists this workflow as its npm trusted publisher
+    # (npmjs.com → package → Settings → Trusted publisher, file release.yml) and the
+    # repo variable RELEASES_ENABLED=true is set (ROADMAP.md, step 2).
     if: vars.RELEASES_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -29,6 +29,8 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      # Trusted publishing (OIDC) needs npm >= 11.5; Node 22 ships npm 10.
+      - run: npm install -g npm@11
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm test
