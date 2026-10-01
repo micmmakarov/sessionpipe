@@ -394,20 +394,35 @@ export class ControlDaemon {
     const st = { last: null as number | null, error: null as string | null, on: true };
     this.polling.set(key, st);
     let backoff = 0;
-    const steps = [2000, 10_000, 60_000, 300_000];
+    let downSince = 0;
+    // A deploy takes the receiver away for seconds, not minutes: retry soon, capped at
+    // 15 s (one request per machine), with jitter so every machine a deploy dropped
+    // doesn't come back in the same instant. The old 60 s / 5 min steps left a
+    // machine blind for minutes after a 30-second outage.
+    const steps = [1000, 2000, 5000, 10_000, 15_000];
+    const pause = (n: number) => (steps[Math.min(n, steps.length - 1)] as number) * (0.75 + Math.random() * 0.5);
     for (;;) {
       // The current record every round: `control pair` may have added a key since.
       const r = this.cfg.receivers.find((x) => x.control + x.machine === key);
       if (!this.running || !r) break;
       const ctl = new AbortController();
       this.aborts.add(ctl);
-      const t = setTimeout(() => ctl.abort(), 40_000);
+      // A poll held past wait + 10 s is a dead connection (a laptop that slept, a
+      // network that changed): give up on it and ask again.
+      const t = setTimeout(() => ctl.abort(), 35_000);
       try {
         const u = new URL(r.control);
         u.searchParams.set("machine", r.machine);
         u.searchParams.set("wait", "25");
+        const asked = this.deps.now();
         const res = await this.deps.fetch(u, { headers: { authorization: `Bearer ${r.token}` }, signal: ctl.signal });
         st.last = this.deps.now();
+        if (downSince && res.status < 500) {
+          // Timed to when this poll was sent: a long-poll that reconnected is then held
+          // up to `wait` before it answers.
+          this.deps.log(`${r.url}: back after ${Math.round((asked - downSince) / 1000)} s (${backoff} failed tries)`);
+          downSince = 0;
+        }
         if (res.status === 401) {
           st.error = "the receiver no longer knows this machine (401); run `sessionpipe control pair` again";
           this.deps.log(`${r.url}: ${st.error}`);
@@ -437,12 +452,14 @@ export class ControlDaemon {
           backoff = 0;
         } else {
           st.error = `HTTP ${res.status}`;
-          await sleep(steps[Math.min(backoff++, steps.length - 1)] as number);
+          downSince ||= this.deps.now();
+          await sleep(pause(backoff++));
         }
       } catch (e) {
         if (!this.running) break;
         st.error = String((e as Error)?.message || e).slice(0, 120);
-        await sleep(steps[Math.min(backoff++, steps.length - 1)] as number);
+        downSince ||= this.deps.now();
+        await sleep(pause(backoff++));
       } finally {
         clearTimeout(t);
         this.aborts.delete(ctl);
