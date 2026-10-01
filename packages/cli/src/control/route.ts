@@ -60,6 +60,12 @@ export function kindPath(
 
 /** The framed text a session receives (CONTROL.md §6): the model and the person can
  *  tell where it came from. */
+/** Said with every message that reaches a live session: the answer goes back by
+ *  itself (the daemon reads it from the transcript), so the model never invents a
+ *  command to reply with (a real session tried \`sessionpipe send\`, 2026-10-01). */
+export const IN_PLACE_ANSWER =
+  "Answer it right here, as you would answer the person at the keyboard: your reply is sent back to them automatically. Don't run a command or call a tool just to send it.";
+
 export function frame(text: string, receiver: string): string {
   let host = receiver;
   try {

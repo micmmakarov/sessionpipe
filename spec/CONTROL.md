@@ -190,6 +190,14 @@ that follows; the hook blocks again only for another queued message, so a delive
 message never loops. In `resume` and `fork` the ack carries the agent's `reply`
 (redacted by the secrets ruleset).
 
+In the in-place modes (`waiter`, `turn`) the session answers in its own turn, so the
+daemon acks `taken` when it hands the message over and follows the session's own
+transcript until that turn ends; the final `delivered` ack carries the turn's text as
+its `reply`, so the person reads the answer where they asked. A turn that doesn't end
+within 30 minutes is acked `delivered` without one. The framed message tells the model
+its answer goes back by itself, so it never reaches for a command to send it (a real
+session invented one, 2026-10-01).
+
 ### `permission.answer`
 
 Delivered through the harness's permission hook answer (Claude Code `PermissionRequest`
