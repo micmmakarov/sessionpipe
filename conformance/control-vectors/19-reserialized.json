@@ -3,23 +3,23 @@
   "description": "The same fields re-serialized with other whitespace: signatures cover the exact bytes.",
   "input": {
     "signed": {
-      "cmd": "{\n \"v\": 1,\n \"t\": \"sessionpipe.control\",\n \"machine\": \"m_testmachine0000000001\",\n \"kind\": \"prompt\",\n \"session\": \"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\n \"text\": \"Add the Oct 8 row\",\n \"nonce\": \"TdaUde3YL8EgTpQrXzaZ8Q\",\n \"iat\": 1790800000000\n}",
-      "csig": "hLsDJP7dMmiPMdHm3TrKD-K0RO58sSrK6dTxD975Uc4PL4cB4bnwc0TjsugcSkm9fk2XAHCIEbIlNdTGXHu18g",
+      "cmd": "{\n \"v\": 1,\n \"t\": \"sessionpipe.control\",\n \"machine\": \"m_testmachine0000000001\",\n \"kind\": \"prompt\",\n \"session\": \"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\n \"text\": \"Add the Oct 8 row\",\n \"nonce\": \"hfw1tLuzOq5KaGWB6a2HAw\",\n \"iat\": 1790800000000\n}",
+      "csig": "-uWnNi_dVkRxpbDuEWMvBz0GKK9cz5fCw47o2k0s7-i2Jn6doIp24xAPCiiVIGqkqtAav6z3rh3-ozuBp_kh-A",
       "grant": {
-        "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "cred": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
-        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaEdIUTI4bzhjdEZZdDhUMndZb21DZ3loTE1FTWt1aE1CX0lZSlBJdjV5NCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEYCIQDGLHlmvnaZPLHhMge_lvj1fXSiQbt0uxTXRu46j2aE4AIhAMMOQOO02Ultq_irYu6lcN5rVQMFHxt5ccLgBLh5q4TW",
-        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUOcgSB7EWJYGONUjhdORmc2MlEVaHfbULBtHJpNmrmpF8k_8onHsXU9pDwbJoQvseL_G939XZ6K3Ew1KPwpnng\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiMkdtcUpobnpFTGlOaTN0TjdhYkRjNTJpZ3k5c0dRUEF3MEljdHllRHppbyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEQCIDL-gGyOS2dCZuRqu3JUqPvvfiurH5glZV3MugRVrDkLAiBm9p_0d3X6tSNxPesl8hOA6hQS3kHFTspGKjpqPpwZrg",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq0sZOXjcYCk4VqcXts93qkPK32jsGLmuLaYj6veiSY29gycOtxkDCNN7cwmvtwnivVVETj7kHaUpkSse__1Bew\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
       }
     },
     "machine": "m_testmachine0000000001",
     "rp_id": "receiver.example",
     "trusted": [
       {
-        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "id": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
         "alg": -7,
-        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8qRtJkQFhLd9xjMbo0C99sg39giVDk8l697MnuQzrbPIOtQumw8f0ge0XCLwuHzxi8192Nz8Lf9ZDxM0ZRCcDA"
       }
     ],
     "now": 1790800060000

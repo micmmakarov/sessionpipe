@@ -219,7 +219,7 @@ export const ControlCommand = z.object({
   kind: ControlKind,
   session: SessionRef,
   /** prompt, start: the message for the model. */
-  text: z.string().min(1).max(4000).optional(),
+  text: z.string().min(1).max(20_000).optional(),
   /** permission.answer: the attention_id being answered. */
   for: z.string().min(1).max(128).optional(),
   decision: z.enum(["allow", "deny"]).optional(),
@@ -275,8 +275,8 @@ export const ControlKey = z.object({
 export const ControlMessage = z.object({
   /** The receiver's id for this message; the ack key. Not signed: the nonce inside cmd is. */
   id: Ulid,
-  /** The command string, exactly as signed (≤ 12 000 characters). */
-  cmd: z.string().min(1).max(12_000),
+  /** The command string, exactly as signed (≤ 48 000 characters). */
+  cmd: z.string().min(1).max(48_000),
   /** The day key's ECDSA P-256 / SHA-256 signature over cmd: raw r‖s, base64url. */
   csig: B64Url.nullable().optional(),
   /** The grant vouching for the day key: its string plus the passkey's assertion over sha256(str). */

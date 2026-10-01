@@ -3,23 +3,23 @@
   "description": "An allow for an open permission attention, with a note.",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"permission.answer\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"nonce\":\"NKVRibaR6amSyX3vQS34Uw\",\"iat\":1790800000000,\"for\":\"perm-5f1c0e9a2b7d4c31\",\"decision\":\"allow\",\"note\":\"Fine, it's a test branch.\"}",
-      "csig": "Rk5Tjt6NEcavjimfzWT9k_mlYIsi60HxAQoXad4tt2ObhDuce4_ghjtwXBZl3Lj5UjN6JRO8v5eNOOk2E1vchg",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"permission.answer\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"nonce\":\"jMsWIa9k8L7U9nx6pz_X-g\",\"iat\":1790800000000,\"for\":\"perm-5f1c0e9a2b7d4c31\",\"decision\":\"allow\",\"note\":\"Fine, it's a test branch.\"}",
+      "csig": "JTB54Gk0dagt2P1XndC9pqYyt6lb-o-3W9EzP9zD2elQz_P9RKKUbMoSylQOw3ICcFxStqr42UOjQxnvzUuvmA",
       "grant": {
-        "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "cred": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
-        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaEdIUTI4bzhjdEZZdDhUMndZb21DZ3loTE1FTWt1aE1CX0lZSlBJdjV5NCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEUCIQCoadOv8LyJgQzzIpEh8zj48AJKZaDRH1I0jL2bnTveBAIgeaBDxbNX54hRL0FEjVDQC6YBqCyfxZRBvD-8kmckbBM",
-        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUOcgSB7EWJYGONUjhdORmc2MlEVaHfbULBtHJpNmrmpF8k_8onHsXU9pDwbJoQvseL_G939XZ6K3Ew1KPwpnng\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiMkdtcUpobnpFTGlOaTN0TjdhYkRjNTJpZ3k5c0dRUEF3MEljdHllRHppbyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEYCIQD2-ZqdIlNDt7ptEQ38ppWYkxyRKRsEhYEBCNkKzyI_LQIhAJcR2Ovj5YaIwRwzSWEdzQxOUennDDfzTgyyzxv819NS",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq0sZOXjcYCk4VqcXts93qkPK32jsGLmuLaYj6veiSY29gycOtxkDCNN7cwmvtwnivVVETj7kHaUpkSse__1Bew\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
       }
     },
     "machine": "m_testmachine0000000001",
     "rp_id": "receiver.example",
     "trusted": [
       {
-        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "id": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
         "alg": -7,
-        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8qRtJkQFhLd9xjMbo0C99sg39giVDk8l697MnuQzrbPIOtQumw8f0ge0XCLwuHzxi8192Nz8Lf9ZDxM0ZRCcDA"
       }
     ],
     "now": 1790800060000

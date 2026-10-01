@@ -11,12 +11,42 @@ import { ControlDaemon } from "./daemon.js";
 import { ask, socketPath } from "./local.js";
 import { installService, off, pair, removeKey, uninstallService } from "./pair.js";
 import { loadSdk } from "./sdk.js";
-import { controlFile, controlState, readControl } from "./store.js";
+import { controlFile, controlState, readControl, writeControl } from "./store.js";
 import { waitForMessage, waitSession } from "./wait.js";
 
 export const CONTROL_HELP = `  sessionpipe control pair <receiver> [--folder DIR]… [--mode safe|auto] [--token T] [--name N] [--no-service]
+  sessionpipe control mode auto|safe                (how sessions run when you message them)
   sessionpipe control status | keys [remove <id>] | off [<receiver>] | run
   sessionpipe wait [--session <harness>:<id>]      (a session runs this in the background)`;
+
+const MODE_TEXT = `  auto  Claude Code's auto mode: the session reads, edits and runs commands, and Claude Code's
+        own safety check stops what looks dangerous. Pick this to get work done from your phone.
+  safe  Only what each folder's Claude Code settings already allow: with no allow rules, a
+        session can't even read a file. Pick this if this machine holds things no agent
+        should touch unattended.`;
+
+/** Ask the person at this machine, once: auto or safe. Not a terminal (an agent ran the
+ *  pair command): safe, and say how to change it. */
+async function askMode(out: (s?: string) => void): Promise<"safe" | "auto"> {
+  if (!process.stdin.isTTY) {
+    out("  Mode: safe for now. Run `sessionpipe control mode auto` to let sessions you message work unattended.");
+    return "safe";
+  }
+  out("");
+  out("  When you message a session on this machine from your phone, how may it run?");
+  out(MODE_TEXT);
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    for (;;) {
+      const a = (await rl.question("  auto or safe? [auto] ")).trim().toLowerCase();
+      if (a === "" || a === "a" || a === "auto") return "auto";
+      if (a === "s" || a === "safe") return "safe";
+    }
+  } finally {
+    rl.close();
+  }
+}
 
 export async function controlMain(argv: string[], out: (s?: string) => void, distDir: string): Promise<void> {
   const flag = (n: string) => {
@@ -43,6 +73,14 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       const folders = flags("--folder");
       const existing = readControl();
       if (!folders.length && !existing?.folders.length) folders.push(process.cwd());
+      // How sessions run when a message arrives is the person's call, asked once here at
+      // the machine — never a default they find out about when a session can't read a file.
+      const mode: "safe" | "auto" =
+        flag("--mode") === "auto" || flag("--mode") === "safe"
+          ? (flag("--mode") as "safe" | "auto")
+          : existing?.mode && existing.receivers.length
+            ? existing.mode
+            : await askMode(out);
       await pair({
         url,
         token,
@@ -58,7 +96,7 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
           );
         },
         folders,
-        mode: flag("--mode") === "auto" ? "auto" : (existing?.mode ?? "safe"),
+        mode,
         name: flag("--name") ?? existing?.name ?? cfg.machine ?? os.hostname(),
         out,
       });
@@ -75,6 +113,21 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
         out("  Daemon: not installed as a service (--no-service); run `sessionpipe control run` yourself");
       else out(`  Daemon: ${installService({ node: process.execPath, cli })}`);
       return;
+    }
+    case "mode": {
+      const want = argv[2];
+      if (want !== "auto" && want !== "safe") {
+        const c = readControl();
+        return out(`  mode: ${c?.mode ?? "not set up"}\n  usage: sessionpipe control mode auto|safe\n${MODE_TEXT}`);
+      }
+      const c = readControl();
+      if (!c) return out("  control isn't set up on this machine: run `sessionpipe control pair <receiver>` first");
+      c.mode = want;
+      writeControl(c);
+      // The running daemon reads control.json again within seconds; the next run uses it.
+      return out(
+        `  ✓ Sessions you message now run in ${want} mode${want === "auto" ? " (Claude Code's auto mode decides what's safe)" : " (only what each folder's settings already allow)"}.`,
+      );
     }
     case "keys": {
       const c = readControl();
