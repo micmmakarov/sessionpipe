@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { antigravity, claudeCode, codex, geminiCli } from "../src/adapters/index.js";
 import type { HookCommand } from "../src/adapters/types.js";
 
@@ -19,9 +19,19 @@ const cmd2: HookCommand = (a) => ({
   command: `"/new/node" "/new/sessionpipe/dist/hook.js" ${a.join(" ")}`,
 });
 
+// The real Claude Code settings, before and after the whole file: a run must leave them alone.
+const realSettings = path.join(os.homedir(), ".claude", "settings.json");
+const realBefore = existsSync(realSettings) ? readFileSync(realSettings, "utf8") : null;
+afterAll(() => {
+  expect(existsSync(realSettings) ? readFileSync(realSettings, "utf8") : null).toBe(realBefore);
+});
+
 beforeEach(() => {
   home = mkdtempSync(path.join(os.tmpdir(), "sp-install-"));
   env = {
+    // Its own HOME: nothing here may touch the real ~/.claude (this test once rewrote
+    // the real settings.json with the fake hook paths below on every run).
+    HOME: home,
     CLAUDE_CONFIG_DIR: path.join(home, ".claude"),
     CODEX_HOME: path.join(home, ".codex"),
     GEMINI_CLI_HOME: path.join(home, ".gemini"),
