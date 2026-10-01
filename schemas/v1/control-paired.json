@@ -79,6 +79,15 @@
       "type": "string",
       "minLength": 16,
       "maxLength": 256
+    },
+    "sink_token": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256
+    },
+    "account": {
+      "type": "string",
+      "maxLength": 200
     }
   },
   "required": [

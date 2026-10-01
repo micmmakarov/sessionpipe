@@ -33,7 +33,7 @@ enroll at this terminal; the receiver can queue a message but can never forge on
 ([spec](https://sessionpipe.org/protocol/control/)).
 
 ```sh
-sessionpipe control pair https://receiver.example --folder ~/code   # confirm with your passkey; installs the daemon
+sessionpipe control pair spacesheep.dev   # one link: approve with your passkey; installs the daemon (this folder by default)
 sessionpipe control status          # receivers, parked waiters, sessions mid-turn, open permission prompts
 sessionpipe control keys [remove <id>]
 sessionpipe control off             # tell the receiver, forget its token and keys

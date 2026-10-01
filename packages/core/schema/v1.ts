@@ -310,8 +310,16 @@ export const ControlAck = z.object({
     .min(1),
 });
 
-/** `POST {control}/pair`, sent with the person's sink token from their own terminal. */
+/** `POST {control}/pair`, sent with the person's sink token from their own terminal —
+ *  or, where the receiver declares `control.open_pairing`, with no token and a
+ *  `poll_key` (CONTROL.md §2). */
 export const ControlPairStart = z.object({
+  /** Open pairing: a random secret only this terminal knows. Status polls present it
+   *  as their bearer; the receiver keeps only a hash. */
+  poll_key: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{22,128}$/)
+    .optional(),
   /** Set when adding a key to a machine already paired. */
   machine: MachineId.optional(),
   name: z.string().min(1).max(80),
@@ -328,7 +336,7 @@ export const ControlPairStart = z.object({
 /** The receiver's answer: where the person confirms, and the digits both screens show. */
 export const ControlPairStarted = z.object({
   machine: MachineId,
-  code: z.string().regex(/^[A-Za-z0-9-]{6,32}$/),
+  code: z.string().regex(/^[A-Za-z0-9_-]{6,32}$/),
   url: z.url(),
   /** Six digits the terminal and the receiver's page both show. */
   check: z.string().regex(/^\d{6}$/),
@@ -344,6 +352,12 @@ export const ControlPaired = z.object({
   /** The machine's own bearer for polls, acks and hello: opens nothing else. Minted
    *  once, at the first pairing of a machine. */
   token: z.string().min(16).max(256).optional(),
+  /** Optional: a key for the events lane (`sink add`), so the receiver's session board
+   *  shows this machine without a second step. Handed over once. */
+  sink_token: z.string().min(16).max(256).optional(),
+  /** Optional: who approved, in the receiver's words (a @handle), so the terminal can
+   *  say whose passkey it now trusts. */
+  account: z.string().max(200).optional(),
 });
 
 /** `POST {control}/hello`: what the machine can do right now. */
@@ -375,6 +389,8 @@ export const WellKnown = z.object({
   control: z
     .object({
       wait_max_s: z.int().min(1).max(60),
+      /** Pairing may start with no token: the person approves the link signed in. */
+      open_pairing: z.boolean().optional(),
       /** How commands are signed: the WebAuthn rp id keys are enrolled for, and the algorithms. */
       signing: z.object({
         rp_id: z.string().min(1).max(253),

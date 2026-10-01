@@ -102,8 +102,8 @@ long-poll per receiver, whatever the number of sessions.
 
 | Request | Auth | Body → answer |
 |---------|------|---------------|
-| `POST {control}/pair` | the person's sink token | [`control-pair.json`](https://sessionpipe.org/schema/v1/control-pair.json) → `201` [`control-pair-started.json`](https://sessionpipe.org/schema/v1/control-pair-started.json) |
-| `GET {control}/pair?code=<code>` | the person's sink token | → `200` [`control-paired.json`](https://sessionpipe.org/schema/v1/control-paired.json) (`pending`, `paired` with key, proof and, on a machine's first pairing, its token; `expired`) |
+| `POST {control}/pair` | the person's sink token, or none (with a `poll_key`) where `control.open_pairing` | [`control-pair.json`](https://sessionpipe.org/schema/v1/control-pair.json) → `201` [`control-pair-started.json`](https://sessionpipe.org/schema/v1/control-pair-started.json) |
+| `GET {control}/pair?code=<code>` | the person's sink token, or the `poll_key` for an open pairing | → `200` [`control-paired.json`](https://sessionpipe.org/schema/v1/control-paired.json) (`pending`, `paired` with key, proof and, on a machine's first pairing, its token; `expired`) |
 | `POST {control}/hello` | the machine's token | [`control-hello.json`](https://sessionpipe.org/schema/v1/control-hello.json) → `204` |
 | `GET {control}?machine=<id>&wait=<s>` | the machine's token | → `200` [`control-poll.json`](https://sessionpipe.org/schema/v1/control-poll.json) when a message is waiting, `204` when none arrived within `wait` (≤ `wait_max_s`) |
 | `POST {control}/ack` | the machine's token | [`control-ack.json`](https://sessionpipe.org/schema/v1/control-ack.json) → `202` |

@@ -5,6 +5,7 @@
 // the proof verifies here. Also the service files (launchd / systemd) that keep the
 // daemon running, and `control off`.
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,8 +17,10 @@ const VERSION = typeof __SESSIONPIPE_VERSION__ === "string" ? __SESSIONPIPE_VERS
 
 export interface PairOptions {
   url: string;
-  /** The person's sink token for this receiver (from `sink add`, or --token). */
-  token: string;
+  /** The person's sink token for this receiver (from `sink add`, or --token). Null:
+   *  open pairing, where the receiver offers it — the person approves a link and that
+   *  is the whole setup (CONTROL.md §2). */
+  token: string | null;
   folders: string[];
   mode: "safe" | "auto";
   name: string;
@@ -25,6 +28,8 @@ export interface PairOptions {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   env?: NodeJS.ProcessEnv;
+  /** Called with a sessions key the receiver handed over at pairing. */
+  addSink?: (token: string) => void;
 }
 
 async function json(r: Response): Promise<Record<string, unknown>> {
@@ -35,36 +40,53 @@ async function json(r: Response): Promise<Record<string, unknown>> {
   }
 }
 
-export async function discover(url: string, f: typeof fetch): Promise<{ control: string; rpId: string }> {
+export async function discover(
+  url: string,
+  f: typeof fetch,
+): Promise<{ control: string; rpId: string; open: boolean; events: string | null }> {
   const base = url.replace(/\/$/, "");
   const r = await f(`${base}/.well-known/sessionpipe`);
   if (!r.ok) throw new Error(`${base} has no sessionpipe well-known file (HTTP ${r.status})`);
   const wk = (await r.json()) as {
     capabilities?: string[];
-    endpoints?: { control?: string };
-    control?: { signing?: { rp_id?: string } };
+    endpoints?: { control?: string; events?: string };
+    control?: { signing?: { rp_id?: string }; open_pairing?: boolean };
   };
   if (!wk.capabilities?.includes("control") || !wk.endpoints?.control || !wk.control?.signing?.rp_id)
     throw new Error(`${base} doesn't serve control yet (its well-known file lists no control.signing)`);
-  const ep = wk.endpoints.control;
-  return { control: /^https?:\/\//.test(ep) ? ep : base + ep, rpId: wk.control.signing.rp_id };
+  const abs = (ep: string) => (/^https?:\/\//.test(ep) ? ep : base + ep);
+  return {
+    control: abs(wk.endpoints.control),
+    rpId: wk.control.signing.rp_id,
+    open: wk.control.open_pairing === true,
+    events: wk.endpoints.events ? abs(wk.endpoints.events) : null,
+  };
 }
 
 /** Pair (or add a key to) this machine with one receiver. Returns the saved config. */
 export async function pair(o: PairOptions): Promise<ControlConfig> {
   const f = o.fetch ?? fetch;
   const sleep = o.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-  const { control, rpId } = await discover(o.url, f);
+  const { control, rpId, open } = await discover(o.url, f);
+  if (!o.token && !open)
+    throw new Error(
+      `${o.url} needs a key to pair: add it as a sink first (\`sessionpipe sink add ${o.url} --token …\`) or pass --token.`,
+    );
+  // Open pairing: a secret only this terminal knows. The receiver keeps its hash, and
+  // the status poll that hands over the machine's token must present it — so the link,
+  // which the person opens elsewhere, is not a credential by itself.
+  const pollKey = o.token ? null : randomBytes(32).toString("base64url");
   const cfg: ControlConfig = readControl(o.env) ?? { name: o.name, folders: [], mode: o.mode, receivers: [] };
   cfg.name = o.name || cfg.name;
   cfg.mode = o.mode;
   cfg.folders = [...new Set([...cfg.folders, ...o.folders.map((d) => path.resolve(d))])];
   const existing = cfg.receivers.find((r) => r.control === control);
-  const auth = { authorization: `Bearer ${o.token}`, "content-type": "application/json" };
+  const auth = { authorization: `Bearer ${o.token ?? pollKey}`, "content-type": "application/json" };
   const started = await f(`${control}/pair`, {
     method: "POST",
-    headers: auth,
+    headers: o.token ? auth : { "content-type": "application/json" },
     body: JSON.stringify({
+      ...(pollKey ? { poll_key: pollKey } : {}),
       ...(existing ? { machine: existing.machine } : {}),
       name: cfg.name,
       harnesses: ["claude-code"],
@@ -82,7 +104,11 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
   const machine = String(s.machine);
   const code = String(s.code);
   o.out("");
-  o.out(`  Open this link and confirm with your passkey (Touch ID, Face ID, a security key):`);
+  o.out(
+    pollKey
+      ? "  Open this link signed in, check the digits, and approve with your passkey:"
+      : "  Open this link and confirm with your passkey (Touch ID, Face ID, a security key):",
+  );
   o.out(`    ${String(s.url)}`);
   o.out(`  The page shows these digits too: ${String(s.check)}`);
   o.out("");
@@ -115,6 +141,12 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
     if (!existing) cfg.receivers.push(rec);
     writeControl(cfg, o.env);
     o.out(`  ✓ Paired with ${rec.url} as ${machine} · ${rec.keys.length} key(s) trusted on this machine`);
+    // Whose passkey this machine now trusts: with open pairing, whoever approved the link.
+    if (typeof p.account === "string")
+      o.out(`  Approved by ${p.account}. If that isn't you, run \`sessionpipe control off\` now.`);
+    // The receiver may hand over a sessions-only key for the events lane, so its session
+    // board shows this machine without a second step.
+    if (typeof p.sink_token === "string" && o.addSink) o.addSink(p.sink_token);
     return cfg;
   }
 }

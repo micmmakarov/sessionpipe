@@ -50,6 +50,19 @@ A key enters a machine's trust store **only from that machine's own terminal**:
    which the daemon uses for polls, acks and hellos and nothing else. A leaked hook or
    sink token then cannot read the machine's queue or ack a command away.
 
+**Open pairing.** A receiver that declares `control.open_pairing: true` lets step 1 run
+with no sink token, so setting up a machine is one command and one approval:
+`sessionpipe control pair spacesheep.dev`. The request carries a `poll_key`, a random
+secret the daemon makes and keeps; every status poll presents it as its bearer, and the
+receiver keeps only a hash. Until a signed-in person opens the link the pairing belongs
+to no account; the first to open it claims it, and approving it with their passkey is
+the consent. The paired answer MAY also carry `sink_token` (a key for the events lane,
+so the receiver's session board shows the machine without a second step) and `account`
+(who approved, in the receiver's words). Whoever approves becomes the passkey the
+machine trusts, so a receiver SHOULD show on the approval page where the request came
+from, and the daemon MUST print `account` when it gets one. The link alone is not a
+credential: without the `poll_key` nobody is handed the machine's token.
+
 The pairing request and every hello MAY carry the machine's allowed `folders` and its
 `mode` (`safe`: nothing that needs approval runs unattended; `auto`: the harness's auto
 mode), so a receiver can offer a folder picker for a new session. They are
