@@ -282,10 +282,10 @@ send → delivered time.
 - `conformance/control-vectors/` — signed commands, valid and broken, with the verdict
   every verifier must reach (§5), and enrollment proofs (§2). The reference verifier
   and every receiver that pre-checks MUST agree with all of them.
-- `conformance/delivery/09`–`14` — receiver scenarios: a prompt polled and acked
+- `conformance/delivery/09`–`15` — receiver scenarios: a prompt polled and acked
   `delivered`; a message that expires unpolled; a double ack; a permission answer acked
   with its mode; a cancel acked `unsupported`; a message redelivered on every poll
-  until acked.
+  until acked; a start the machine refuses `start_limit`, final at once.
 
 ## 12. Status
 
