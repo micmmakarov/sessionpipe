@@ -138,6 +138,11 @@ export interface Status {
   delivered: Record<string, number>;
 }
 
+/** The machine's own caps (CONTROL.md §6 `start`): every command is the owner's,
+ *  signed, but a burst of them must not start a crowd of agents. A start beyond the
+ *  caps is refused `start_limit`; a headless run beyond `headless` waits its turn. */
+export const LIMITS = { startConcurrent: 2, startPerHour: 10, headless: 3 } as const;
+
 export class ControlDaemon {
   private server: net.Server | null = null;
   private readonly live = new Map<string, Live>();
@@ -155,6 +160,10 @@ export class ControlDaemon {
   private helloTimer: NodeJS.Timeout | null = null;
   private helloSoon: NodeJS.Timeout | null = null;
   private readonly aborts = new Set<AbortController>();
+  private startsRunning = 0;
+  private startTimes: number[] = [];
+  private procs = 0;
+  private readonly procWaiters: (() => void)[] = [];
 
   constructor(
     private cfg: ControlConfig,
@@ -409,9 +418,14 @@ export class ControlDaemon {
           // Looked up again: a key may have been added while this poll was parked.
           const cur = this.cfg.receivers.find((x) => x.control + x.machine === key) ?? r;
           let fresh = 0;
+          // Not awaited: a headless turn can run for half an hour, and the next
+          // message (for another session, or a permission answer) must not wait
+          // behind it. handle() orders what must be ordered (one session's prompts).
           for (const m of body.messages ?? []) {
             if (m && !this.inflight.has(m.id)) fresh++;
-            await this.handle(cur, m);
+            void this.handle(cur, m).catch((e) =>
+              this.deps.log(`handle ${String(m?.id).slice(-8)}: ${String((e as Error)?.message || e)}`),
+            );
           }
           // Only messages already in hand (a receiver that ignores `taken`): don't
           // turn the long-poll into a spin.
@@ -538,6 +552,10 @@ export class ControlDaemon {
       void this.flushAcks();
       return;
     }
+    // In hand from here, before anything is awaited: a redelivery that arrives while
+    // this one verifies must not verify too and come back `replay`. Every path below
+    // ends in finish(), which lets go of it.
+    this.inflight.add(m.id);
     const sent = Date.parse(m.at) || this.deps.now();
     if (Date.parse(m.expires_at) <= this.deps.now()) return this.finish(r, m.id, { outcome: "expired" });
     const v = await verifyCommand(
@@ -548,7 +566,6 @@ export class ControlDaemon {
       this.deps.log(`refused ${m.id.slice(-8)}: ${v.code} — ${v.why}`);
       return this.finish(r, m.id, { outcome: "refused", code: v.code, detail: v.why });
     }
-    this.inflight.add(m.id);
     const cmd = v.cmd;
     const ref = parseSessionRef(cmd.session)!;
     const kp = kindPath(cmd.kind, ref.harness);
@@ -560,7 +577,15 @@ export class ControlDaemon {
         return this.finish(r, m.id, { outcome: "refused", code: place.refused, detail: place.why });
       if (kp === "permission") return this.permission(r, m.id, cmd, sent);
       if (kp === "cancel") return await this.cancel(r, m.id, cmd, sent);
-      return await this.prompt(r, m.id, cmd, place, sent);
+      // One session's prompts in the order they came, each routed only once the one
+      // before it has landed (a second message to a session the first one forked
+      // goes to the copy). Other sessions don't wait.
+      return await this.serial(`deliver:${cmd.session}`, async () => {
+        // Read again: the message before this one may have moved the session (a fork).
+        const now = this.place(cmd.session);
+        if ("refused" in now) return this.finish(r, m.id, { outcome: "refused", code: now.refused, detail: now.why });
+        return this.prompt(r, m.id, cmd, now, sent);
+      });
     } catch (e) {
       this.finish(r, m.id, { outcome: "failed", detail: String((e as Error)?.message || e) });
     }
@@ -764,11 +789,13 @@ export class ControlDaemon {
       const resume = mode === "fork" ? ["--resume", target, "--fork-session"] : ["--resume", target];
       const args = ["-p", "--output-format", "json", ...mf.args, ...resume, frame(cmd.text as string, r.url)];
       this.deps.log(`${id.slice(-8)}: claude -p ${[...mf.args, ...resume].join(" ")} in ${place.folder}`);
-      const res = await this.deps.run(claude.bin, args, {
-        cwd: place.folder,
-        env: claudeEnv(place.transcript?.configDir, this.deps.env),
-        timeoutMs: JOB_TIMEOUT_MS,
-      });
+      const res = await this.slot(() =>
+        this.deps.run(claude.bin, args, {
+          cwd: place.folder,
+          env: claudeEnv(place.transcript?.configDir, this.deps.env),
+          timeoutMs: JOB_TIMEOUT_MS,
+        }),
+      );
       this.lastEnd.set(target, this.deps.now());
       const out = this.outcome(res);
       if ("failed" in out) return this.finish(r, id, { outcome: "failed", detail: out.failed });
@@ -813,7 +840,50 @@ export class ControlDaemon {
     return { reply: text + tail, ...(typeof j.session_id === "string" ? { session: j.session_id } : {}) };
   }
 
+  private limits() {
+    const l = this.cfg.limits ?? {};
+    const n = (v: unknown, d: number) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : d);
+    return {
+      startConcurrent: n(l.start_concurrent, LIMITS.startConcurrent),
+      startPerHour: n(l.start_per_hour, LIMITS.startPerHour),
+      headless: Math.max(1, n(l.headless, LIMITS.headless)),
+    };
+  }
+
+  /** One headless Claude Code process at a time per slot; the rest wait in order. */
+  private async slot<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.procs >= this.limits().headless) await new Promise<void>((r) => this.procWaiters.push(r));
+    this.procs++;
+    try {
+      return await fn();
+    } finally {
+      this.procs--;
+      this.procWaiters.shift()?.();
+    }
+  }
+
   private async startSession(r: PairedReceiver, id: string, cmd: ControlCommand, sent: number): Promise<void> {
+    const lim = this.limits();
+    const now = this.deps.now();
+    this.startTimes = this.startTimes.filter((t) => now - t < 3_600_000);
+    if (this.startsRunning >= lim.startConcurrent || this.startTimes.length >= lim.startPerHour) {
+      const detail =
+        this.startsRunning >= lim.startConcurrent
+          ? `this machine is already starting ${this.startsRunning} new session(s); it starts at most ${lim.startConcurrent} at once`
+          : `this machine started ${this.startTimes.length} new sessions in the last hour, its limit`;
+      this.deps.log(`refused ${id.slice(-8)}: start_limit — ${detail}`);
+      return this.finish(r, id, { outcome: "refused", code: "start_limit", detail });
+    }
+    this.startsRunning++;
+    this.startTimes.push(now);
+    try {
+      await this.startOne(r, id, cmd, sent);
+    } finally {
+      this.startsRunning--;
+    }
+  }
+
+  private async startOne(r: PairedReceiver, id: string, cmd: ControlCommand, sent: number): Promise<void> {
     const ref = parseSessionRef(cmd.session)!;
     const cwd = this.allowed(cmd.cwd as string);
     if (!cwd)
@@ -830,9 +900,12 @@ export class ControlDaemon {
       });
     this.finish(r, id, { outcome: "taken" });
     if (this.deps.sdk) {
-      const s = this.deps.sdk.start({ session: ref.id, cwd, mode: this.cfg.mode });
-      this.sdkSessions.set(ref.id, s);
-      const out = await s.send(frame(cmd.text as string, r.url));
+      const sdk = this.deps.sdk;
+      const out = await this.slot(async () => {
+        const s = sdk.start({ session: ref.id, cwd, mode: this.cfg.mode });
+        this.sdkSessions.set(ref.id, s);
+        return s.send(frame(cmd.text as string, r.url));
+      });
       return this.finish(
         r,
         id,
@@ -845,10 +918,12 @@ export class ControlDaemon {
       return this.finish(r, id, { outcome: "failed", detail: "Claude Code isn't installed on this machine" });
     const mf = modeFlags(this.cfg.mode, claude.caps);
     if ("error" in mf) return this.finish(r, id, { outcome: "refused", code: "mode", detail: mf.error });
-    const res = await this.deps.run(
-      claude.bin,
-      ["-p", "--output-format", "json", ...mf.args, "--session-id", ref.id, frame(cmd.text as string, r.url)],
-      { cwd, env: claudeEnv(undefined, this.deps.env), timeoutMs: JOB_TIMEOUT_MS },
+    const res = await this.slot(() =>
+      this.deps.run(
+        claude.bin,
+        ["-p", "--output-format", "json", ...mf.args, "--session-id", ref.id, frame(cmd.text as string, r.url)],
+        { cwd, env: claudeEnv(undefined, this.deps.env), timeoutMs: JOB_TIMEOUT_MS },
+      ),
     );
     // The transcript this run just wrote is ours: the next message must not read it as a
     // live session (a fork instead of a resume).

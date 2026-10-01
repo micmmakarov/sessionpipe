@@ -153,7 +153,7 @@ A refusal is acked `refused` with a `code`: the verifier's (`malformed`,
 `not_a_command`, `wrong_machine`, `unknown_kind`, `bad_session`, `bad_fields`,
 `bad_nonce`, `too_old`, `future`, `unsigned`, `untrusted_key`, `bad_assertion`,
 `bad_grant`, `outside_grant`, `bad_csig`, `replay`, `nonce_store`) or the machine's
-(`folder`, `no_attention`, `no_session`).
+(`folder`, `no_attention`, `no_session`, `start_limit`).
 
 The reference verifier is `sessionpipe-core/control` (WebCrypto only; the same file
 runs in a Worker, a browser and Node). A receiver SHOULD run it on arrival as an early
@@ -214,6 +214,13 @@ OpenCode `/session/:id/abort`; Codex app-server interrupt); everywhere else acke
 A new Claude Code session with the command's session id, in `cwd`: through the Agent
 SDK when the daemon has it, else `claude -p --session-id`. Acked `delivered` with mode
 `sdk` or `resume`, and the reply.
+
+A start is a whole agent run on the person's computer, so the machine caps them
+itself, whatever a receiver sends: at most a few running at once and a few an hour
+(the reference daemon: 2 and 10, set in its control config), refused `start_limit`
+beyond that. A daemon SHOULD also cap the headless processes it runs at once and make
+the rest wait their turn rather than fail. A receiver SHOULD rate-limit starts before
+it queues them; that limit is its policy, the machine's is the gate.
 
 ## 7. Attention lifecycle
 
