@@ -346,15 +346,17 @@ describe.runIf(unix)("delivery", () => {
     const id = (n: number) => `0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7b0${n}`;
     const start = (n: number) =>
       rx.send({ kind: "start", session: `claude-code:${id(n)}`, cwd: project, text: `job ${n}` });
-    const a = await start(1);
-    const b = await start(2);
-    const c = await start(3);
-    // Two run; the third is refused at once, not queued behind them.
-    expect(await rx.waitAck(c.id)).toMatchObject({ outcome: "refused", code: "start_limit" });
+    const three = [await start(1), await start(2), await start(3)];
+    // Two run and one is refused at once, not queued behind them. Which one is the
+    // order they finish verifying in, when they arrive in the same poll.
     while (release.length < 2) await new Promise((r) => setTimeout(r, 10));
+    const refusedNow = () => three.filter((q) => rx.finalAck(q.id)?.code === "start_limit");
+    for (let i = 0; i < 300 && !refusedNow().length; i++) await new Promise((r) => setTimeout(r, 20));
+    const refused = refusedNow();
+    expect(refused).toHaveLength(1);
     for (const r of release.splice(0)) r();
-    expect(await rx.waitAck(a.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
-    expect(await rx.waitAck(b.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
+    for (const q of three.filter((q) => !refused.includes(q)))
+      expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
     // The hour's budget is 3 accepted starts: one more goes, the next is refused.
     const e = await start(4);
     while (release.length < 1) await new Promise((r) => setTimeout(r, 10));
