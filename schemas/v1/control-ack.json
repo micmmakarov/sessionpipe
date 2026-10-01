@@ -16,6 +16,7 @@
           "outcome": {
             "type": "string",
             "enum": [
+              "progress",
               "taken",
               "delivered",
               "expired",
@@ -55,6 +56,11 @@
           "reply": {
             "type": "string",
             "maxLength": 20000
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [

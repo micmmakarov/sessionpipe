@@ -85,6 +85,9 @@ export interface Caps {
   modes: string[];
   promptsNone: boolean;
   fork: boolean;
+  /** `--output-format stream-json` with `--include-partial-messages`: the answer can be
+   *  forwarded as it is written. Optional so older callers' literals still type. */
+  stream?: boolean;
 }
 
 export function parseCaps(help: string): Caps {
@@ -95,6 +98,7 @@ export function parseCaps(help: string): Caps {
     modes: pm ? [...pm.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1] as string) : [],
     promptsNone: !!pp && /"none"/.test(pp),
     fork: !!optionBlock(help, "--fork-session"),
+    stream: !!optionBlock(help, "--include-partial-messages"),
   };
 }
 
@@ -307,7 +311,14 @@ export interface RunResult {
 export function runClaude(
   bin: string,
   args: string[],
-  o: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number },
+  o: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+    /** Streaming (`--output-format stream-json`): each stdout line as it arrives. Only
+     *  the `result` line is kept for the RunResult, so a long stream never hits the cap. */
+    onLine?: (line: string) => void;
+  },
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     let out: Buffer[] = [];
@@ -339,7 +350,25 @@ export function runClaude(
         } catch {}
       }
     };
+    let partial = "";
     child.stdout?.on("data", (b: Buffer) => {
+      if (o.onLine) {
+        const chunk = partial + b.toString("utf8");
+        const lines = chunk.split("\n");
+        partial = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            o.onLine(line);
+          } catch {}
+          if (line.includes('"type":"result"')) {
+            out = [Buffer.from(line)];
+            outLen = line.length;
+          }
+        }
+        if (partial.length > OUT_CAP) partial = "";
+        return;
+      }
       if (tooBig) return;
       if (outLen + b.length > OUT_CAP) {
         tooBig = true;
@@ -374,7 +403,20 @@ export function runClaude(
     child.on("error", (e) => finish({ error: e.message }));
     // A tool the agent left running can hold stdout open after Claude Code exits.
     child.on("exit", (code, signal) => setTimeout(() => finish(result(code, signal)), 2000).unref());
-    child.on("close", (code, signal) => finish(result(code, signal)));
+    child.on("close", (code, signal) => {
+      // The last line may end without a newline: it is often the result itself.
+      if (o.onLine && partial.trim()) {
+        try {
+          o.onLine(partial);
+        } catch {}
+        if (partial.includes('"type":"result"')) {
+          out = [Buffer.from(partial)];
+          outLen = partial.length;
+        }
+        partial = "";
+      }
+      finish(result(code, signal));
+    });
   });
 }
 

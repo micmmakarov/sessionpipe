@@ -284,7 +284,9 @@ export const ControlPoll = z.object({ messages: z.array(ControlMessage) });
 
 /** `taken` is the one non-final outcome: the machine verified the message and is
  *  delivering it (a headless resume can take minutes); a final ack follows. */
-export const ControlOutcome = z.enum(["taken", "delivered", "expired", "unsupported", "failed", "refused"]);
+/** `progress` (not final): the answer so far, whole, in `reply`, with a rising `seq`.
+ *  `taken` (not final): verified and being delivered. Every other outcome is final. */
+export const ControlOutcome = z.enum(["progress", "taken", "delivered", "expired", "unsupported", "failed", "refused"]);
 
 export const ControlAck = z.object({
   acks: z
@@ -305,6 +307,8 @@ export const ControlAck = z.object({
         detail: z.string().max(500).optional(),
         /** resume / fork / start: the agent's reply, redacted by the secrets ruleset. */
         reply: z.string().max(20_000).optional(),
+        /** progress only: rises with every progress ack for this id; a receiver keeps the highest. */
+        seq: z.int().min(0).optional(),
       }),
     )
     .min(1),

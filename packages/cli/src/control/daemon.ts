@@ -13,6 +13,7 @@ import { claudeControl, redactSecrets } from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
 import type { LocalReply, LocalRequest } from "./local.js";
 import { awaitAnswer, transcriptEnd } from "./reply.js";
+import { AnswerStream } from "./stream.js";
 import { type DeliveryMode, frame, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
 import {
   type Ack,
@@ -100,7 +101,7 @@ export interface DaemonDeps {
   run: (
     bin: string,
     args: string[],
-    o: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number },
+    o: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number; onLine?: (line: string) => void },
   ) => Promise<RunResult>;
   sdk?: SdkHost | null;
   /** How long to follow a live session's turn for an in-place answer (tests shorten it). */
@@ -859,21 +860,23 @@ export class ControlDaemon {
       const allow = this.allowedFor(r);
       const args = [
         "-p",
-        "--output-format",
-        "json",
+        ...this.outputArgs(claude.caps),
         ...mf.args,
         ...(allow.length ? [`--allowedTools=${allow.join(",")}`] : []),
         ...resume,
         frame(cmd.text as string, r.url),
       ];
       this.deps.log(`${id.slice(-8)}: claude -p ${[...mf.args, ...resume].join(" ")} in ${place.folder}`);
+      const stream = this.answerStream(r, id);
       const res = await this.slot(() =>
         this.deps.run(claude.bin, args, {
           cwd: place.folder,
           env: claudeEnv(place.transcript?.configDir, this.deps.env),
           timeoutMs: JOB_TIMEOUT_MS,
+          ...(claude.caps.stream ? { onLine: (l: string) => stream.feed(l) } : {}),
         }),
       );
+      stream.close();
       this.lastEnd.set(target, this.deps.now());
       const out = this.outcome(res);
       if ("failed" in out) return this.finish(r, id, { outcome: "failed", detail: out.failed });
@@ -940,15 +943,43 @@ export class ControlDaemon {
   ): void {
     this.deps.log(`${id.slice(-8)}: in ${session.slice(0, 24)} via ${mode} ${this.deps.now() - sent} ms after send`);
     this.finish(r, id, { outcome: "taken" });
+    const stream = this.answerStream(r, id);
     void (async () => {
       const answer = from
         ? await awaitAnswer(from.file, from.offset, {
             timeoutMs: this.deps.answerWaitMs ?? ANSWER_WAIT_MS,
             now: this.deps.now,
+            onText: (t) => stream.set(t),
           })
         : null;
+      stream.close();
       this.finish(r, id, { outcome: "delivered", mode, ...(answer ? { reply: answer } : {}) }, sent);
     })().catch((e) => this.finish(r, id, { outcome: "delivered", mode, detail: String((e as Error)?.message || e) }));
+  }
+
+  /** The answer so far, sent as a `progress` ack: whole, with a rising seq, at most
+   *  one in flight. Fire-and-forget — the final ack carries everything. */
+  private answerStream(r: PairedReceiver, id: string): AnswerStream {
+    return new AnswerStream(async (text, seq) => {
+      await this.post(r, "/ack", {
+        acks: [
+          {
+            id,
+            outcome: "progress",
+            at: new Date(this.deps.now()).toISOString(),
+            seq,
+            reply: redactSecrets(text).slice(0, MAX_REPLY),
+          },
+        ],
+      });
+    });
+  }
+
+  /** How a headless run prints: streamed where this Claude Code can, else one JSON at the end. */
+  private outputArgs(caps: { stream?: boolean }): string[] {
+    return caps.stream
+      ? ["--output-format", "stream-json", "--verbose", "--include-partial-messages"]
+      : ["--output-format", "json"];
   }
 
   private limits() {
@@ -1029,22 +1060,28 @@ export class ControlDaemon {
       return this.finish(r, id, { outcome: "failed", detail: "Claude Code isn't installed on this machine" });
     const mf = modeFlags(this.cfg.mode, claude.caps);
     if ("error" in mf) return this.finish(r, id, { outcome: "refused", code: "mode", detail: mf.error });
+    const stream = this.answerStream(r, id);
     const res = await this.slot(() =>
       this.deps.run(
         claude.bin,
         [
           "-p",
-          "--output-format",
-          "json",
+          ...this.outputArgs(claude.caps),
           ...mf.args,
           ...(this.allowedFor(r).length ? [`--allowedTools=${this.allowedFor(r).join(",")}`] : []),
           "--session-id",
           ref.id,
           frame(cmd.text as string, r.url),
         ],
-        { cwd, env: claudeEnv(undefined, this.deps.env), timeoutMs: JOB_TIMEOUT_MS },
+        {
+          cwd,
+          env: claudeEnv(undefined, this.deps.env),
+          timeoutMs: JOB_TIMEOUT_MS,
+          ...(claude.caps.stream ? { onLine: (l: string) => stream.feed(l) } : {}),
+        },
       ),
     );
+    stream.close();
     // The transcript this run just wrote is ours: the next message must not read it as a
     // live session (a fork instead of a resume).
     this.lastEnd.set(ref.id, this.deps.now());
