@@ -15,7 +15,7 @@
           "cmd": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 12000
+            "maxLength": 48000
           },
           "csig": {
             "anyOf": [

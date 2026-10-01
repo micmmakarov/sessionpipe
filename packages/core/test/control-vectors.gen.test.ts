@@ -11,6 +11,7 @@ import { describe, it } from "vitest";
 import {
   type Assertion,
   b64url,
+  CMD_MAX,
   fromB64url,
   RECEIVER_MAX_AGE_MS,
   RS256,
@@ -473,8 +474,8 @@ describe.runIf(WRITE)("write control vectors", () => {
     await shape("prompt-with-key", "Only a key.add carries a key.", { key: someKey }, "bad_fields");
     await shape("iat-not-integer", "A signing time that isn't an integer.", { iat: T + 0.5 }, "malformed");
     {
-      const c = commandStr({ pad: "x".repeat(12_000) });
-      refuse("command-too-long", "A command string over 12,000 characters.", await signed(pk, day, c), "malformed");
+      const c = commandStr({ pad: "x".repeat(CMD_MAX) });
+      refuse("command-too-long", `A command string over ${CMD_MAX} characters.`, await signed(pk, day, c), "malformed");
     }
     refuse("not-json", "A command that is not JSON.", { cmd: "{v:1}", csig: "", grant: null }, "malformed");
 

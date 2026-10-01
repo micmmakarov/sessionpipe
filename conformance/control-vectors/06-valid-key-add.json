@@ -3,21 +3,21 @@
   "description": "A trusted passkey vouches for a new device's passkey.",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"key.add\",\"session\":\"sessionpipe:keys\",\"nonce\":\"3tXts3xZ_yhZ5hBiBFq3vg\",\"iat\":1790800000000,\"key\":{\"id\":\"di3XsHbTiujlcnrbfKCOTUwpu75nto_C\",\"alg\":-7,\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFzIn9n9-2oEuYjjn_KcpHu8vB-jM5IDTTCFpkkJyU9lhwAOLvYdFHDc0LMjAEtmFrVisQdapYwDnRpQb0nhudg\"},\"name\":\"iPhone\"}",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"key.add\",\"session\":\"sessionpipe:keys\",\"nonce\":\"OOXfFMQ4TUAv6oVyOkkKkQ\",\"iat\":1790800000000,\"key\":{\"id\":\"Cr6EapBeFtQToO7lPAgdKaWjFTcWCqnn\",\"alg\":-7,\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwVLQ3a8y10J2zZ-iwO7EV3rR5CalD9VbCI1RmC_JzsWZeAPywRkxkfhENeVc5tkiI0K35CQK3XA91Q-3plf4yw\"},\"name\":\"iPhone\"}",
       "confirm": {
-        "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "cred": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
-        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiekZGNXN5RldXX3JVUHdZREZWc1FielJ5M2ZDSHBtbktQM2pMT0xHc0ItdyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEUCIB729p2LYLJyTgC8dIKQsawXXz2NzTkxxqRdT_DFavROAiEAt9yQwP3gvxTzZwHK4pZkyQ4CSzUeENOy9drOgzVhCw4"
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiNGJtdWpSUFpHWUlCZV9vMFNNeTRYZm5zaEJCclBfSXRBazZOeEFiZy02SSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEQCIAyITgCpCMaBjcsyPGzo7wi7MGEix3csNQrClEOfrW9UAiA7-dal_Jb2zS_CeuJOg0uaUXk0PnXnePx-9bNlHqlxBg"
       }
     },
     "machine": "m_testmachine0000000001",
     "rp_id": "receiver.example",
     "trusted": [
       {
-        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "id": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
         "alg": -7,
-        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8qRtJkQFhLd9xjMbo0C99sg39giVDk8l697MnuQzrbPIOtQumw8f0ge0XCLwuHzxi8192Nz8Lf9ZDxM0ZRCcDA"
       }
     ],
     "now": 1790800060000

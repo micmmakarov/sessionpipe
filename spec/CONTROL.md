@@ -104,7 +104,7 @@ The device writes the command as a JSON string, `cmd`, and signs those exact byt
 | `machine` | The machine's id: `m_` then 16–40 base64url characters. |
 | `kind` | `prompt` · `permission.answer` · `cancel` · `start` (§5). |
 | `session` | `<harness>:<id>`. The id follows its adapter's rule ([ADAPTERS.md](ADAPTERS.md)); for `claude-code` it is a UUID. |
-| `text` | `prompt`, `start`: the message for the model, 1 – **4 000** characters, not all whitespace. |
+| `text` | `prompt`, `start`: the message for the model, 1 – **20 000** characters, not all whitespace (a real task brief runs to pages). |
 | `for`, `decision` | `permission.answer` only: the `attention_id` being answered, and `allow` or `deny`. |
 | `note` | Optional, ≤ 2 000 characters: shown to the model beside a decision or a cancel. |
 | `cwd` | `start` only: the absolute folder the new session runs in. |
@@ -112,7 +112,7 @@ The device writes the command as a JSON string, `cmd`, and signs those exact byt
 | `iat` | Epoch milliseconds on the signing device's clock, an integer. |
 
 A field that does not belong to the kind makes the command malformed. The whole
-string is at most **12 000** characters.
+string is at most **48 000** characters (the text, JSON-escaped, and the rest).
 
 ### 3.2 Signatures
 
@@ -153,7 +153,7 @@ The two implementations this was lifted from (spacesheep's server and CLI) disag
 this spec fixes one value each: nonce 22–64 base64url characters (they had 16–64 and
 22–128), text ≤ 4 000 characters and command ≤ 12 000 (they agreed on the text and
 capped the command at 12 000 and 16 KiB), session id per adapter (one accepted any id,
-the other only UUIDs).
+the other only UUIDs). The caps were raised to 20 000 / 48 000 on 2026-10-01: a 4 000-character text box silently cut a real task brief in half.
 
 ## 5. What the machine checks, in order, before anything runs
 

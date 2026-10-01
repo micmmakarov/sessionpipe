@@ -23,9 +23,9 @@ export const RECEIVER_MAX_AGE_MS = 10 * 60_000;
 /** How long a machine remembers a nonce: longer than MACHINE_MAX_AGE_MS + SKEW_MS. */
 export const NONCE_TTL_MS = 25 * 3600_000;
 /** The whole command string, in UTF-16 code units (what JSON.parse sees). */
-export const CMD_MAX = 12_000;
+export const CMD_MAX = 48_000;
 /** A prompt's text, in characters. */
-export const TEXT_MAX = 4_000;
+export const TEXT_MAX = 20_000;
 /** A permission answer's note. */
 export const NOTE_MAX = 2_000;
 /** A grant string. */
