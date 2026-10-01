@@ -41,6 +41,10 @@ export interface ControlConfig {
   folders: string[];
   mode: "safe" | "auto";
   receivers: PairedReceiver[];
+  /** Caps this machine keeps whatever a receiver sends (defaults in daemon.ts,
+   *  LIMITS): new sessions running at once and per hour, headless Claude Code runs
+   *  at once. */
+  limits?: { start_concurrent?: number; start_per_hour?: number; headless?: number };
 }
 
 export const controlFile = (env: NodeJS.ProcessEnv = process.env) =>
