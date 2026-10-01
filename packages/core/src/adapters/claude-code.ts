@@ -54,8 +54,10 @@ const OPTS = {
 };
 const DESKTOP_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 
-/** Every Claude Code config dir on this machine. */
-export function claudeDirs(env: NodeJS.ProcessEnv = process.env, home = HOME): string[] {
+/** Every Claude Code config dir on this machine. `home` follows the env's HOME, so a
+ *  caller with its own env (a test) never reaches the real ~/.claude: the install test
+ *  once rewrote a real settings.json with its fake hook paths on every run. */
+export function claudeDirs(env: NodeJS.ProcessEnv = process.env, home = env.HOME || HOME): string[] {
   const out: string[] = [];
   const add = (d?: string) => {
     if (!d) return;
