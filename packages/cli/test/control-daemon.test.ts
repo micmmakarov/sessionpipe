@@ -68,30 +68,37 @@ function cfg(folders = [project]): ControlConfig {
   };
 }
 
-async function startDaemon(o: { folders?: string[]; sdk?: SdkHost; fork?: boolean } = {}) {
-  d = new ControlDaemon(cfg(o.folders), path.join(tmp, "state", "control"), sock, {
-    now: Date.now,
-    fetch,
-    log: () => {},
-    claudeDirs: () => [configDir],
-    claude: () => ({
-      bin: fakeClaude,
-      caps: { hasMode: true, modes: ["default", "dontAsk"], promptsNone: false, fork: o.fork ?? true },
-    }),
-    run: (bin, args, opts) =>
-      new Promise((resolve) => {
-        const c = spawn(bin, args, { cwd: opts.cwd, env: opts.env });
-        let out = "";
-        c.stdout.on("data", (b) => {
-          out += b;
-        });
-        c.on("close", (code) =>
-          resolve({ code, signal: null, stdout: out, tooBig: false, stderr: "", timedOut: false }),
-        );
+async function startDaemon(
+  o: { folders?: string[]; sdk?: SdkHost; fork?: boolean; limits?: ControlConfig["limits"] } = {},
+) {
+  d = new ControlDaemon(
+    { ...cfg(o.folders), ...(o.limits ? { limits: o.limits } : {}) },
+    path.join(tmp, "state", "control"),
+    sock,
+    {
+      now: Date.now,
+      fetch,
+      log: process.env.SP_DEBUG ? (s: string) => console.error(`[daemon] ${s}`) : () => {},
+      claudeDirs: () => [configDir],
+      claude: () => ({
+        bin: fakeClaude,
+        caps: { hasMode: true, modes: ["default", "dontAsk"], promptsNone: false, fork: o.fork ?? true },
       }),
-    sdk: o.sdk ?? null,
-    env,
-  });
+      run: (bin, args, opts) =>
+        new Promise((resolve) => {
+          const c = spawn(bin, args, { cwd: opts.cwd, env: opts.env });
+          let out = "";
+          c.stdout.on("data", (b) => {
+            out += b;
+          });
+          c.on("close", (code) =>
+            resolve({ code, signal: null, stdout: out, tooBig: false, stderr: "", timedOut: false }),
+          );
+        }),
+      sdk: o.sdk ?? null,
+      env,
+    },
+  );
   await d.start();
 }
 
@@ -314,6 +321,85 @@ describe.runIf(unix)("delivery", () => {
     const q3 = await rx.send({ kind: "cancel", session: `claude-code:${NEW}`, text: undefined });
     expect(await rx.waitAck(q3.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
     expect(sent.at(-1)).toBe("<interrupt>");
+  });
+
+  it("start caps: at most N at once and M an hour, whatever the receiver sends", { timeout: 30_000 }, async () => {
+    const release: (() => void)[] = [];
+    let running = 0;
+    let most = 0;
+    const host: SdkHost = {
+      start: () => ({
+        send: async (t: string) => {
+          running++;
+          most = Math.max(most, running);
+          await new Promise<void>((r) => release.push(r));
+          running--;
+          return { reply: `ok: ${t.split("\n").pop()}` };
+        },
+        interrupt: async () => {},
+        close: () => {},
+        busy: false,
+        lastUsed: Date.now(),
+      }),
+    };
+    await startDaemon({ sdk: host, limits: { start_concurrent: 2, start_per_hour: 3, headless: 5 } });
+    const id = (n: number) => `0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7b0${n}`;
+    const start = (n: number) =>
+      rx.send({ kind: "start", session: `claude-code:${id(n)}`, cwd: project, text: `job ${n}` });
+    const a = await start(1);
+    const b = await start(2);
+    const c = await start(3);
+    // Two run; the third is refused at once, not queued behind them.
+    expect(await rx.waitAck(c.id)).toMatchObject({ outcome: "refused", code: "start_limit" });
+    while (release.length < 2) await new Promise((r) => setTimeout(r, 10));
+    for (const r of release.splice(0)) r();
+    expect(await rx.waitAck(a.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
+    expect(await rx.waitAck(b.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
+    // The hour's budget is 3 accepted starts: one more goes, the next is refused.
+    const e = await start(4);
+    while (release.length < 1) await new Promise((r) => setTimeout(r, 10));
+    release.splice(0)[0]?.();
+    expect(await rx.waitAck(e.id)).toMatchObject({ outcome: "delivered" });
+    const f = await start(5);
+    expect(await rx.waitAck(f.id)).toMatchObject({ outcome: "refused", code: "start_limit" });
+    expect(most).toBe(2);
+  });
+
+  it("headless runs wait their turn: never more Claude Code processes than the cap", { timeout: 30_000 }, async () => {
+    await startDaemon({ limits: { headless: 1 } });
+    // A slow stand-in claude that records how many run at once.
+    const marks = path.join(tmp, "concurrency.log");
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const fs = require("fs"); const a = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(marks)}, "+\\n");
+setTimeout(() => { fs.appendFileSync(${JSON.stringify(marks)}, "-\\n");
+  const j = a.indexOf("--session-id");
+  process.stdout.write(JSON.stringify({ type: "result", result: "done", session_id: a[j + 1], is_error: false })); }, 150);
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+    const qs = [];
+    for (const n of [1, 2, 3])
+      qs.push(
+        await rx.send({
+          kind: "start",
+          session: `claude-code:0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7c0${n}`,
+          cwd: project,
+          text: "hi",
+        }),
+      );
+    for (const q of qs)
+      expect(await rx.waitAck(q.id)).toMatchObject({ outcome: expect.stringMatching(/delivered|refused/) });
+    const seq = readFileSync(marks, "utf8").trim().split("\n");
+    let now = 0;
+    let most = 0;
+    for (const m of seq) {
+      now += m === "+" ? 1 : -1;
+      most = Math.max(most, now);
+    }
+    expect(most).toBe(1);
   });
 
   it("start without the SDK is a headless claude -p --session-id", async () => {
