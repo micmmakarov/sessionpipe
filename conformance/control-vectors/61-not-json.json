@@ -1,0 +1,25 @@
+{
+  "name": "not-json",
+  "description": "A command that is not JSON.",
+  "input": {
+    "signed": {
+      "cmd": "{v:1}",
+      "csig": "",
+      "grant": null
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": false,
+    "code": "malformed"
+  }
+}

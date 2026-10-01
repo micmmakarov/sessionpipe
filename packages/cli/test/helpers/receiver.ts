@@ -63,14 +63,15 @@ export class FakeReceiver {
   /** The person signs a command and the receiver queues it for the machine. */
   async send(
     fields: Record<string, unknown>,
-    o: { confirm?: boolean; expiresInMs?: number; tamper?: (c: string) => string } = {},
+    o: { confirm?: boolean; expiresInMs?: number; tamper?: (c: string) => string; as?: Passkey } = {},
   ): Promise<Queued> {
     const now = Date.now();
     const cmd = commandStr({ machine: this.machine, iat: now, nonce: nonce(), ...fields });
     let signed: { cmd: string; csig?: string; grant?: unknown; confirm?: unknown };
-    if (o.confirm) signed = { cmd, confirm: await this.passkey.assert(await sha256(cmd)) };
+    const pk = o.as ?? this.passkey;
+    if (o.confirm) signed = { cmd, confirm: await pk.assert(await sha256(cmd)) };
     else {
-      const grant = await this.day.grant(this.passkey, { iat: now - 60_000, exp: now + 3600_000 });
+      const grant = await this.day.grant(pk, { iat: now - 60_000, exp: now + 3600_000 });
       signed = { cmd, csig: await this.day.sign(cmd), grant };
     }
     if (o.tamper) signed.cmd = o.tamper(signed.cmd);

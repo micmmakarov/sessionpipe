@@ -1,0 +1,38 @@
+{
+  "name": "valid-confirm-beside-bad-grant",
+  "description": "The grant path fails (untrusted passkey) but the confirm verifies: either path is enough.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"k2g-E1VG2s5PKg47y7doIw\",\"iat\":1790800000000}",
+      "csig": "ZHvbRYoMCat8bp8lSVmLWujotj04IOKdr-sPz_s3Ebr2yeFeI6INPIauNVNiL6i5tb4eN-TKlqiNeIjb7k1x3w",
+      "grant": {
+        "cred": "Yh8x7tM4mpeFXZBFxc9ho4lJ3_8PG-vp",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiSkRZZGw1NEhqV3dsNHNyWF9rbW9DVi1CNmNQdFFQb3BUXzVLdlJZSGtzZyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIARe8dPUOTmU9OUEihbMdRfMZDNOaCcIPHiq9wsLlnWQAiEAgtHA8p-M8EUMXlBHslQGTYwpdj1NBAV4VPU0yiHqXP8",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUOcgSB7EWJYGONUjhdORmc2MlEVaHfbULBtHJpNmrmpF8k_8onHsXU9pDwbJoQvseL_G939XZ6K3Ew1KPwpnng\",\"iat\":1790799940000,\"exp\":1790803600000,\"rp\":\"receiver.example\"}"
+      },
+      "confirm": {
+        "cred": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiNXNHUkRtYW0xb0Q0X2M0N05kVFRwVFdMRFZRcHpxaF9oSWp5Mm4wUW96TSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIAMYFBgBl_ow-bV2ETg8_rP51U1CNjyCnl9Y2TjhYGZJAiEAs3drVcNJrDtpTquYmvxXDkrdaaffzwzcW4i4OaVtIhc"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "z58lbg7nBrPL8HetSdKWG2Xn5v16ifpe",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEW70QX8-Q7pcRaAClcCvq20kw-Y_kpNfa37uyQ9JSFEqXPXaV2PC74b1ISuGTdAzMbIWObwKyiP65Cl0VTNH-ew"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": true,
+    "via": "confirm",
+    "kind": "prompt"
+  }
+}

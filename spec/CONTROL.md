@@ -74,6 +74,17 @@ its keys and its token, and tells the receiver (`POST {control}/off`). Adding an
 passkey is the same pairing, with the machine id in the request. A receiver MUST NOT
 be able to add, replace or remove a key on its own.
 
+**A trusted device vouches for a new one** (`key.add`). Passkeys live in a device's own
+keychain, and a phone often has a different one from the laptop that paired, so a
+person away from the machine's terminal adds a device this way: a device the machine
+already trusts signs a command of kind `key.add`, session `sessionpipe:keys`, carrying
+the new passkey (`key`: `id`, `alg`, `spki`) and an optional `name`. The machine runs
+every check of §5 on it — the signature from a key it already holds, the age, the
+nonce — and then adds the key to its store and acks `delivered`. The receiver only
+carries the command; it still can never add a key on its own. A receiver SHOULD make
+plain, while the person is at a device that can approve, that every device they will
+send from needs its own approval, and offer to add the next one right then.
+
 ## 3. The signed command
 
 ### 3.1 The command string

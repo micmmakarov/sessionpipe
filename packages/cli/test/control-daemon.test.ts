@@ -471,6 +471,27 @@ setTimeout(() => { fs.appendFileSync(${JSON.stringify(marks)}, "-\\n");
     expect(most).toBe(1);
   });
 
+  it("key.add: a trusted device vouches for a new one, which can then sign on its own", async () => {
+    await startDaemon();
+    // Before: the other passkey is a stranger here.
+    const before = await rx.send({ session: SESSION, text: "from the phone" }, { as: rx.other, confirm: true });
+    expect(await rx.waitAck(before.id)).toMatchObject({ outcome: "refused", code: "untrusted_key" });
+    const add = await rx.send(
+      { kind: "key.add", session: "sessionpipe:keys", text: undefined, key: rx.other.key, name: "iPhone" },
+      { confirm: true },
+    );
+    expect(await rx.waitAck(add.id)).toMatchObject({ outcome: "delivered", detail: "trusted iPhone" });
+    expect(readControl(env)?.receivers[0]?.keys.map((k) => k.id)).toContain(rx.other.key.id);
+    // After: the phone's own signature is enough.
+    const got = waitForMessage(SESSION, { env });
+    await new Promise((r) => setTimeout(r, 100));
+    const after = await rx.send({ session: SESSION, text: "now it works" }, { as: rx.other, confirm: true });
+    expect(await got).toContain("now it works");
+    for (let i = 0; i < 100 && !rx.acks.some((a) => a.id === after.id); i++)
+      await new Promise((r) => setTimeout(r, 20));
+    expect(rx.acks.find((a) => a.id === after.id)?.outcome).toBe("taken");
+  });
+
   it("start without the SDK is a headless claude -p --session-id", async () => {
     await startDaemon();
     const NEW = "0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8d";

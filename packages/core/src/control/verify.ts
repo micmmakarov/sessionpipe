@@ -33,7 +33,9 @@ export const GRANT_STR_MAX = 2_000;
 
 export const COMMAND_TYPE = "sessionpipe.control";
 export const GRANT_TYPE = "sessionpipe.grant";
-export const CONTROL_KINDS = ["prompt", "permission.answer", "cancel", "start"] as const;
+export const CONTROL_KINDS = ["prompt", "permission.answer", "cancel", "start", "key.add"] as const;
+/** The session a `key.add` names: the machine's own key store, not a coding session. */
+export const KEY_STORE_SESSION = "sessionpipe:keys";
 export type ControlKind = (typeof CONTROL_KINDS)[number];
 
 /** COSE algorithm ids a trusted key may use. */
@@ -84,6 +86,10 @@ export interface ControlCommand {
   decision?: "allow" | "deny";
   note?: string;
   cwd?: string;
+  /** key.add only: the passkey to trust from now on, as the receiver holds it. */
+  key?: { id: string; alg: -7 | -257; spki: string };
+  /** key.add only: what the person calls the device ("iPhone"), for `control keys`. */
+  name?: string;
   nonce: string;
   iat: number;
 }
@@ -397,7 +403,29 @@ export function parseCommand(str: unknown): Parsed {
       if (has("text") || has("for") || has("decision") || has("cwd"))
         return bad("bad_fields", "a cancel carries nothing");
       break;
+    case "key.add": {
+      // A device the machine already trusts vouches for a new one (CONTROL.md §2): the
+      // new passkey's id, algorithm and public key are inside the signed bytes.
+      if (c.session !== KEY_STORE_SESSION) return bad("bad_session", `a key.add names ${KEY_STORE_SESSION}`);
+      const k = c.key as { id?: unknown; alg?: unknown; spki?: unknown } | undefined;
+      const b64 = (v: unknown, min: number, max: number) =>
+        typeof v === "string" && v.length >= min && v.length <= max && /^[A-Za-z0-9_-]+$/.test(v);
+      if (
+        !k ||
+        typeof k !== "object" ||
+        !b64(k.id, 16, 1400) ||
+        (k.alg !== -7 && k.alg !== -257) ||
+        !b64(k.spki, 40, 2000)
+      )
+        return bad("bad_fields", "a key.add carries the key: id, alg (-7 or -257) and spki");
+      if (has("name") && (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80))
+        return bad("bad_fields", "a device name is text, at most 80 characters");
+      if (has("text") || has("for") || has("decision") || has("cwd"))
+        return bad("bad_fields", "a key.add carries the key and a name");
+      break;
+    }
   }
+  if (c.kind !== "key.add" && (has("key") || has("name"))) return bad("bad_fields", "only a key.add carries a key");
   if (has("note") && (typeof c.note !== "string" || c.note.length > NOTE_MAX))
     return bad("bad_fields", `a note is text, at most ${NOTE_MAX} characters`);
   return { ok: true, cmd: c as unknown as ControlCommand };

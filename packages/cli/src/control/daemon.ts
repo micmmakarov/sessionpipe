@@ -22,6 +22,7 @@ import {
   NonceStore,
   type PairedReceiver,
   readState,
+  writeControl,
   writeState,
 } from "./store.js";
 import { AnswerStream } from "./stream.js";
@@ -636,6 +637,9 @@ export class ControlDaemon {
       return this.finish(r, m.id, { outcome: "refused", code: v.code, detail: v.why });
     }
     const cmd = v.cmd;
+    // A device this machine already trusts vouched for a new one (CONTROL.md §2): the
+    // signature just verified against an enrolled key, so the new key joins the store.
+    if (cmd.kind === "key.add") return this.addKey(r, m.id, cmd, sent);
     const ref = parseSessionRef(cmd.session)!;
     const kp = kindPath(cmd.kind, ref.harness);
     if (typeof kp === "object") return this.finish(r, m.id, { outcome: "unsupported", detail: kp.unsupported });
@@ -919,6 +923,34 @@ export class ControlDaemon {
     const text =
       typeof j.result === "string" && j.result.trim() ? j.result : "(Claude Code finished without a written reply.)";
     return { reply: text + tail, ...(typeof j.session_id === "string" ? { session: j.session_id } : {}) };
+  }
+
+  private addKey(r: PairedReceiver, id: string, cmd: ControlCommand, sent: number) {
+    const k = cmd.key!;
+    const name = typeof cmd.name === "string" ? cmd.name.trim().slice(0, 80) : undefined;
+    const rec = this.cfg.receivers.find((x) => x.control === r.control && x.machine === r.machine) ?? r;
+    if (rec.keys.some((x) => x.id === k.id))
+      return this.finish(r, id, { outcome: "delivered", detail: "that device was already trusted" }, sent);
+    rec.keys.push({
+      id: k.id,
+      alg: k.alg,
+      spki: k.spki,
+      ...(name ? { name } : {}),
+      added_at: new Date(this.deps.now()).toISOString(),
+    });
+    try {
+      writeControl(this.cfg, this.deps.env);
+    } catch (e) {
+      rec.keys = rec.keys.filter((x) => x.id !== k.id);
+      return this.finish(r, id, {
+        outcome: "failed",
+        detail: `couldn't save the key: ${String((e as Error)?.message || e)}`,
+      });
+    }
+    this.deps.log(
+      `trusted a new device${name ? ` (${name})` : ""} on ${r.url}: ${k.id.slice(0, 12)}…, vouched for by a key it already trusted`,
+    );
+    this.finish(r, id, { outcome: "delivered", detail: `trusted ${name || "a new device"}` }, sent);
   }
 
   /** Where the session's transcript ends right now: its answer starts after this. */

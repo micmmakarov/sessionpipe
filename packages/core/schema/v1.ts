@@ -207,7 +207,7 @@ const B64Url = z.string().regex(/^[A-Za-z0-9_-]*$/, "base64url, no padding");
 export const MachineId = z.string().regex(/^m_[A-Za-z0-9_-]{16,40}$/, "m_ + 16–40 base64url");
 /** `<harness>:<id>`; the id follows its adapter's rule (Claude Code: a UUID). */
 export const SessionRef = z.string().regex(/^[a-z][a-z0-9-]{0,39}:[A-Za-z0-9._:-]{1,128}$/, "<harness>:<session id>");
-export const ControlKind = z.enum(["prompt", "permission.answer", "cancel", "start"]);
+export const ControlKind = z.enum(["prompt", "permission.answer", "cancel", "start", "key.add"]);
 export const DeliveryMode = z.enum(["sdk", "waiter", "turn", "api", "resume", "fork"]);
 
 /** The signed command, as the device writes it. The machine verifies the EXACT string
@@ -227,6 +227,17 @@ export const ControlCommand = z.object({
   note: z.string().max(2000).optional(),
   /** start: the absolute folder the new session runs in. */
   cwd: z.string().max(1024).optional(),
+  /** key.add (session `sessionpipe:keys`): the new device's passkey, which the machine
+   *  trusts once a key it already trusts signed this command. */
+  key: z
+    .object({
+      id: z.string().regex(/^[A-Za-z0-9_-]{16,1400}$/),
+      alg: z.union([z.literal(-7), z.literal(-257)]),
+      spki: z.string().regex(/^[A-Za-z0-9_-]{40,2000}$/),
+    })
+    .optional(),
+  /** key.add: what the person calls the device. */
+  name: z.string().min(1).max(80).optional(),
   /** At least 16 random bytes, base64url. */
   nonce: z.string().regex(/^[A-Za-z0-9_-]{22,64}$/),
   /** Epoch ms, the signing device's clock. */
