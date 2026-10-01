@@ -4,6 +4,7 @@
 // hook answering a Stop and a PermissionRequest through the socket.
 import { spawn } from "node:child_process";
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -38,6 +39,14 @@ let project: string;
 let configDir: string;
 let claudeLog: string;
 let fakeClaude: string;
+
+/** The session answers in its own turn: a tool step, then its words and end_turn. */
+function answer(sid: string, cwd: string, text: string): void {
+  const f = path.join(configDir, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), `${sid}.jsonl`);
+  const rec = (stop: string, content: unknown[]) =>
+    `${JSON.stringify({ type: "assistant", message: { stop_reason: stop, content } })}\n`;
+  appendFileSync(f, rec("tool_use", [{ type: "tool_use", name: "Edit" }]) + rec("end_turn", [{ type: "text", text }]));
+}
 
 function transcript(sid: string, cwd: string): void {
   const dir = path.join(configDir, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
@@ -224,12 +233,21 @@ describe.runIf(unix)("delivery", () => {
     await new Promise((r) => setTimeout(r, 100));
     const q = await rx.send({ session: SESSION, text: "Add the Oct 8 row" });
     const text = await got;
-    const ack = await rx.waitAck(q.id);
-    expect(ack).toMatchObject({ outcome: "delivered", mode: "waiter" });
     expect(text).toContain("Add the Oct 8 row");
     expect(text).toContain("sessionpipe control");
     expect(text).toContain("start `sessionpipe wait` again");
-    expect(Date.parse(ack.at as string) - Date.parse(q.at)).toBeLessThan(2000);
+    expect(text).toContain("sent back to them automatically");
+    // Taken at once; the session's own answer, read from its transcript, is the reply.
+    for (let i = 0; i < 100 && !rx.acks.some((a) => a.id === q.id); i++) await new Promise((r) => setTimeout(r, 20));
+    const taken = rx.acks.find((a) => a.id === q.id);
+    expect(taken).toMatchObject({ outcome: "taken" });
+    expect(Date.parse(taken?.at as string) - Date.parse(q.at)).toBeLessThan(2000);
+    answer(SID, project, "Added the Oct 8 row.");
+    expect(await rx.waitAck(q.id)).toMatchObject({
+      outcome: "delivered",
+      mode: "waiter",
+      reply: "Added the Oct 8 row.",
+    });
   });
 
   it("turn: a message for a session mid-turn is the Stop hook's block, once", async () => {
@@ -246,8 +264,10 @@ describe.runIf(unix)("delivery", () => {
     const r = await ask(sock, { op: "stop", session: SESSION, active: false }, 500);
     expect(r).toMatchObject({ op: "block" });
     expect((r as { reason: string }).reason).toContain("also write pong");
+    expect((r as { reason: string }).reason).toContain("sent back to them automatically");
+    answer(SID, project, "pong");
     await ask(sock, { op: "event", session: SESSION, event: "Stop" }, 500);
-    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "turn" });
+    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "turn", reply: "pong" });
     expect(await ask(sock, { op: "stop", session: SESSION, active: true }, 500)).toEqual({ op: "none" });
   });
 
@@ -552,7 +572,8 @@ describe.runIf(unix)("the built hook talks to the daemon", () => {
       const out = await runHook("Stop", { session_id: SID, stop_hook_active: false, cwd: project });
       expect(JSON.parse(out)).toMatchObject({ decision: "block" });
       expect(JSON.parse(out).reason).toContain("from the phone");
-      expect(await rx.waitAck(q.id)).toMatchObject({ mode: "turn" });
+      answer(SID, project, "got it");
+      expect(await rx.waitAck(q.id)).toMatchObject({ mode: "turn", reply: "got it" });
 
       const input = {
         session_id: SID,
