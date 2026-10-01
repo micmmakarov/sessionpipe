@@ -12,7 +12,8 @@ import path from "node:path";
 import { claudeControl, redactSecrets } from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
 import type { LocalReply, LocalRequest } from "./local.js";
-import { type DeliveryMode, frame, kindPath, routePrompt } from "./route.js";
+import { awaitAnswer, transcriptEnd } from "./reply.js";
+import { type DeliveryMode, frame, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
 import {
   type Ack,
   AckOutbox,
@@ -45,6 +46,9 @@ const MAX_REPLY = 20_000;
 const HELLO_EVERY_MS = 10 * 60_000;
 /** A message waiting for a Stop that never comes goes another way after this. */
 const TURN_FALLBACK_MS = 30 * 60_000;
+/** How long the daemon follows a session's turn for the answer to an in-place
+ *  message before acking it delivered without one. */
+const ANSWER_WAIT_MS = 30 * 60_000;
 /** How long a Stop hook may take to be answered. */
 const RECENT_ACKS_MS = 25 * 3600_000;
 /** Events that prove a pending permission prompt was resolved some other way. */
@@ -93,6 +97,8 @@ export interface DaemonDeps {
     o: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number },
   ) => Promise<RunResult>;
   sdk?: SdkHost | null;
+  /** How long to follow a live session's turn for an in-place answer (tests shorten it). */
+  answerWaitMs?: number;
   /** Close an SDK session idle this long (a held session costs ~300 MB). */
   sdkIdleMs?: number;
   env?: NodeJS.ProcessEnv;
@@ -329,8 +335,9 @@ export class ControlDaemon {
           return;
         }
         l.continued = true;
-        this.reply(s, { op: "block", reason: frame(p.text, p.receiver.url), id: p.msgId });
-        this.finish(p.receiver, p.msgId, { outcome: "delivered", mode: "turn" }, p.queuedAt);
+        const from = this.answerFrom(req.session);
+        this.reply(s, { op: "block", reason: `${frame(p.text, p.receiver.url)}\n\n${IN_PLACE_ANSWER}`, id: p.msgId });
+        this.followAnswer(p.receiver, p.msgId, "turn", req.session, from, p.queuedAt);
         return;
       }
       case "permission": {
@@ -721,9 +728,10 @@ export class ControlDaemon {
         const l = this.live.get(cmd.session)!;
         const w = l.waiter!;
         l.waiter = null;
+        const from = this.answerFrom(cmd.session);
         this.reply(w, { op: "message", text: frame(text, r.url), id });
         this.scheduleHello();
-        return this.finish(r, id, { outcome: "delivered", mode: "waiter" }, sent);
+        return this.followAnswer(r, id, "waiter", cmd.session, from, sent);
       }
       case "turn": {
         const l = this.liveOf(cmd.session);
@@ -855,6 +863,39 @@ export class ControlDaemon {
     const text =
       typeof j.result === "string" && j.result.trim() ? j.result : "(Claude Code finished without a written reply.)";
     return { reply: text + tail, ...(typeof j.session_id === "string" ? { session: j.session_id } : {}) };
+  }
+
+  /** Where the session's transcript ends right now: its answer starts after this. */
+  private answerFrom(session: string): { file: string; offset: number } | null {
+    const ref = parseSessionRef(session);
+    if (!ref || ref.harness !== "claude-code") return null;
+    const t = findTranscript(this.state.copies[ref.id] ?? ref.id, this.deps.claudeDirs());
+    return t ? { file: t.file, offset: transcriptEnd(t.file) } : null;
+  }
+
+  /** A message handed to a live session (a waiter, a Stop block) is `taken` now; the
+   *  session answers in its own turn, which the daemon reads from the transcript and
+   *  sends back as the final ack's `reply` — so the person sees the answer where they
+   *  asked. A turn that doesn't end within ANSWER_WAIT_MS is acked delivered without. */
+  private followAnswer(
+    r: PairedReceiver,
+    id: string,
+    mode: "waiter" | "turn",
+    session: string,
+    from: { file: string; offset: number } | null,
+    sent: number,
+  ): void {
+    this.deps.log(`${id.slice(-8)}: in ${session.slice(0, 24)} via ${mode} ${this.deps.now() - sent} ms after send`);
+    this.finish(r, id, { outcome: "taken" });
+    void (async () => {
+      const answer = from
+        ? await awaitAnswer(from.file, from.offset, {
+            timeoutMs: this.deps.answerWaitMs ?? ANSWER_WAIT_MS,
+            now: this.deps.now,
+          })
+        : null;
+      this.finish(r, id, { outcome: "delivered", mode, ...(answer ? { reply: answer } : {}) }, sent);
+    })().catch((e) => this.finish(r, id, { outcome: "delivered", mode, detail: String((e as Error)?.message || e) }));
   }
 
   private limits() {

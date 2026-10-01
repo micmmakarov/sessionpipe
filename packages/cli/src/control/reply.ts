@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: Apache-2.0
+// The answer to a message delivered in place (spec/CONTROL.md §6 `prompt`). A waiter or
+// a Stop block hands the message to the live session, which answers in its own turn;
+// the daemon reads that turn from the session's own transcript and sends it back as the
+// ack's `reply`, so the person sees the answer where they asked. Only the bytes the
+// transcript gained after the delivery are read: a long session's file is never parsed
+// whole, and nothing from before the message can be mistaken for its answer.
+import { closeSync, openSync, readSync, statSync } from "node:fs";
+
+/** The transcript's size now: where its answer will start. */
+export function transcriptEnd(file: string): number {
+  try {
+    return statSync(file).size;
+  } catch {
+    return 0;
+  }
+}
+
+/** Claude Code records after the delivery → the turn's answer once the turn ended
+ *  (an assistant record with `stop_reason: "end_turn"`), else null. The answer is the
+ *  turn's assistant text, in order; sidechains (subagents) are not the session's words. */
+export function answerIn(lines: string[]): { done: boolean; text: string } {
+  const parts: string[] = [];
+  for (const line of lines) {
+    let j: {
+      type?: string;
+      isSidechain?: boolean;
+      message?: { stop_reason?: string; content?: unknown };
+    };
+    try {
+      j = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (j.type !== "assistant" || j.isSidechain) continue;
+    const content = j.message?.content;
+    if (Array.isArray(content))
+      for (const c of content as { type?: string; text?: unknown }[])
+        if (c?.type === "text" && typeof c.text === "string" && c.text.trim()) parts.push(c.text.trim());
+    if (j.message?.stop_reason === "end_turn") return { done: true, text: parts.join("\n\n") };
+  }
+  return { done: false, text: parts.join("\n\n") };
+}
+
+/** Wait for the turn that follows a delivery to end, reading the transcript from
+ *  `from` (its size at delivery). Resolves the answer, or null when the turn doesn't
+ *  end within `timeoutMs` (an interrupted turn, a session closed mid-answer). */
+export async function awaitAnswer(
+  file: string,
+  from: number,
+  o: { timeoutMs: number; pollMs?: number; now?: () => number; sleep?: (ms: number) => Promise<void> },
+): Promise<string | null> {
+  const now = o.now ?? Date.now;
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms).unref?.()));
+  const until = now() + o.timeoutMs;
+  let offset = from;
+  let partial = "";
+  const lines: string[] = [];
+  while (now() < until) {
+    const size = transcriptEnd(file);
+    if (size < offset) return null; // rewritten under us: nothing we can trust
+    if (size > offset) {
+      const fd = openSync(file, "r");
+      try {
+        const buf = Buffer.alloc(Math.min(size - offset, 4 * 1024 * 1024));
+        const n = readSync(fd, buf, 0, buf.length, offset);
+        offset += n;
+        const chunk = partial + buf.subarray(0, n).toString("utf8");
+        const cut = chunk.lastIndexOf("\n");
+        partial = cut < 0 ? chunk : chunk.slice(cut + 1);
+        if (cut >= 0) lines.push(...chunk.slice(0, cut).split("\n").filter(Boolean));
+      } finally {
+        closeSync(fd);
+      }
+      const a = answerIn(lines);
+      if (a.done) return a.text || null;
+    }
+    await sleep(o.pollMs ?? 500);
+  }
+  return null;
+}
