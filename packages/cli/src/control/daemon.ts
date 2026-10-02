@@ -11,6 +11,7 @@ import net from "node:net";
 import path from "node:path";
 import { claudeControl, redactSecrets } from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
+import { FileProblem, fetchFiles, withFiles, writeFiles } from "./files.js";
 import type { LocalReply, LocalRequest } from "./local.js";
 import { awaitAnswer, transcriptEnd } from "./reply.js";
 import { type DeliveryMode, frame, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
@@ -548,6 +549,8 @@ export class ControlDaemon {
         waiting,
         folders: this.cfg.folders,
         mode: this.cfg.mode,
+        // This daemon takes `files` on a start (an older one would start without them).
+        files: true,
       };
       await this.post(r, "/hello", body).catch(() => {});
     }
@@ -1106,12 +1109,26 @@ export class ControlDaemon {
         detail: "that new session's id is already taken",
       });
     this.finish(r, id, { outcome: "taken" });
+    // Attachments: every check in §5 passed and the nonce is recorded. Fetch, check and
+    // write them all before anything starts; any problem and nothing does.
+    let text = cmd.text as string;
+    if (cmd.files?.length) {
+      try {
+        const got = await fetchFiles(cmd.files, { control: r.control, token: r.token, fetch: this.deps.fetch });
+        text = withFiles(text, got, writeFiles(cwd, ref.id, got));
+        this.deps.log(`${id.slice(-8)}: ${got.length} file(s) saved in ${cwd}/.sessionpipe/files/${ref.id}`);
+      } catch (e) {
+        const detail = e instanceof FileProblem ? e.message : `couldn't fetch the files: ${String(e)}`;
+        this.deps.log(`${id.slice(-8)}: ${detail}`);
+        return this.finish(r, id, { outcome: "failed", code: "file", detail });
+      }
+    }
     if (this.deps.sdk) {
       const sdk = this.deps.sdk;
       const out = await this.slot(async () => {
         const s = sdk.start({ session: ref.id, cwd, mode: this.cfg.mode, allowedTools: this.allowedFor(r) });
         this.sdkSessions.set(ref.id, s);
-        return s.send(frame(cmd.text as string, r.url));
+        return s.send(frame(text, r.url));
       });
       return this.finish(
         r,
@@ -1136,7 +1153,7 @@ export class ControlDaemon {
           ...(this.allowedFor(r).length ? [`--allowedTools=${this.allowedFor(r).join(",")}`] : []),
           "--session-id",
           ref.id,
-          frame(cmd.text as string, r.url),
+          frame(text, r.url),
         ],
         {
           cwd,

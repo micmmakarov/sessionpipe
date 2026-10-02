@@ -58,6 +58,12 @@ comes first wins. Nothing is ever auto-allowed. Safe mode (the default) runs hea
 turns with `--permission-mode dontAsk`, so nothing that needs approval runs while
 you're away.
 
+A new session started from the receiver may bring files (screenshots, PDFs: up to 10,
+50 MiB together). The daemon downloads each one, checks it against the hash you
+signed, saves it under `<folder>/.sessionpipe/files/<session>/` (a folder that
+git-ignores itself) and tells the session where they are. If any file is missing or
+doesn't match, the session doesn't start.
+
 Docs and the protocol: [sessionpipe.org](https://sessionpipe.org) · Source:
 [github.com/micmmakarov/sessionpipe](https://github.com/micmmakarov/sessionpipe) · Apache-2.0.
 Provided as-is; check what a sink receives with `sessionpipe tail` before you point it anywhere.

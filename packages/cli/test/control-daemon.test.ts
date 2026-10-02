@@ -9,8 +9,11 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -201,6 +204,8 @@ describe("pairing (CONTROL.md §2)", () => {
     expect(c.receivers[0]?.token).toBe(rx.token);
     expect(readControl(env)?.receivers[0]?.machine).toBe(rx.machine);
     expect(out.join("\n")).toContain("123456");
+    // The machine says it takes attachments, so the receiver may send it files.
+    expect(rx.pairBodies.at(-1)).toMatchObject({ files: true });
   });
   it("open pairing: no token, the poll key gets the token, the sink key is handed over, the approver is named", async () => {
     rx.paired = true;
@@ -619,6 +624,127 @@ describe.runIf(unix)("permission answers (CONTROL.md §6, §7)", () => {
       decision: "deny",
     });
     expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "expired" });
+  });
+});
+
+describe.runIf(unix)("attachments on a start (CONTROL.md §6)", () => {
+  const NEW = "0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8e";
+  const bytes = (n: number, seed: number, head = "") => {
+    const b = new Uint8Array(n);
+    for (let i = 0; i < n; i++) b[i] = (i * 31 + seed) & 0xff;
+    b.set(new TextEncoder().encode(head));
+    return b;
+  };
+  const filesDir = () => path.join(project, ".sessionpipe", "files", NEW);
+  const start = (files: unknown[]) =>
+    rx.send({ kind: "start", session: `claude-code:${NEW}`, cwd: project, text: "What's wrong here?", files });
+  const claudeRan = () => existsSync(claudeLog);
+
+  beforeEach(() => {
+    rx.files.clear();
+    rx.chunked = false;
+  });
+
+  it("downloads, checks and saves each file, then starts the session with their paths", async () => {
+    await startDaemon();
+    const png = await rx.upload("screenshot.png", "image/png", bytes(183_402, 1, "\x89PNG\r\n\x1a\n"));
+    const pdf = await rx.upload("notes.pdf", "application/pdf", bytes(1_258_291, 2, "%PDF-1.7\n"));
+    const q = await start([png, pdf]);
+    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
+    expect(rx.fileGets).toEqual(expect.arrayContaining([png.sha256, pdf.sha256]));
+    for (const [f, b] of [
+      [png, rx.files.get(png.sha256)!.bytes],
+      [pdf, rx.files.get(pdf.sha256)!.bytes],
+    ] as const) {
+      const p = path.join(filesDir(), f.name);
+      expect(Buffer.compare(readFileSync(p), Buffer.from(b))).toBe(0);
+      expect(statSync(p).mode & 0o777).toBe(0o600);
+    }
+    expect(readFileSync(path.join(project, ".sessionpipe", ".gitignore"), "utf8")).toBe("*\n");
+    // The stand-in claude got the text, then the files, relative to the session's folder.
+    const args = JSON.parse(readFileSync(claudeLog, "utf8").trim().split("\n").pop()!) as string[];
+    expect(args).toEqual(expect.arrayContaining(["--session-id", NEW]));
+    expect(args.at(-1)).toContain(
+      [
+        "What's wrong here?",
+        "",
+        "Attached files (saved in this folder):",
+        `- .sessionpipe/files/${NEW}/screenshot.png (image/png, 179 KB)`,
+        `- .sessionpipe/files/${NEW}/notes.pdf (application/pdf, 1.2 MB)`,
+      ].join("\n"),
+    );
+    // Hello says this daemon takes files.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(rx.hellos.some((h) => h.files === true)).toBe(true);
+  });
+
+  it("a file whose bytes don't match the signed hash: failed, nothing kept, nothing started", async () => {
+    await startDaemon();
+    const png = await rx.upload("screenshot.png", "image/png", bytes(4096, 3));
+    // The receiver swaps the bytes (same length): the signed hash catches it.
+    rx.files.set(png.sha256, { bytes: bytes(4096, 4), type: "image/png" });
+    const q = await start([png]);
+    const a = await rx.waitAck(q.id);
+    expect(a).toMatchObject({ outcome: "failed", code: "file" });
+    expect(String(a.detail)).toMatch(/screenshot\.png.*hash/);
+    expect(existsSync(filesDir())).toBe(false);
+    expect(claudeRan()).toBe(false);
+  });
+
+  it("a stream longer than the signed size is cut off at the size", async () => {
+    await startDaemon();
+    rx.chunked = true; // no content-length: the machine has to count
+    const small = await rx.upload("a.png", "image/png", bytes(100_000, 5));
+    const huge = bytes(8 * 1_048_576, 6);
+    rx.files.set(small.sha256, { bytes: huge, type: "image/png" });
+    const q = await start([small]);
+    const a = await rx.waitAck(q.id);
+    expect(a).toMatchObject({ outcome: "failed", code: "file" });
+    expect(String(a.detail)).toMatch(/larger than its signed size/);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(rx.lastFileSent).toBeLessThan(huge.length / 2);
+    expect(existsSync(filesDir())).toBe(false);
+    expect(claudeRan()).toBe(false);
+  });
+
+  it("a file the receiver doesn't have (404): failed, and the files before it aren't kept", async () => {
+    await startDaemon();
+    const ok = await rx.upload("ok.png", "image/png", bytes(1000, 7));
+    const gone = await rx.upload("gone.pdf", "application/pdf", bytes(1000, 8));
+    rx.files.delete(gone.sha256);
+    const q = await start([ok, gone]);
+    const a = await rx.waitAck(q.id);
+    expect(a).toMatchObject({ outcome: "failed", code: "file" });
+    expect(String(a.detail)).toMatch(/gone\.pdf.*isn't on the receiver/);
+    expect(existsSync(filesDir())).toBe(false);
+    expect(claudeRan()).toBe(false);
+  });
+
+  it("a .sessionpipe that is a symlink is refused, and nothing is written through it", async () => {
+    await startDaemon();
+    const elsewhere = path.join(tmp, "elsewhere");
+    mkdirSync(elsewhere);
+    symlinkSync(elsewhere, path.join(project, ".sessionpipe"));
+    const png = await rx.upload("screenshot.png", "image/png", bytes(1000, 9));
+    const q = await start([png]);
+    const a = await rx.waitAck(q.id);
+    expect(a).toMatchObject({ outcome: "failed", code: "file" });
+    expect(String(a.detail)).toMatch(/symlink/);
+    expect(readdirSync(elsewhere)).toEqual([]);
+    expect(claudeRan()).toBe(false);
+  });
+
+  it("a symlink further down (.sessionpipe/files) is refused too", async () => {
+    await startDaemon();
+    const elsewhere = path.join(tmp, "elsewhere2");
+    mkdirSync(elsewhere);
+    mkdirSync(path.join(project, ".sessionpipe"));
+    symlinkSync(elsewhere, path.join(project, ".sessionpipe", "files"));
+    const png = await rx.upload("screenshot.png", "image/png", bytes(1000, 10));
+    const q = await start([png]);
+    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "failed", code: "file" });
+    expect(readdirSync(elsewhere)).toEqual([]);
+    expect(claudeRan()).toBe(false);
   });
 });
 
