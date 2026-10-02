@@ -30,10 +30,10 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@changesets/cli": "^3.0.3",
-    "@types/node": "^22",
+    "@types/node": "^26",
     "esbuild": "^0.28.2",
     "marked": "^18.0.14",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.2",
     "zod": "^4.6.5"
   }
