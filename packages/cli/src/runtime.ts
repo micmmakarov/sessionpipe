@@ -31,6 +31,7 @@ export function viaNpx(distDir: string): boolean {
 /** Install the running version persistently and hand off the original command before side effects. */
 export function rerunGlobally(argv: string[], out: (s: string) => void): void {
   out(`  Installing sessionpipe@${VERSION} globally, so hooks and services use a persistent copy…`);
+  let bin: string;
   try {
     // Homebrew's default prefix is the versioned Cellar folder that `brew upgrade
     // node` deletes, and its bin is not on PATH (issue #13): install into ~/.local
@@ -47,7 +48,7 @@ export function rerunGlobally(argv: string[], out: (s: string) => void): void {
     execFileSync("npm", ["install", "-g", `sessionpipe@${VERSION}`, ...(target ? ["--prefix", target] : [])], {
       stdio: ["ignore", "ignore", "inherit"],
     });
-    const bin =
+    bin =
       process.platform === "win32"
         ? path.join(target, "sessionpipe.cmd")
         : target
@@ -55,12 +56,17 @@ export function rerunGlobally(argv: string[], out: (s: string) => void): void {
           : "sessionpipe";
     if (target && target !== prefix)
       out(`  Installed into ${target}; make sure ${path.join(target, "bin")} is on your PATH.`);
-    execFileSync(bin, argv, { stdio: "inherit", shell: process.platform === "win32" });
-    return;
   } catch {
     out(
       "  ! couldn't install globally (`npm install -g sessionpipe` failed). Run it yourself, then retry this command.",
     );
     process.exit(1);
+  }
+  // The command's own failure (a pairing that expired) is its own to report, not an
+  // install that failed: it has said why; pass its exit status on.
+  try {
+    execFileSync(bin, argv, { stdio: "inherit", shell: process.platform === "win32" });
+  } catch (e) {
+    process.exit(typeof (e as { status?: unknown }).status === "number" ? (e as { status: number }).status : 1);
   }
 }

@@ -6,7 +6,7 @@
 // turn (`claude -p --resume`, `--fork-session`, `--session-id`). Ported from the
 // spacesheep CLI's machine listener (lib/machine.js, 1.22), which ran it in
 // production first.
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { accessSync, closeSync, constants, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -141,6 +141,66 @@ export function claudeEnv(configDir?: string, env: NodeJS.ProcessEnv = process.e
     else e.CLAUDE_CONFIG_DIR = configDir;
   }
   return e;
+}
+
+/** Whether Claude Code is signed in for one account, in Claude Code's own words
+ *  (`claude auth status --json`). `loggedIn: null` means this Claude Code can't say
+ *  (too old for `auth status`, or it didn't answer): never a reason to refuse. */
+export interface Login {
+  loggedIn: boolean | null;
+  /** claude.ai, an API key, a long-lived token… as Claude Code names it. */
+  method?: string;
+  subscription?: string;
+}
+
+export function parseAuthStatus(stdout: string | null | undefined): Login {
+  const text = String(stdout || "").trim();
+  const start = text.indexOf("{");
+  if (start < 0) return { loggedIn: null };
+  try {
+    const j = JSON.parse(text.slice(start)) as Record<string, unknown>;
+    if (typeof j.loggedIn !== "boolean") return { loggedIn: null };
+    return {
+      loggedIn: j.loggedIn,
+      ...(typeof j.authMethod === "string" ? { method: j.authMethod } : {}),
+      ...(typeof j.subscriptionType === "string" ? { subscription: j.subscriptionType } : {}),
+    };
+  } catch {
+    return { loggedIn: null };
+  }
+}
+
+/** Ask Claude Code whether the account in `configDir` (the default one when omitted)
+ *  is signed in, from this process — which is the point: a login kept in the macOS
+ *  keychain is readable from the screen's own session and not from a background
+ *  service on a Mac nobody is logged in to, or from an ssh shell, so a headless turn
+ *  started there dies with "please run /login". */
+export function claudeLogin(bin: string, configDir?: string, env: NodeJS.ProcessEnv = process.env): Promise<Login> {
+  return new Promise((resolve) => {
+    execFile(
+      bin,
+      ["auth", "status", "--json"],
+      { encoding: "utf8", timeout: 20_000, env: claudeEnv(configDir, env), maxBuffer: 256 * 1024 },
+      // `auth status` may exit non-zero when signed out; its JSON still says so.
+      (_err, stdout) => resolve(parseAuthStatus(stdout)),
+    );
+  });
+}
+
+/** The command that signs one account in, quoted for a sentence. */
+export function loginCommand(configDir: string | undefined): string {
+  const home = os.homedir();
+  const isDefault = !configDir || path.resolve(configDir) === path.resolve(home, ".claude");
+  return isDefault ? "`claude auth login`" : `\`CLAUDE_CONFIG_DIR=${configDir.replace(home, "~")} claude auth login\``;
+}
+
+/** What to tell the person when an account isn't signed in for the daemon. */
+export function loginHint(configDir: string | undefined, platform: NodeJS.Platform = process.platform): string {
+  const shown = configDir ? configDir.replace(os.homedir(), "~") : "~/.claude";
+  const login = loginCommand(configDir);
+  if (platform === "darwin")
+    return `Claude Code (${shown}) isn't signed in as this machine's background service sees it. On a Mac its login lives in the login keychain, which a background service can read only while someone is logged in at the screen: log in at the Mac, or run ${login} there.`;
+  return `Claude Code (${shown}) isn't signed in on this machine: run ${login} there.`;
 }
 
 export function detectCaps(bin: string): Caps {

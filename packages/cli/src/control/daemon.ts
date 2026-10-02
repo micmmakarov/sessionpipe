@@ -33,6 +33,7 @@ const {
   isUuid,
   JOB_TIMEOUT_MS,
   liveProcess,
+  loginHint,
   modeFlags,
   parseResult,
   recentlyWritten,
@@ -40,6 +41,7 @@ const {
 } = claudeControl;
 type Caps = claudeControl.Caps;
 type RunResult = claudeControl.RunResult;
+type Login = claudeControl.Login;
 
 declare const __SESSIONPIPE_VERSION__: string;
 const VERSION = typeof __SESSIONPIPE_VERSION__ === "string" ? __SESSIONPIPE_VERSION__ : "0.0.0";
@@ -110,6 +112,14 @@ export interface DaemonDeps {
   /** Close an SDK session idle this long (a held session costs ~300 MB). */
   sdkIdleMs?: number;
   env?: NodeJS.ProcessEnv;
+  /** Is Claude Code signed in for this account, as this process sees it? Asked before
+   *  a headless run, so a login the daemon can't read (a macOS keychain with nobody at
+   *  the screen) fails with what to do, not with Claude Code's "please run /login". */
+  login?: (configDir?: string) => Promise<Login>;
+  /** Read a receiver's machine token again: it may live in a keychain that was
+   *  locked when the daemon started and has unlocked since. */
+  token?: (r: PairedReceiver) => string | null;
+  platform?: NodeJS.Platform;
 }
 
 interface TurnPending {
@@ -196,6 +206,8 @@ export class ControlDaemon {
   private startTimes: number[] = [];
   private procs = 0;
   private readonly procWaiters: (() => void)[] = [];
+  /** configDir → the last login answer and when (a yes is kept 10 minutes, a no 30 s). */
+  private readonly logins = new Map<string, { at: number; login: Login }>();
 
   constructor(
     private cfg: ControlConfig,
@@ -438,6 +450,21 @@ export class ControlDaemon {
       // The current record every round: `control pair` may have added a key since.
       const r = this.cfg.receivers.find((x) => x.control + x.machine === key);
       if (!this.running || !r) break;
+      if (!r.token) {
+        // Its token lives in a keychain this process can't read yet (locked, or nobody
+        // logged in): ask again every 30 s rather than poll with no bearer.
+        const t = this.deps.token?.(r) ?? null;
+        if (t) {
+          r.token = t;
+          this.deps.log(`${r.url}: machine token readable again`);
+        } else {
+          if (!st.error?.startsWith("can't read"))
+            this.deps.log(`${r.url}: can't read this machine's token from ${r.token_in ?? "its store"}; retrying`);
+          st.error = `can't read this machine's token from ${r.token_in ?? "its store"} (locked?); retrying every 30 s`;
+          await new Promise((res) => setTimeout(res, 30_000));
+          continue;
+        }
+      }
       const ctl = new AbortController();
       this.aborts.add(ctl);
       // A poll held past wait + 10 s is a dead connection (a laptop that slept, a
@@ -859,6 +886,23 @@ export class ControlDaemon {
     return next;
   }
 
+  /** Null when Claude Code is signed in for this account (or can't say); otherwise what
+   *  to tell the person. */
+  private async loginProblem(configDir?: string): Promise<string | null> {
+    if (!this.deps.login) return null;
+    const key = configDir ?? "";
+    const now = this.deps.now();
+    const hit = this.logins.get(key);
+    let login = hit && now - hit.at < (hit.login.loggedIn === false ? 30_000 : 600_000) ? hit.login : null;
+    if (!login) {
+      login = await this.deps.login(configDir).catch((): Login => ({ loggedIn: null }));
+      this.logins.set(key, { at: now, login });
+    }
+    if (login.loggedIn !== false) return null;
+    this.deps.log(`claude isn't signed in for ${configDir ?? "the default account"} as the daemon sees it`);
+    return loginHint(configDir, this.deps.platform ?? process.platform);
+  }
+
   private async headless(
     r: PairedReceiver,
     id: string,
@@ -872,6 +916,8 @@ export class ControlDaemon {
       return this.finish(r, id, { outcome: "failed", detail: "Claude Code isn't installed on this machine" });
     const mf = modeFlags(this.cfg.mode, claude.caps);
     if ("error" in mf) return this.finish(r, id, { outcome: "refused", code: "mode", detail: mf.error });
+    const signedOut = await this.loginProblem(place.transcript?.configDir);
+    if (signedOut) return this.finish(r, id, { outcome: "failed", detail: signedOut });
     const ref = parseSessionRef(cmd.session)!;
     this.finish(r, id, { outcome: "taken" });
     await this.serial(ref.id, async () => {
@@ -1105,6 +1151,8 @@ export class ControlDaemon {
         code: "bad_session",
         detail: "that new session's id is already taken",
       });
+    const signedOut = await this.loginProblem(this.deps.env?.CLAUDE_CONFIG_DIR);
+    if (signedOut) return this.finish(r, id, { outcome: "failed", detail: signedOut });
     this.finish(r, id, { outcome: "taken" });
     if (this.deps.sdk) {
       const sdk = this.deps.sdk;

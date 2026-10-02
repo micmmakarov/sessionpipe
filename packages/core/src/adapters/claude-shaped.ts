@@ -26,8 +26,9 @@ export interface ClaudeShapedOptions {
   top?: Record<string, unknown>;
 }
 
-/** A command of ours: a path that contains "sessionpipe" and ends in hook.js, then a harness and an event. */
-export const OURS = /sessionpipe[^"\n]*[\\/]hook\.js"?\s+[a-z][a-z-]*\s+[A-Za-z]+\s*$/;
+/** A command of ours: a path that contains "sessionpipe" and ends in hook.js (or in
+ *  sessionpipe-hook, the launcher that outlives a node upgrade), then a harness and an event. */
+export const OURS = /(?:sessionpipe[^"\n]*[\\/]hook\.js|[\\/]sessionpipe-hook)"?\s+[a-z][a-z-]*\s+[A-Za-z]+\s*$/;
 export const isOurs = (h: { hooks?: { command?: string }[] }): boolean =>
   Array.isArray(h?.hooks) && h.hooks.some((x) => typeof x.command === "string" && OURS.test(x.command));
 

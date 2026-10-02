@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
 // sessionpipe: install once, hook everything, choose per sink what leaves.
-//   install · uninstall · sink add|list|remove|test · status · doctor · tail ·
-//   backfill · forget · replay · update · hook · worker
+//   connect · install · uninstall · sink add|list|remove|test · secrets · status ·
+//   doctor · tail · backfill · forget · replay · update · hook · worker
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync } from "node:fs";
 import os from "node:os";
@@ -11,8 +11,11 @@ import { fileURLToPath } from "node:url";
 import {
   ADAPTERS,
   adapterByName,
+  type BackfillRow,
   type Config,
   Cursors,
+  claudeControl,
+  claudeDirs,
   configFile,
   type Event,
   filterEvent,
@@ -27,9 +30,13 @@ import {
   tilde,
   writeConfig,
 } from "@sessionpipe/core";
+import { connectFolders, connectTier } from "./connect.js";
 import { CONTROL_HELP, controlMain, waitMain } from "./control/cli.js";
+import { moveControlSecrets, readControl } from "./control/store.js";
+import { installLauncher, launcherPath, launcherState, removeLauncher, usesLauncher } from "./launcher.js";
 import { buildSinks, factsState, flush, jobsDir, runJob, VERSION } from "./run.js";
 import { rerunGlobally, stableNode, viaNpx } from "./runtime.js";
+import { bestStore, dropSinkSecrets, moveSinkSecrets, type StoreName, sinkWithSecrets, storeLabel } from "./secrets.js";
 
 process.stdout.on("error", (e: NodeJS.ErrnoException) => {
   if (e.code === "EPIPE") process.exit(0);
@@ -47,8 +54,14 @@ const out = (s = ""): void => {
 const state = stateDir();
 const distDir = path.dirname(fileURLToPath(import.meta.url));
 
-/** The command a hook entry runs: this node by a stable absolute path, hook.js by its real path. */
+/** The command a hook entry runs: the launcher, which outlives node upgrades
+ *  (launcher.ts); on Windows, this node by a stable absolute path and hook.js by its
+ *  real path. */
 function hookCommand(): HookCommand {
+  if (usesLauncher()) {
+    const l = launcherPath();
+    return (a) => ({ argv: [l, ...a], command: `${JSON.stringify(l)} ${a.join(" ")}` });
+  }
   const node = stableNode(process.execPath);
   let script = path.join(distDir, "hook.js");
   try {
@@ -68,8 +81,12 @@ function selectedAdapters(): typeof ADAPTERS {
 
 async function main(): Promise<void> {
   switch (cmd) {
+    case "connect":
+      return connect();
     case "install":
       return install();
+    case "secrets":
+      return secrets();
     case "uninstall":
       return uninstall();
     case "sink":
@@ -77,7 +94,7 @@ async function main(): Promise<void> {
     case "status":
       return status();
     case "doctor":
-      return doctor();
+      return await doctor();
     case "tail":
       return tail();
     case "backfill":
@@ -110,10 +127,13 @@ async function main(): Promise<void> {
 function help(): void {
   out(`sessionpipe ${VERSION} — an open protocol for what your coding agents are doing
 
+  sessionpipe connect <receiver> [--machine NAME] [--tier 0-3] [--mode safe|auto] [--folder DIR]…
+                                  (everything, in one go: hooks, a sink, signed messages, keys)
   sessionpipe install [--claude-code --codex --gemini-cli --antigravity] [--machine NAME] [--backfill DAYS] [--sink URL --tier N]
   sessionpipe uninstall [--keep-state]
   sessionpipe sink add <url|file:PATH|stdout> [--tier 0-3] [--token T] [--pii] [--name N]
   sessionpipe sink list | remove <name> | test <name>
+  sessionpipe secrets [move keychain|secret-service|file]   (where the machine's keys live)
   sessionpipe status | doctor [--json]
   sessionpipe tail [--session ID] [--tier N] [--harness NAME]
   sessionpipe backfill [--days 30] | forget <harness> <session> | replay --sink NAME
@@ -166,6 +186,12 @@ function isLean(cfg: Config): boolean {
 
 /** Write the hooks for these harnesses; remember which files sessionpipe created. */
 function installHarnesses(adapters: readonly (typeof ADAPTERS)[number][], cfg: Config, lean: boolean): void {
+  if (usesLauncher()) {
+    const node = stableNode(process.execPath);
+    const l = installLauncher({ distDir, node, version: VERSION });
+    if (l.changed)
+      out(`  ✓ hook launcher: ${tilde(l.launcher)} (node ${tilde(node)}, or any node on PATH once that one is gone)`);
+  }
   const hc = hookCommand();
   for (const a of adapters) {
     const prev = cfg.harnesses[a.name] ?? {};
@@ -188,6 +214,189 @@ function installHarnesses(adapters: readonly (typeof ADAPTERS)[number][], cfg: C
   }
 }
 
+/** `sessionpipe connect <receiver>`: everything a machine needs, in one command and one
+ *  approval — the hooks for every agent and every Claude Code account here, a sink at
+ *  tier 2, signed messages (the daemon, paired with open pairing), the keys moved into
+ *  the keychain when there is one, the daemon kept running past logout, the last 30
+ *  days backfilled. Run it again and it only fixes what's missing. Asks nothing: the
+ *  mode is --mode or safe, the folders are --folder, this one, or where your recent
+ *  sessions ran — never the home folder. */
+async function connect(): Promise<void> {
+  const raw = args[1];
+  if (!raw || raw.startsWith("-"))
+    return out(
+      "usage: sessionpipe connect <receiver> [--machine NAME] [--tier 0-3] [--mode safe|auto] [--folder DIR]… [--no-service]",
+    );
+  if (viaNpx(distDir)) return rerunGlobally(args, out);
+  const url = (/^https?:\/\//.test(raw) ? raw : `https://${raw}`).replace(/\/$/, "");
+  const host = new URL(url).host;
+  const cfg = readConfig();
+  const machine = flag("--machine");
+  if (machine) cfg.machine = machine.slice(0, 80);
+  const name = machineName(cfg, os.hostname());
+  const before = cfg.sinks.find((x) => x.url.replace(/\/$/, "") === url);
+  const tier = connectTier(flag("--tier"), before?.tier);
+  out(`  Connecting ${name} to ${host}.`);
+
+  // 1. The hooks, for every agent on this machine (and every Claude Code account).
+  const adapters = ADAPTERS.filter((a) => a.detect());
+  if (!adapters.length)
+    out(
+      "  ! No coding agent here yet (Claude Code, Codex, Gemini CLI, Antigravity): run `sessionpipe install` once you have one.",
+    );
+  else installHarnesses(adapters, cfg, tier < 1);
+  writeConfig(cfg);
+  await reportClaudeAccounts();
+  const rows = collectRows(adapters, 30);
+
+  // 2. One approval on any signed-in device: the machine's control token and its
+  //    sessions key together.
+  const control = readControl();
+  const paired = control?.receivers.find((r) => r.url === url);
+  const sinkNow = readConfig().sinks.find((x) => x.url.replace(/\/$/, "") === url);
+  if (paired && sinkNow && (sinkNow.token || sinkNow.token_in)) {
+    out(`  ✓ Already paired with ${host} as ${paired.machine}: nothing to approve.`);
+  } else {
+    const recent = rows
+      .slice()
+      .sort((a, b) => b.row.last_at - a.row.last_at)
+      .map((r) => r.row.session.cwd ?? "");
+    const choice = connectFolders({
+      cwd: process.cwd(),
+      home: os.homedir(),
+      flags: argsAll("--folder"),
+      existing: control?.folders ?? [],
+      recent,
+      exists: (d) => {
+        try {
+          return statSync(d).isDirectory();
+        } catch {
+          return false;
+        }
+      },
+    });
+    if (choice.from === "recent")
+      out(`  Folders from your recent sessions: ${choice.folders.map((d) => tilde(d)).join(", ")}`);
+    if (choice.from === "none")
+      out(
+        "  ! No folder for sessions you message yet (this ran from your home folder, and no recent session ran anywhere else). Run `sessionpipe control pair` again from a project folder, or with --folder.",
+      );
+    const mode =
+      flag("--mode") === "auto" || flag("--mode") === "safe" ? (flag("--mode") as string) : (control?.mode ?? "safe");
+    await controlMain(
+      [
+        "control",
+        "pair",
+        url,
+        "--mode",
+        mode,
+        "--tier",
+        String(tier),
+        "--name",
+        control?.name ?? name,
+        ...choice.folders.flatMap((d) => ["--folder", d]),
+        ...(has("--no-service") ? ["--no-service"] : []),
+      ],
+      out,
+      distDir,
+    );
+    if (mode === "safe")
+      out(
+        "  Safe mode: `sessionpipe control mode auto` lets sessions you message work unattended (Claude Code's auto mode).",
+      );
+  }
+
+  // 3. The sink at the tier asked for, with the receiver's cap and endpoints.
+  const after = readConfig();
+  const sink = after.sinks.find((x) => x.url.replace(/\/$/, "") === url);
+  if (sink) {
+    const old = sink.tier;
+    sink.tier = tier;
+    await learnReceiver(sink, tier);
+    writeConfig(after);
+    const eff = Math.min(sink.tier, sink.max_tier ?? 3) as Tier;
+    out(`  ✓ Sink ${sink.name}: tier ${eff}${old !== tier ? ` (was ${old})` : ""} — sends ${TIER_TEXT[eff]}`);
+  } else out(`  ! No sink for ${host}: \`sessionpipe sink add ${url} --token <key> --tier ${tier}\``);
+
+  // 4. Keys into the keychain, when this session has one unlocked.
+  const store = bestStore();
+  if (store !== "file") {
+    const a = moveSinkSecrets(store);
+    const b = moveControlSecrets(store);
+    const kept = [...a.kept, ...b.kept];
+    out(`  ✓ Keys: in ${storeLabel(store)}${kept.length ? ` (left in the file: ${kept.join(", ")})` : ""}`);
+  } else
+    out(
+      `  Keys: in ${tilde(path.dirname(configFile()))} at 0600 — no unlocked keychain in this session${process.env.SSH_CONNECTION ? " (an ssh shell)" : ""}`,
+    );
+
+  // 5. The last 30 days, now that there is somewhere to send them.
+  if (rows.length) queueBackfill(rows, 30, readConfig());
+  out("");
+  out(`  Done: ${name} reports to ${host} and takes messages you sign on a device it trusts.`);
+  out("  Run this again any time; it only fixes what's missing. `sessionpipe doctor` checks everything.");
+}
+
+function argsAll(name: string): string[] {
+  return args.flatMap((a, i) => (a === name && args[i + 1] ? [args[i + 1] as string] : []));
+}
+
+/** Each Claude Code account on this machine, and whether Claude Code says it's signed
+ *  in from here (a message's headless run uses this login). */
+async function reportClaudeAccounts(): Promise<void> {
+  const bin = claudeControl.findClaude();
+  if (!bin) return;
+  const dirs = claudeDirs();
+  const answers = await Promise.all(dirs.map((d) => claudeControl.claudeLogin(bin, d)));
+  dirs.forEach((d, i) => {
+    const l = answers[i] as claudeControl.Login;
+    if (l.loggedIn === true)
+      out(
+        `  ✓ Claude Code ${tilde(d)}: signed in${l.method ? ` (${[l.method, l.subscription].filter(Boolean).join(", ")})` : ""}`,
+      );
+    else if (l.loggedIn === false)
+      out(
+        `  ! Claude Code ${tilde(d)}: not signed in as this shell sees it — ${claudeControl.loginCommand(d)}${process.platform === "darwin" && process.env.SSH_CONNECTION ? " (over ssh a Mac's keychain login can't be read; log in at the screen)" : ""}`,
+      );
+  });
+}
+
+/** `sessionpipe secrets [move <store>]`: where this machine's keys live. */
+function secrets(): void {
+  const sub = args[1];
+  if (sub === "move") {
+    const to = args[2] as StoreName | undefined;
+    if (to !== "keychain" && to !== "secret-service" && to !== "file") {
+      out("usage: sessionpipe secrets move keychain|secret-service|file");
+      return;
+    }
+    const a = moveSinkSecrets(to);
+    const b = moveControlSecrets(to);
+    const moved = [...a.moved, ...b.moved];
+    const kept = [...a.kept, ...b.kept];
+    out(
+      moved.length ? `  ✓ moved to ${storeLabel(to)}: ${moved.join(", ")}` : `  nothing to move to ${storeLabel(to)}`,
+    );
+    if (kept.length)
+      out(`  ! left where they are (unreadable here, or ${storeLabel(to)} refused them): ${kept.join(", ")}`);
+    return;
+  }
+  const cfg = readConfig();
+  const where = (s: SinkConfig): string =>
+    s.token_in
+      ? `${storeLabel(s.token_in)}${sinkWithSecrets(s) ? "" : " — can't be read from this session (locked?)"}`
+      : s.token || s.secret
+        ? `${tilde(configFile())} (0600)`
+        : "no key";
+  for (const s of cfg.sinks) out(`  sink ${s.name.padEnd(20)} ${where(s)}`);
+  for (const r of readControl()?.receivers ?? [])
+    out(
+      `  control ${new URL(r.url).host.padEnd(17)} ${r.token_in ? `${storeLabel(r.token_in)}${r.token ? "" : " — can't be read from this session (locked?)"}` : "control.json (0600)"}`,
+    );
+  if (!cfg.sinks.length && !readControl()?.receivers.length) out("  no keys on this machine");
+  out(`  best store from this session: ${storeLabel(bestStore())}`);
+}
+
 function uninstall(): void {
   const cfg = readConfig();
   for (const a of ADAPTERS) {
@@ -198,6 +407,7 @@ function uninstall(): void {
     delete cfg.harnesses[a.name];
   }
   writeConfig(cfg);
+  if (usesLauncher()) removeLauncher();
   if (!has("--keep-state"))
     out(
       `  Outbox and state kept under ${tilde(state)} (delete it yourself, or pass nothing: it prunes after ${readConfig().keep_days ?? 30} days).`,
@@ -219,6 +429,7 @@ async function sink(): Promise<void> {
   }
   if (sub === "remove" && args[2]) {
     const n = cfg.sinks.length;
+    for (const s of cfg.sinks) if (s.name === args[2]) dropSinkSecrets(s);
     cfg.sinks = cfg.sinks.filter((s) => s.name !== args[2]);
     writeConfig(cfg);
     out(cfg.sinks.length < n ? `  ✓ removed ${args[2]}` : `  no sink named ${args[2]}`);
@@ -261,33 +472,46 @@ async function sinkAdd(url: string, cfg: Config): Promise<void> {
   if (has("--control"))
     out("  --control is ignored: control is set up per machine (`sessionpipe control pair <url>`, spec/CONTROL.md)");
   const s: SinkConfig = { name, url, tier, pii: has("--pii") };
+  // Changing a sink's tier keeps the key it has (pairing may have handed it over, and
+  // it may live in a keychain): only --token / --secret replace one.
+  const prev = cfg.sinks.find((x) => x.name === name && x.url === url);
   const token = flag("--token");
-  if (token) s.token = token;
   const secret = flag("--secret");
-  if (secret) s.secret = secret;
-  if (/^https?:\/\//.test(url)) {
-    try {
-      const r = await fetch(`${url.replace(/\/$/, "")}/.well-known/sessionpipe`, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const wk = (await r.json()) as { max_tier?: number; endpoints?: { events?: string }; capabilities?: string[] };
-      if (typeof wk.max_tier === "number") {
-        s.max_tier = wk.max_tier as Tier;
-        if (wk.max_tier < tier)
-          out(`  receiver's max_tier is ${wk.max_tier}: sending tier ${wk.max_tier}, not ${tier}`);
-      }
-      if (wk.endpoints) (s as SinkConfig & { endpoints?: unknown }).endpoints = wk.endpoints;
-      s.well_known_at = new Date().toISOString();
-    } catch (e) {
-      out(
-        `  ! ${url} has no readable /.well-known/sessionpipe (${(e as Error).message}); added anyway, at tier ${tier}`,
-      );
-    }
+  if (prev?.token_in && !token && !secret) s.token_in = prev.token_in;
+  else {
+    const kept = prev ? sinkWithSecrets(prev) : null;
+    const t = token ?? kept?.token;
+    const sec = secret ?? kept?.secret;
+    if (t) s.token = t;
+    if (sec) s.secret = sec;
+    if (prev?.token_in) dropSinkSecrets(prev);
   }
+  await learnReceiver(s, tier);
   cfg.sinks = cfg.sinks.filter((x) => x.name !== name).concat([s]);
   writeConfig(cfg);
   out(`  ✓ sink ${name}: ${url} at tier ${Math.min(tier, s.max_tier ?? 3)}${s.pii ? ", pii" : ""}`);
   out(`    tier ${tier} sends: ${TIER_TEXT[Math.min(tier, s.max_tier ?? 3) as Tier]}`);
 }
+/** Read the receiver's well-known file onto the sink: its tier cap and endpoints. */
+async function learnReceiver(s: SinkConfig, tier: Tier): Promise<void> {
+  if (!/^https?:\/\//.test(s.url)) return;
+  try {
+    const r = await fetch(`${s.url.replace(/\/$/, "")}/.well-known/sessionpipe`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const wk = (await r.json()) as { max_tier?: number; endpoints?: { events?: string }; capabilities?: string[] };
+    if (typeof wk.max_tier === "number") {
+      s.max_tier = wk.max_tier as Tier;
+      if (wk.max_tier < tier) out(`  receiver's max_tier is ${wk.max_tier}: sending tier ${wk.max_tier}, not ${tier}`);
+    }
+    if (wk.endpoints) (s as SinkConfig & { endpoints?: unknown }).endpoints = wk.endpoints;
+    s.well_known_at = new Date().toISOString();
+  } catch (e) {
+    out(
+      `  ! ${s.url} has no readable /.well-known/sessionpipe (${(e as Error).message}); added anyway, at tier ${tier}`,
+    );
+  }
+}
+
 const TIER_TEXT: Record<Tier, string> = {
   0: "session state and timing, machine, folder, repo, branch, model, title, link, the KIND of attention needed — no tool names, no words",
   1: "tier 0 + tool names, durations, ok/error, file paths, the attention message, subagents, compactions — no prompts",
@@ -295,37 +519,53 @@ const TIER_TEXT: Record<Tier, string> = {
   3: "everything, including tool input and output",
 };
 
-function backfillRows(adapters: readonly (typeof ADAPTERS)[number][], days: number, cfg: Config): void {
+/** Each harness's sessions of the last `days` days, as the backfill reads them. */
+function collectRows(
+  adapters: readonly (typeof ADAPTERS)[number][],
+  days: number,
+): { harness: string; row: BackfillRow }[] {
   const since = Date.now() - days * 86_400_000;
+  const rows: { harness: string; row: BackfillRow }[] = [];
+  for (const a of adapters) {
+    try {
+      for (const row of a.backfill(since)) rows.push({ harness: a.name, row });
+    } catch {}
+  }
+  return rows;
+}
+
+function backfillRows(adapters: readonly (typeof ADAPTERS)[number][], days: number, cfg: Config): void {
+  queueBackfill(collectRows(adapters, days), days, cfg);
+}
+
+function queueBackfill(rows: { harness: string; row: BackfillRow }[], days: number, cfg: Config): void {
   const outbox = new Outbox(state);
   let n = 0;
   const machine = machineName(cfg, os.hostname());
-  for (const a of adapters) {
-    for (const row of a.backfill(since)) {
-      const ref = { harness: a.name, session: row.session.id };
-      const facts = factsState(state).get(a.name, row.session.id);
-      if (facts.backfilled) continue;
-      const { id, ...rest } = row.session;
-      const e = makeEvent(
-        {
-          type: "session.backfill",
-          harnessEvent: "backfill",
-          data: {
-            started_at: new Date(row.started_at).toISOString(),
-            last_at: new Date(row.last_at).toISOString(),
-            ...(row.turns !== undefined ? { turns: row.turns } : {}),
-          },
+  for (const { harness, row } of rows) {
+    const ref = { harness, session: row.session.id };
+    const facts = factsState(state).get(harness, row.session.id);
+    if (facts.backfilled) continue;
+    const { id, ...rest } = row.session;
+    const e = makeEvent(
+      {
+        type: "session.backfill",
+        harnessEvent: "backfill",
+        data: {
+          started_at: new Date(row.started_at).toISOString(),
+          last_at: new Date(row.last_at).toISOString(),
+          ...(row.turns !== undefined ? { turns: row.turns } : {}),
         },
-        {
-          harness: { name: a.name },
-          session: { ...rest, id, seq: outbox.nextSeq(ref), machine, ...(rest.cwd ? { cwd: tilde(rest.cwd) } : {}) },
-          now: row.last_at,
-        },
-      );
-      outbox.append(ref, [e]);
-      factsState(state).save(a.name, row.session.id, { backfilled: true });
-      n++;
-    }
+      },
+      {
+        harness: { name: harness },
+        session: { ...rest, id, seq: outbox.nextSeq(ref), machine, ...(rest.cwd ? { cwd: tilde(rest.cwd) } : {}) },
+        now: row.last_at,
+      },
+    );
+    outbox.append(ref, [e]);
+    factsState(state).save(harness, row.session.id, { backfilled: true });
+    n++;
   }
   out(`  ✓ Backfill: ${n} session${n === 1 ? "" : "s"} from the last ${days} days queued as session.backfill`);
   void flush(state, cfg.sinks, outbox);
@@ -457,7 +697,7 @@ function timing(): { n: number; p50: number; p95: number } | null {
   }
 }
 
-function doctor(): void {
+async function doctor(): Promise<void> {
   const cfg = readConfig();
   const hc = hookCommand();
   const report: Record<string, unknown> = {
@@ -474,6 +714,54 @@ function doctor(): void {
     warnings: [] as string[],
   };
   const warnings = report.warnings as string[];
+  if (usesLauncher()) {
+    const l = launcherState(VERSION);
+    report.launcher = { file: tilde(l.file), node: l.node, node_ok: l.nodeOk, version: l.version };
+    if (Object.keys(cfg.harnesses).length) warnings.push(...l.problems);
+  }
+  // Where each key lives, and whether this session can read it.
+  const keys: { what: string; where: string; readable: boolean }[] = [];
+  for (const s of cfg.sinks)
+    if (s.token_in || s.token || s.secret)
+      keys.push({ what: `sink ${s.name}`, where: s.token_in ?? "file", readable: !!sinkWithSecrets(s) });
+  const control = readControl();
+  for (const r of control?.receivers ?? [])
+    keys.push({ what: `control ${new URL(r.url).host}`, where: r.token_in ?? "file", readable: !!r.token });
+  report.keys = keys;
+  for (const k of keys)
+    if (!k.readable)
+      warnings.push(
+        `${k.what}: its key is in ${storeLabel(k.where as StoreName)}, which this session can't read (locked, or an ssh shell). Events wait; the control daemon sends them from your own session.`,
+      );
+  // Each Claude Code account: a message's headless run needs its login.
+  const claudeBin = claudeControl.findClaude();
+  if (claudeBin) {
+    const dirs = claudeDirs();
+    const logins = await Promise.all(dirs.map((d) => claudeControl.claudeLogin(claudeBin, d)));
+    report.claude_accounts = dirs.map((d, i) => ({ dir: tilde(d), signed_in: logins[i]?.loggedIn ?? null }));
+    dirs.forEach((d, i) => {
+      if (logins[i]?.loggedIn === false && control?.receivers.length)
+        warnings.push(`Claude Code ${tilde(d)} isn't signed in from here: ${claudeControl.loginCommand(d)}`);
+    });
+  }
+  // A systemd user service stops at logout unless the user lingers.
+  if (process.platform === "linux" && control?.receivers.length) {
+    let linger: boolean | null = null;
+    try {
+      linger = /^Linger=yes/m.test(
+        execFileSync("loginctl", ["show-user", os.userInfo().username, "--property=Linger"], {
+          encoding: "utf8",
+          timeout: 5000,
+          stdio: ["ignore", "pipe", "ignore"],
+        }),
+      );
+    } catch {}
+    report.linger = linger;
+    if (linger === false)
+      warnings.push(
+        `the control daemon stops when you log out: \`loginctl enable-linger ${os.userInfo().username}\` (with sudo if refused) keeps it running`,
+      );
+  }
   if (/\/Cellar\/node(?:@\d+)?\/[^/]+\//.test(distDir))
     warnings.push(
       "sessionpipe is installed inside Homebrew's versioned node folder; `brew upgrade node` will delete it. Install with `npm install -g --prefix ~/.local sessionpipe`.",
@@ -509,7 +797,7 @@ function doctor(): void {
       pii: !!s.pii,
       control: !!s.control,
       paused: s.paused ?? null,
-      token: s.token ? `${s.token.slice(0, 4)}…` : null,
+      token: s.token_in ? `in ${s.token_in}` : s.token ? `${s.token.slice(0, 4)}…` : null,
     });
   const w = report.hook_wall_ms as { p50: number; p95: number; n: number } | null;
   if (w && w.p50 > 150)
@@ -527,6 +815,15 @@ function doctor(): void {
   for (const s of report.sinks as { name: string; tier: number; max_tier: number | null; paused: string | null }[])
     out(
       `  sink ${s.name.padEnd(16)} tier ${s.tier}${s.max_tier !== null ? ` (receiver max ${s.max_tier})` : ""}${s.paused ? ` PAUSED ${s.paused}` : ""}`,
+    );
+  const lr = report.launcher as { file: string; node: string | null; node_ok: boolean } | undefined;
+  if (lr)
+    out(`  hooks run ${lr.file} → node ${lr.node ? tilde(lr.node) : "?"}${lr.node_ok ? "" : " (gone: PATH's node)"}`);
+  for (const k of keys)
+    out(`  key  ${k.what.padEnd(28)} ${storeLabel(k.where as StoreName)}${k.readable ? "" : " (unreadable here)"}`);
+  for (const a of (report.claude_accounts as { dir: string; signed_in: boolean | null }[] | undefined) ?? [])
+    out(
+      `  claude ${a.dir.padEnd(26)} ${a.signed_in === true ? "signed in" : a.signed_in === false ? "NOT signed in from here" : "can't tell"}`,
     );
   const t = report.timing as { p50: number; p95: number; n: number } | null;
   out(

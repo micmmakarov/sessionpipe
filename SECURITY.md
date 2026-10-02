@@ -56,7 +56,19 @@ tokens that open only its sessionpipe endpoints and nothing else of the account,
 leaked one lets its holder post session events and read nothing. Keep accepting your
 broader credentials there if people already use them, so nothing configured breaks,
 and say which kind to use. Refuse a scoped token anywhere else with 401 or 403. The
-client stores the token with mode `0600` and shows a four-character prefix at most.
+client shows a four-character prefix at most.
+
+**Where the machine keeps its keys.** A sink's token and Webhooks secret and each
+receiver's machine token go into the operating system's keychain when `connect` (or
+`sessionpipe secrets move`) finds one this session can write and read back: the macOS
+Keychain, or the Secret Service (GNOME Keyring, KWallet) in a Linux desktop session.
+The config then says `token_in` and holds no token. Otherwise they stay in
+`config.json` / `control.json` at mode `0600`, as on a headless server. A keychain keeps
+them out of dotfiles repos, backups and synced folders; it does not stop a program
+running as you (`security` returns an item it stored without asking, which is how the
+hook's worker reads it). A keychain that is locked where a hook runs (an ssh session to
+a Mac) leaves events in the outbox, never sent unsigned; the control daemon, which runs
+in your own session, sends them within a minute.
 
 **Cryptography / export control.** sessionpipe uses TLS (via Node's `fetch`),
 HMAC-SHA256 for Standard-Webhooks signatures, and ECDSA P-256 / RSA PKCS#1 v1.5

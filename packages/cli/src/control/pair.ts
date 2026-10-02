@@ -10,7 +10,14 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { type TrustedKey, verifyEnrollment } from "@sessionpipe/core/control";
-import { type ControlConfig, controlState, type PairedReceiver, readControl, writeControl } from "./store.js";
+import {
+  type ControlConfig,
+  controlState,
+  dropControlSecret,
+  type PairedReceiver,
+  readControl,
+  writeControl,
+} from "./store.js";
 
 declare const __SESSIONPIPE_VERSION__: string;
 const VERSION = typeof __SESSIONPIPE_VERSION__ === "string" ? __SESSIONPIPE_VERSION__ : "0.0.0";
@@ -136,7 +143,7 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
     const proof = p.proof as { cred: string; ad: string; cd: string; sig: string };
     const v = await verifyEnrollment({ machine, code, key, proof, rpId });
     if (!v.ok) throw new Error(`the receiver's key didn't prove itself (${v.why}); nothing was trusted`);
-    const token = existing?.token ?? (typeof p.token === "string" ? p.token : "");
+    const token = existing?.token || (typeof p.token === "string" ? p.token : "");
     if (!token) throw new Error("the receiver didn't hand this machine its token");
     const rec: PairedReceiver = existing ?? {
       url: o.url.replace(/\/$/, ""),
@@ -174,6 +181,7 @@ export async function off(o: {
   const gone = cfg.receivers.filter((r) => !o.url || r.url === o.url.replace(/\/$/, ""));
   for (const r of gone) {
     await f(`${r.control}/off`, { method: "POST", headers: { authorization: `Bearer ${r.token}` } }).catch(() => null);
+    dropControlSecret(r);
     o.out(`  removed ${r.url} (${r.machine}, ${r.keys.length} key(s))`);
   }
   cfg.receivers = cfg.receivers.filter((r) => !gone.includes(r));
@@ -236,32 +244,75 @@ WantedBy=default.target
   };
 }
 
+export type Exec = (cmd: string, args: string[]) => string;
+const execQuiet: Exec = (cmd, args) =>
+  execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 15_000 });
+
+/** A systemd user service stops when its person's last login ends — closing the ssh
+ *  session to a lab workstation or a cloud machine stopped the daemon with it — unless
+ *  the user lingers. `loginctl enable-linger` for yourself needs no root on systemd's
+ *  default policy; where it does, say the one command that does it. */
+export function ensureLinger(user: string, exec: Exec = execQuiet): { on: boolean; note: string } {
+  const lingering = () => {
+    try {
+      return /^Linger=yes/m.test(exec("loginctl", ["show-user", user, "--property=Linger"]));
+    } catch {
+      return false;
+    }
+  };
+  if (lingering()) return { on: true, note: "it keeps running after you log out (linger was already on)" };
+  try {
+    exec("loginctl", ["enable-linger", user]);
+  } catch {}
+  if (lingering()) return { on: true, note: "it keeps running after you log out (turned linger on)" };
+  return {
+    on: false,
+    note: `it stops when you log out: run \`sudo loginctl enable-linger ${user}\` once to keep it running`,
+  };
+}
+
 /** Write and start the service for this platform. Returns what it did, in words. */
-export function installService(o: { node: string; cli: string; env?: NodeJS.ProcessEnv }): string {
+export function installService(o: {
+  node: string;
+  cli: string;
+  env?: NodeJS.ProcessEnv;
+  exec?: Exec;
+  platform?: NodeJS.Platform;
+}): string {
   const logDir = controlState(o.env);
   mkdirSync(logDir, { recursive: true, mode: 0o700 });
   const f = serviceFiles({ node: o.node, cli: o.cli, logDir });
-  const run = (cmd: string, args: string[]) => execFileSync(cmd, args, { stdio: "ignore", timeout: 15_000 });
-  if (process.platform === "darwin") {
+  const run = o.exec ?? execQuiet;
+  const platform = o.platform ?? process.platform;
+  if (platform === "darwin") {
     mkdirSync(path.dirname(f.plist.file), { recursive: true });
     writeFileSync(f.plist.file, f.plist.body);
     const uid = String(process.getuid?.() ?? "");
+    for (const d of ["gui", "user"])
+      try {
+        run("launchctl", ["bootout", `${d}/${uid}/${LABEL}`]);
+      } catch {}
     try {
-      run("launchctl", ["bootout", `gui/${uid}/${LABEL}`]);
+      run("launchctl", ["bootstrap", `gui/${uid}`, f.plist.file]);
+      return `launchd agent ${LABEL} (log: ${path.join(logDir, "daemon.log")})`;
     } catch {}
-    run("launchctl", ["bootstrap", `gui/${uid}`, f.plist.file]);
-    return `launchd agent ${LABEL} (log: ${path.join(logDir, "daemon.log")})`;
+    // No one logged in at the screen (an ssh session to a Mac mini): the gui domain
+    // doesn't exist. The user domain runs it now; after a restart it starts again at
+    // the next login at the screen.
+    run("launchctl", ["bootstrap", `user/${uid}`, f.plist.file]);
+    return `launchd agent ${LABEL} in the background domain, since nobody is logged in at this Mac's screen; after a restart it starts again when someone logs in there (log: ${path.join(logDir, "daemon.log")})`;
   }
-  if (process.platform === "linux") {
+  if (platform === "linux") {
     mkdirSync(path.dirname(f.unit.file), { recursive: true });
     writeFileSync(f.unit.file, f.unit.body);
     try {
       run("systemctl", ["--user", "daemon-reload"]);
       run("systemctl", ["--user", "enable", "--now", UNIT]);
-      return `systemd user unit ${UNIT} (journalctl --user -u ${UNIT})`;
     } catch {
       return `wrote ${f.unit.file}, but systemd --user isn't reachable here; run \`sessionpipe control run\` yourself (tmux, screen)`;
     }
+    const linger = ensureLinger(os.userInfo().username, run);
+    return `systemd user unit ${UNIT}; ${linger.note} (journalctl --user -u ${UNIT})`;
   }
   return "no service manager for this platform yet; run `sessionpipe control run` yourself";
 }
@@ -275,6 +326,7 @@ export function uninstallService(env?: NodeJS.ProcessEnv): void {
   };
   if (process.platform === "darwin" && existsSync(f.plist.file)) {
     run("launchctl", ["bootout", `gui/${process.getuid?.() ?? ""}/${LABEL}`]);
+    run("launchctl", ["bootout", `user/${process.getuid?.() ?? ""}/${LABEL}`]);
     unlinkSync(f.plist.file);
   }
   if (process.platform === "linux" && existsSync(f.unit.file)) {
