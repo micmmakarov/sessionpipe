@@ -434,7 +434,11 @@ describe.runIf(unix)("delivery", () => {
     await startDaemon({ sdk: host });
     const NEW = "0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8c";
     const q = await rx.send({ kind: "start", session: `claude-code:${NEW}`, cwd: project, text: "fix the test" });
-    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "sdk", reply: "sdk: fix the test" });
+    expect(await rx.waitAck(q.id)).toMatchObject({
+      outcome: "delivered",
+      mode: "sdk",
+      reply: expect.stringMatching(/^sdk: \(Sent via localhost:\d+ with sessionpipe control/),
+    });
     transcript(NEW, project);
     const q2 = await rx.send({ session: `claude-code:${NEW}`, text: "and push it" });
     expect(await rx.waitAck(q2.id)).toMatchObject({ outcome: "delivered", mode: "sdk" });
@@ -590,6 +594,9 @@ setTimeout(() => { fs.appendFileSync(${JSON.stringify(marks)}, JSON.stringify({ 
     const q = await rx.send({ kind: "start", session: `claude-code:${NEW}`, cwd: project, text: "hello" });
     expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
     expect(readFileSync(claudeLog, "utf8")).toContain("--session-id");
+    // The person's words come first: Claude Code names the session from them.
+    const first = JSON.parse(readFileSync(claudeLog, "utf8").trim().split("\n")[0]!) as string[];
+    expect(first.at(-1)).toMatch(/^hello\n\n\(Sent via localhost:\d+ with sessionpipe control/);
     // The next message resumes it: the transcript the start just wrote is the daemon's own.
     const dir = path.join(configDir, "projects", project.replace(/[^a-zA-Z0-9]/g, "-"));
     writeFileSync(path.join(dir, `${NEW}.jsonl`), `${JSON.stringify({ type: "user", cwd: project })}\n`);

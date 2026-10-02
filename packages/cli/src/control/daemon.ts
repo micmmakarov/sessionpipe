@@ -13,7 +13,7 @@ import { claudeControl, redactSecrets } from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
 import type { LocalReply, LocalRequest } from "./local.js";
 import { awaitAnswer, transcriptEnd } from "./reply.js";
-import { type DeliveryMode, frame, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
+import { type DeliveryMode, frame, frameStart, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
 import {
   type Ack,
   AckOutbox,
@@ -1159,7 +1159,7 @@ export class ControlDaemon {
       const out = await this.slot(async () => {
         const s = sdk.start({ session: ref.id, cwd, mode: this.cfg.mode, allowedTools: this.allowedFor(r) });
         this.sdkSessions.set(ref.id, s);
-        return s.send(frame(cmd.text as string, r.url));
+        return s.send(frameStart(cmd.text as string, r.url));
       });
       return this.finish(
         r,
@@ -1184,7 +1184,7 @@ export class ControlDaemon {
           ...(this.allowedFor(r).length ? [`--allowedTools=${this.allowedFor(r).join(",")}`] : []),
           "--session-id",
           ref.id,
-          frame(cmd.text as string, r.url),
+          frameStart(cmd.text as string, r.url),
         ],
         {
           cwd,
