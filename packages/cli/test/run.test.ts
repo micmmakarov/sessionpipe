@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Issue #9 (no event lost to the lock race) and advisory GHSA-8f6f-c3c9-j5p6
 // (the outbox holds redacted strings at rest, 0600/0700).
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Outbox } from "@sessionpipe/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { enqueueJob, runJob, sweepJobs } from "../src/run.js";
+import { enqueueJob, log, runJob, sweepJobs } from "../src/run.js";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "sp-run-"));
 afterEach(() => rmSync(tmp, { recursive: true, force: true }));
@@ -55,6 +55,18 @@ describe("runJob", () => {
       expect(statSync(path.dirname(f)).mode & 0o777).toBe(0o700);
     }
   });
+  it.runIf(process.platform !== "win32")(
+    "tightens a state root an older version left 0755; the log is 0600",
+    async () => {
+      const state = path.join(tmp, "old-state");
+      mkdirSync(state, { recursive: true });
+      chmodSync(state, 0o755);
+      await runJob(job("Stop"), { state });
+      expect(statSync(state).mode & 0o777).toBe(0o700);
+      log(state, "one line");
+      expect(statSync(path.join(state, "log")).mode & 0o777).toBe(0o600);
+    },
+  );
   it("sweepJobs runs a job another worker left behind", async () => {
     const f = enqueueJob(tmp, job("SessionEnd", { reason: "exit" }));
     const old = new Date(Date.now() - 10_000);

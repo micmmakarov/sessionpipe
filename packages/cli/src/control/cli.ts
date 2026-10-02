@@ -3,7 +3,7 @@
 import { existsSync, realpathSync, watchFile } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { claudeControl, claudeDirs, readConfig, stateDir, writeConfig } from "@sessionpipe/core";
+import { claudeControl, claudeDirs, privateDir, readConfig, stateDir, writeConfig } from "@sessionpipe/core";
 
 const { detectCaps, findClaude, runClaude } = claudeControl;
 
@@ -177,6 +177,8 @@ async function runDaemon(out: (s?: string) => void): Promise<void> {
     return claude;
   };
   const sdk = await loadSdk({ claudeBin: findClaude(), env: process.env, log });
+  // The socket lives in the state root: only this user may reach it.
+  privateDir(stateDir());
   const d = new ControlDaemon(cfg, controlState(), socketPath(stateDir()), {
     now: Date.now,
     fetch,

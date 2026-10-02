@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // The drain packs events from many sessions into one batch and moves every
 // cursor only after the batch was acknowledged.
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Cursors, type Event, Outbox, ulid } from "@sessionpipe/core";
@@ -47,4 +47,15 @@ describe("flush", () => {
     expect(d.z).toBe(0);
     expect(new Cursors(tmp, "z").read()["codex/t"]).toBeGreaterThan(0);
   });
+  it.runIf(process.platform !== "win32")(
+    "a file sink writes 0600 in a 0700 dir, like the outbox it drains",
+    async () => {
+      const outbox = new Outbox(tmp);
+      outbox.append({ harness: "codex", session: "m" }, [ev("m", 0)]);
+      const file = path.join(tmp, "sink", "out.jsonl");
+      expect((await flush(tmp, [{ name: "m", url: `file:${file}`, tier: 0 }], outbox)).m).toBe(1);
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+      expect(statSync(path.dirname(file)).mode & 0o777).toBe(0o700);
+    },
+  );
 });

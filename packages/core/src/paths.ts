@@ -3,6 +3,7 @@
 //   config  ~/.config/sessionpipe/config.json        SESSIONPIPE_CONFIG
 //   state   ~/.local/state/sessionpipe/               SESSIONPIPE_STATE
 //   Windows %APPDATA%\sessionpipe\ and %LOCALAPPDATA%\sessionpipe\
+import { chmodSync, mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -20,6 +21,14 @@ export function stateDir(env: NodeJS.ProcessEnv = process.env): string {
   if (process.platform === "win32")
     return path.join(env.LOCALAPPDATA || path.join(HOME, "AppData", "Local"), "sessionpipe");
   return path.join(env.XDG_STATE_HOME || path.join(HOME, ".local", "state"), "sessionpipe");
+}
+
+/** Make one of sessionpipe's own directories and keep it 0700. mkdir's mode only
+ *  applies to a directory it creates, so a state root an older version (or a write
+ *  that forgot the mode) left 0755 is tightened here, and with it everything inside. */
+export function privateDir(dir: string): void {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") chmodSync(dir, 0o700);
 }
 
 /** `~` for the home directory, as the session block writes paths. */
