@@ -106,12 +106,18 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
   o.out("");
   const digits = String(s.check);
   const spaced = /^\d{6}$/.test(digits) ? `${digits.slice(0, 3)} ${digits.slice(3)}` : digits;
+  // The approval happens on whatever device holds the person's passkey, which is
+  // rarely the machine being paired (a server may have no screen at all): say so, or
+  // the "Touch ID" line reads as "do it here" (2026-10-02, four machines, one headless).
+  const host = new URL(o.url).host;
+  o.out(`  On any phone or computer where you're signed in to ${host} (it doesn't have to be this one),`);
   if (pollKey) {
     // Open pairing: one address for everyone, and the digits are what the person types.
-    o.out(`  Open ${String(s.url)} and enter:  ${spaced}`);
-    o.out("  then approve with your passkey (Touch ID, Face ID, a security key).");
+    o.out(`  open ${String(s.url)} and enter:  ${spaced}`);
+    o.out("  then approve with that device's passkey (Touch ID, Face ID, a security key).");
+    o.out("  Pairing several machines? Run this on each one: every machine shows its own digits.");
   } else {
-    o.out("  Open this link and confirm with your passkey (Touch ID, Face ID, a security key):");
+    o.out("  open this link and approve with that device's passkey (Touch ID, Face ID, a security key):");
     o.out(`    ${String(s.url)}`);
     o.out(`  The page shows these digits too: ${digits}`);
   }
