@@ -73,3 +73,16 @@ export function frame(text: string, receiver: string): string {
   } catch {}
   return `Message via ${host} (sessionpipe control, signed on the sender's device):\n\n${text}`;
 }
+
+/** A new session's first message: the person's words first, where they come from after.
+ *  Claude Code names a session from the start of its first message, so a header in front
+ *  named every started session "Message via spacesheep.dev (sessionpipe control, s…"
+ *  (2026-10-02). In a new session there is no one else's conversation to tell it apart
+ *  from, so the source line can follow the ask. */
+export function frameStart(text: string, receiver: string): string {
+  let host = receiver;
+  try {
+    host = new URL(receiver).host;
+  } catch {}
+  return `${text}\n\n(Sent via ${host} with sessionpipe control, signed on the sender's device.)`;
+}
