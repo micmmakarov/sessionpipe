@@ -7,8 +7,8 @@
 
 const NOTIFY_LINE = /^[ \t]*notify[ \t]*=[ \t]*(\[.*\])[ \t]*(?:#.*)?$/m;
 const NOTIFY_KEY = /^[ \t]*notify[ \t]*=/m;
-/** A notify that runs sessionpipe's hook directly. */
-export const OURS = /hook\.js",\s*"codex",\s*"notify"/;
+/** A notify that runs sessionpipe's hook directly (or through its launcher). */
+export const OURS = /(?:hook\.js|sessionpipe-hook)",\s*"codex",\s*"notify"/;
 
 function scan(line: string, st: { depth: number; str: string | null }): void {
   let i = 0;

@@ -21,6 +21,16 @@ import {
 import path from "node:path";
 import { configFile, stateDir } from "@sessionpipe/core";
 import { NONCE_TTL_MS, type TrustedKey } from "@sessionpipe/core/control";
+import {
+  controlAccount,
+  defaultRunner,
+  type Runner,
+  type SecretStore,
+  type StoreName,
+  secretDel,
+  secretGet,
+  secretSet,
+} from "../secrets.js";
 
 export interface PairedReceiver {
   /** The receiver's origin, as the person typed it. */
@@ -29,8 +39,11 @@ export interface PairedReceiver {
   control: string;
   rpId: string;
   machine: string;
-  /** The machine's own bearer (polls, acks, hello, off): opens nothing else. */
+  /** The machine's own bearer (polls, acks, hello, off): opens nothing else. Empty
+   *  when it lives in a store this process can't read right now. */
   token: string;
+  /** The token lives in this store, not in control.json (secrets.ts). */
+  token_in?: SecretStore;
   keys: (TrustedKey & { name?: string; added_at: string })[];
   paired_at: string;
 }
@@ -61,7 +74,7 @@ function writePrivate(file: string, value: unknown): void {
   } catch {}
 }
 
-export function readControl(env: NodeJS.ProcessEnv = process.env): ControlConfig | null {
+export function readControl(env: NodeJS.ProcessEnv = process.env, run: Runner = defaultRunner): ControlConfig | null {
   try {
     const j = JSON.parse(readFileSync(controlFile(env), "utf8")) as ControlConfig;
     if (!j || !Array.isArray(j.receivers)) return null;
@@ -69,15 +82,64 @@ export function readControl(env: NodeJS.ProcessEnv = process.env): ControlConfig
       name: j.name || "machine",
       folders: j.folders ?? [],
       mode: j.mode === "auto" ? "auto" : "safe",
-      receivers: j.receivers,
+      receivers: j.receivers.map((r) =>
+        r.token_in ? { ...r, token: secretGet(r.token_in, controlAccount(r.machine), run) ?? "" } : r,
+      ),
+      ...(j.limits ? { limits: j.limits } : {}),
     };
   } catch {
     return null;
   }
 }
 
+/** A token kept in a store is never written back into the file. */
 export const writeControl = (c: ControlConfig, env: NodeJS.ProcessEnv = process.env) =>
-  writePrivate(controlFile(env), c);
+  writePrivate(controlFile(env), {
+    ...c,
+    receivers: c.receivers.map((r) => {
+      if (!r.token_in) return r;
+      const { token: _t, ...rest } = r;
+      return rest;
+    }),
+  });
+
+/** Move every paired receiver's token into `to` (or back into control.json). A token
+ *  this process can't read is left where it is. */
+export function moveControlSecrets(
+  to: StoreName,
+  o: { env?: NodeJS.ProcessEnv; run?: Runner } = {},
+): { moved: string[]; kept: string[] } {
+  const run = o.run ?? defaultRunner;
+  const cfg = readControl(o.env, run);
+  const moved: string[] = [];
+  const kept: string[] = [];
+  if (!cfg) return { moved, kept };
+  const drop: { store: SecretStore; machine: string }[] = [];
+  for (const r of cfg.receivers) {
+    if ((r.token_in ?? "file") === to) continue;
+    if (!r.token) {
+      kept.push(r.url);
+      continue;
+    }
+    if (to !== "file" && !secretSet(to, controlAccount(r.machine), r.token, run)) {
+      secretDel(to, controlAccount(r.machine), run);
+      kept.push(r.url);
+      continue;
+    }
+    if (r.token_in) drop.push({ store: r.token_in, machine: r.machine });
+    if (to === "file") delete r.token_in;
+    else r.token_in = to;
+    moved.push(r.url);
+  }
+  writeControl(cfg, o.env);
+  for (const d of drop) secretDel(d.store, controlAccount(d.machine), run);
+  return { moved, kept };
+}
+
+/** Forget a receiver's token wherever it is (control off). */
+export function dropControlSecret(r: PairedReceiver, run: Runner = defaultRunner): void {
+  if (r.token_in) secretDel(r.token_in, controlAccount(r.machine), run);
+}
 
 /** Nonces the machine has run, for NONCE_TTL_MS. `seen()` records a new nonce
  *  durably BEFORE it answers false; a write that fails throws, and the verifier

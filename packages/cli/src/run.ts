@@ -38,6 +38,7 @@ import {
 } from "@sessionpipe/core";
 import { ask, socketPath } from "./control/local.js";
 import { HttpSink } from "./http-sink.js";
+import { sinkWithSecrets } from "./secrets.js";
 
 async function tellDaemon(state: string, job: Job, session: string, transcript?: string): Promise<void> {
   const sock = socketPath(state);
@@ -139,10 +140,17 @@ export function factsState(state: string): FactsState {
   };
 }
 
-export function buildSinks(sinks: SinkConfig[]): Sink[] {
+export function buildSinks(sinks: SinkConfig[], o: { locked?: (name: string) => void } = {}): Sink[] {
   const out: Sink[] = [];
-  for (const s of sinks) {
-    if (s.paused) continue;
+  for (const raw of sinks) {
+    if (raw.paused) continue;
+    // A token kept in a keychain is read now; one this process can't read (a keychain
+    // locked in an ssh session) leaves the sink's events waiting, never sent unsigned.
+    const s = sinkWithSecrets(raw);
+    if (!s) {
+      o.locked?.(raw.name);
+      continue;
+    }
     const tier = Math.min(s.tier, s.max_tier ?? 3) as 0 | 1 | 2 | 3;
     if (s.url === "stdout") out.push(new StdoutSink(s.name, tier, !!s.pii));
     else if (s.url.startsWith("file:"))
@@ -283,7 +291,9 @@ export async function flush(
   first?: { harness: string; session: string },
 ): Promise<Record<string, number>> {
   const delivered: Record<string, number> = {};
-  const sinks = buildSinks(sinkConfigs);
+  const sinks = buildSinks(sinkConfigs, {
+    locked: (name) => log(state, `sink ${name}: its token is in a keychain this process can't read; left for later`),
+  });
   const refs = outbox.sessions();
   if (first) {
     const k = `${first.harness}/${safeId(first.session)}`;

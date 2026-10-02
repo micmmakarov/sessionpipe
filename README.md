@@ -19,6 +19,21 @@ at all.
 
 ## Install
 
+To a receiver that offers pairing, one command per machine:
+
+```sh
+npx sessionpipe connect your-receiver.example
+```
+
+It shows six digits; approve them on any phone or computer where you're signed in to
+the receiver (it doesn't have to be this machine). That one approval is the whole
+setup: the hooks for every agent and every Claude Code account here, a sink at tier 2,
+signed messages from your devices, the keys in your keychain when this session has one
+unlocked, a background daemon that keeps running after you log out, and the last 30
+days backfilled. It asks nothing else; run it again and it only fixes what's missing.
+
+Or only the hooks, with nothing sent anywhere:
+
 ```sh
 npx sessionpipe install
 ```

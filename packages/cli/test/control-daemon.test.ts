@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { type Carried, ControlDaemon, type SdkHost } from "../src/control/daemon.js";
+import { type Carried, ControlDaemon, type DaemonDeps, type SdkHost } from "../src/control/daemon.js";
 import { ask } from "../src/control/local.js";
 import { pair } from "../src/control/pair.js";
 import { routePrompt } from "../src/control/route.js";
@@ -78,36 +78,45 @@ function cfg(folders = [project]): ControlConfig {
 }
 
 async function startDaemon(
-  o: { folders?: string[]; sdk?: SdkHost; fork?: boolean; limits?: ControlConfig["limits"] } = {},
+  o: {
+    folders?: string[];
+    sdk?: SdkHost;
+    fork?: boolean;
+    limits?: ControlConfig["limits"];
+    login?: DaemonDeps["login"];
+    /** The token as control.json gave it ("" = in a keychain that was locked). */
+    token?: string;
+    reread?: DaemonDeps["token"];
+  } = {},
 ) {
-  d = new ControlDaemon(
-    { ...cfg(o.folders), ...(o.limits ? { limits: o.limits } : {}) },
-    path.join(tmp, "state", "control"),
-    sock,
-    {
-      now: Date.now,
-      fetch,
-      log: process.env.SP_DEBUG ? (s: string) => console.error(`[daemon] ${s}`) : () => {},
-      claudeDirs: () => [configDir],
-      claude: () => ({
-        bin: fakeClaude,
-        caps: { hasMode: true, modes: ["default", "dontAsk"], promptsNone: false, fork: o.fork ?? true },
+  const c = cfg(o.folders);
+  if (o.token !== undefined)
+    c.receivers = c.receivers.map((r) => ({ ...r, token: o.token as string, token_in: "keychain" as const }));
+  d = new ControlDaemon({ ...c, ...(o.limits ? { limits: o.limits } : {}) }, path.join(tmp, "state", "control"), sock, {
+    now: Date.now,
+    fetch,
+    log: process.env.SP_DEBUG ? (s: string) => console.error(`[daemon] ${s}`) : () => {},
+    claudeDirs: () => [configDir],
+    claude: () => ({
+      bin: fakeClaude,
+      caps: { hasMode: true, modes: ["default", "dontAsk"], promptsNone: false, fork: o.fork ?? true },
+    }),
+    run: (bin, args, opts) =>
+      new Promise((resolve) => {
+        const c = spawn(bin, args, { cwd: opts.cwd, env: opts.env });
+        let out = "";
+        c.stdout.on("data", (b) => {
+          out += b;
+        });
+        c.on("close", (code) =>
+          resolve({ code, signal: null, stdout: out, tooBig: false, stderr: "", timedOut: false }),
+        );
       }),
-      run: (bin, args, opts) =>
-        new Promise((resolve) => {
-          const c = spawn(bin, args, { cwd: opts.cwd, env: opts.env });
-          let out = "";
-          c.stdout.on("data", (b) => {
-            out += b;
-          });
-          c.on("close", (code) =>
-            resolve({ code, signal: null, stdout: out, tooBig: false, stderr: "", timedOut: false }),
-          );
-        }),
-      sdk: o.sdk ?? null,
-      env,
-    },
-  );
+    sdk: o.sdk ?? null,
+    env,
+    ...(o.login ? { login: o.login } : {}),
+    ...(o.reread ? { token: o.reread } : {}),
+  });
   await d.start();
 }
 
@@ -337,6 +346,50 @@ describe.runIf(unix)("delivery", () => {
     const call = JSON.parse(readFileSync(claudeLog, "utf8").trim()) as string[];
     expect(call).toEqual(expect.arrayContaining(["-p", "--resume", SID, "--permission-mode", "dontAsk"]));
     expect(call).not.toContain("--fork-session");
+  });
+
+  it("signed out as the daemon sees it: the resume fails with what to do, and Claude Code never runs", async () => {
+    const asked: (string | undefined)[] = [];
+    await startDaemon({
+      login: async (dir) => {
+        asked.push(dir);
+        return { loggedIn: false };
+      },
+    });
+    const q = await rx.send({ session: SESSION, text: "summarize" });
+    const ack = await rx.waitAck(q.id);
+    expect(ack).toMatchObject({ outcome: "failed" });
+    expect(String(ack.detail)).toMatch(/claude auth login/);
+    expect(existsSync(claudeLog)).toBe(false);
+    // The account asked about is the session's own.
+    expect(asked).toEqual([configDir]);
+  });
+
+  it("signed out: a new session fails the same way; a Claude Code that can't say never blocks", async () => {
+    await startDaemon({ login: async () => ({ loggedIn: false }) });
+    const NEW = "0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a91";
+    const q = await rx.send({ kind: "start", session: `claude-code:${NEW}`, cwd: project, text: "hello" });
+    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "failed" });
+    expect(existsSync(claudeLog)).toBe(false);
+    await d?.stop();
+    d = null;
+    await startDaemon({ login: async () => ({ loggedIn: null }) });
+    const q2 = await rx.send({ session: SESSION, text: "summarize" });
+    expect(await rx.waitAck(q2.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
+  });
+
+  it("a token that was locked in the keychain at start is read again before the first poll", async () => {
+    let reads = 0;
+    await startDaemon({
+      token: "",
+      reread: () => {
+        reads++;
+        return rx.token;
+      },
+    });
+    const q = await rx.send({ session: SESSION, text: "summarize" });
+    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
+    expect(reads).toBe(1);
   });
 
   it("fork: a live session is copied, never resumed twice, and later messages go to the copy", async () => {

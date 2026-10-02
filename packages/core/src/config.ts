@@ -18,6 +18,9 @@ export interface SinkConfig {
   token?: string;
   /** whsec_… for Standard Webhooks signatures. */
   secret?: string;
+  /** The token (and secret) live in this store instead of in this file; the client
+   *  reads them from it when it sends. */
+  token_in?: "keychain" | "secret-service";
   /** Learned from the receiver's well-known file; re-read daily. */
   max_tier?: Tier;
   well_known_at?: string;

@@ -3,11 +3,14 @@
 import { existsSync, realpathSync, watchFile } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { claudeControl, claudeDirs, readConfig, stateDir, writeConfig } from "@sessionpipe/core";
+import { claudeControl, claudeDirs, Outbox, readConfig, stateDir, type Tier, writeConfig } from "@sessionpipe/core";
 
-const { detectCaps, findClaude, runClaude } = claudeControl;
+const { claudeLogin, detectCaps, findClaude, runClaude } = claudeControl;
 
+import { isBroad } from "../connect.js";
+import { flush } from "../run.js";
 import { rerunGlobally, stableNode, viaNpx } from "../runtime.js";
+import { controlAccount, secretGet, sinkWithSecrets } from "../secrets.js";
 import { ControlDaemon } from "./daemon.js";
 import { ask, socketPath } from "./local.js";
 import { installService, off, pair, removeKey, uninstallService } from "./pair.js";
@@ -15,7 +18,7 @@ import { loadSdk } from "./sdk.js";
 import { controlFile, controlState, readControl, writeControl } from "./store.js";
 import { waitForMessage, waitSession } from "./wait.js";
 
-export const CONTROL_HELP = `  sessionpipe control pair <receiver> [--folder DIR]… [--mode safe|auto] [--token T] [--name N] [--no-service]
+export const CONTROL_HELP = `  sessionpipe control pair <receiver> [--folder DIR]… [--mode safe|auto] [--tier 0-3] [--token T] [--name N] [--no-service]
   sessionpipe control mode auto|safe                (how sessions run when you message them)
   sessionpipe control status | keys [remove <id>] | off [<receiver>] | run
   sessionpipe wait [--session <harness>:<id>]      (a session runs this in the background)`;
@@ -67,14 +70,22 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       const sink = cfg.sinks.find((s) => s.url.replace(/\/$/, "") === url);
       // No token is fine where the receiver offers open pairing: the person approves the
       // link signed in, and that is the whole setup.
-      const token = flag("--token") ?? sink?.token ?? null;
+      const token = flag("--token") ?? (sink ? sinkWithSecrets(sink)?.token : undefined) ?? null;
       if (token !== null && !/^[\x21-\x7e]+$/.test(token))
         return out(
           "  That token has a character a key never has (a placeholder like ss_… pasted as is?). Leave --token out to pair with a link instead.",
         );
       const folders = flags("--folder");
       const existing = readControl();
-      if (!folders.length && !existing?.folders.length) folders.push(process.cwd());
+      // The folder this ran in — unless that is the home folder or above it, which
+      // would let a message start a session anywhere you own.
+      if (!folders.length && !existing?.folders.length) {
+        if (!isBroad(process.cwd(), os.homedir())) folders.push(process.cwd());
+        else
+          out(
+            `  ! Not allowing all of ${process.cwd()}: sessions you message may run only in folders you name. Pass --folder <project>, or run this from inside one.`,
+          );
+      }
       // How sessions run when a message arrives is the person's call, asked once here at
       // the machine — never a default they find out about when a session can't read a file.
       const mode: "safe" | "auto" =
@@ -83,18 +94,21 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
           : existing?.mode && existing.receivers.length
             ? existing.mode
             : await askMode(out);
+      const tier = argv.includes("--tier") ? (Math.max(0, Math.min(3, Number(flag("--tier")) || 0)) as Tier) : 0;
       await pair({
         url,
         token,
         // The key the receiver handed over at pairing becomes this machine's sink for it,
-        // state only (tier 0), unless one is configured already.
+        // at --tier (0 — session state only — unless given), unless one is configured.
         addSink: (t) => {
-          const now = readConfig();
-          if (now.sinks.some((x) => x.url.replace(/\/$/, "") === url)) return;
-          now.sinks.push({ name: new URL(url).host, url, tier: 0, pii: false, control: false, token: t });
-          writeConfig(now);
+          const r = adoptSinkToken(url, t, tier);
+          if (r === "kept") return;
           out(
-            `  ✓ Sink ${new URL(url).host} added (tier 0: session state, no conversation text). \`sessionpipe sink add ${url} --tier 2\` sends transcripts too.`,
+            r === "filled"
+              ? `  ✓ Sink ${new URL(url).host} now carries the key the receiver handed over.`
+              : tier >= 2
+                ? `  ✓ Sink ${new URL(url).host} added at tier ${tier}.`
+                : `  ✓ Sink ${new URL(url).host} added (tier ${tier}: ${tier ? "tool activity" : "session state"}, no conversation text). \`sessionpipe sink add ${url} --tier 2\` sends transcripts too.`,
           );
         },
         folders,
@@ -187,8 +201,21 @@ async function runDaemon(out: (s?: string) => void): Promise<void> {
     claude: claudeNow,
     run: runClaude,
     sdk,
+    login: async (configDir) => {
+      const c = claudeNow();
+      return c ? claudeLogin(c.bin, configDir) : { loggedIn: null };
+    },
+    token: (r) => (r.token_in ? secretGet(r.token_in, controlAccount(r.machine)) : null),
   });
   await d.start();
+  // A sink whose token lives in a keychain can't send from a hook's worker that runs
+  // where the keychain is locked (a session started over ssh). This daemon runs in the
+  // person's own session, so it drains what those workers left, once a minute.
+  const drain = setInterval(() => {
+    const sinks = readConfig().sinks.filter((s) => s.token_in && !s.paused);
+    if (sinks.length) void flush(stateDir(), sinks, new Outbox(stateDir())).catch(() => {});
+  }, 60_000);
+  drain.unref();
   watchFile(controlFile(), { interval: 5000 }, () => {
     const next = readControl();
     if (next) d.reload(next);
@@ -210,4 +237,18 @@ export async function waitMain(argv: string[], out: (s?: string) => void): Promi
     return;
   }
   out(await waitForMessage(session));
+}
+
+/** Give a sink the key a receiver handed over at pairing. A sink for the receiver that
+ *  has a key keeps it ("kept"); one without a key gets this one ("filled"); otherwise a
+ *  new sink at `tier` ("added"). */
+export function adoptSinkToken(url: string, token: string, tier: Tier, file?: string): "kept" | "filled" | "added" {
+  const now = file ? readConfig(file) : readConfig();
+  const same = now.sinks.find((x) => x.url.replace(/\/$/, "") === url);
+  if (same && (same.token || same.token_in)) return "kept";
+  if (same) same.token = token;
+  else now.sinks.push({ name: new URL(url).host, url, tier, pii: false, token });
+  if (file) writeConfig(now, file);
+  else writeConfig(now);
+  return same ? "filled" : "added";
 }
