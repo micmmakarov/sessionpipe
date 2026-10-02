@@ -187,6 +187,11 @@ export class ControlDaemon {
   private readonly aborts = new Set<AbortController>();
   /** Per receiver: the MCP servers its sessions may use unattended (its well-known). */
   private readonly sessionTools = new Map<string, string[]>();
+  /** Sessions a run of the daemon's own is working on right now (a start, a resume):
+   *  a message for one waits for that run and resumes it — never a copy, which would
+   *  set two agents on one task (2026-10-02: a "just merge when ready" sent while the
+   *  start still ran forked a second agent that raced the first toward main). */
+  private readonly ownRuns = new Map<string, number>();
   private startsRunning = 0;
   private startTimes: number[] = [];
   private procs = 0;
@@ -645,7 +650,14 @@ export class ControlDaemon {
     if (typeof kp === "object") return this.finish(r, m.id, { outcome: "unsupported", detail: kp.unsupported });
     try {
       if (kp === "start") return await this.startSession(r, m.id, cmd, sent);
-      const place = this.place(cmd.session);
+      let place = this.place(cmd.session);
+      // A session the daemon is still starting may have no transcript yet: wait for
+      // that run on the session's queue, then place it again.
+      if ("refused" in place && this.ownRuns.has(ref.id)) {
+        this.finish(r, m.id, { outcome: "taken" });
+        await this.serial(ref.id, async () => {});
+        place = this.place(cmd.session);
+      }
       if ("refused" in place)
         return this.finish(r, m.id, { outcome: "refused", code: place.refused, detail: place.why });
       if (kp === "permission") return this.permission(r, m.id, cmd, sent);
@@ -746,8 +758,12 @@ export class ControlDaemon {
     const claude = ref.harness === "claude-code" ? this.deps.claude() : null;
     const target = this.state.copies[ref.id] ?? ref.id;
     const t = transcript;
+    // The daemon's own run holding it is not "someone else's live process": the message
+    // queues behind that run (serial per session) and resumes it.
     const live =
-      !!t && (liveProcess(target, t.configDir) || recentlyWritten(t.file, this.lastEnd.get(target), this.deps.now()));
+      !this.ownRuns.has(target) &&
+      !!t &&
+      (liveProcess(target, t.configDir) || recentlyWritten(t.file, this.lastEnd.get(target), this.deps.now()));
     return {
       harness: ref.harness,
       sdk: this.sdkSessions.has(ref.id),
@@ -872,13 +888,15 @@ export class ControlDaemon {
       ];
       this.deps.log(`${id.slice(-8)}: claude -p ${[...mf.args, ...resume].join(" ")} in ${place.folder}`);
       const stream = this.answerStream(r, id);
-      const res = await this.slot(() =>
-        this.deps.run(claude.bin, args, {
-          cwd: place.folder,
-          env: claudeEnv(place.transcript?.configDir, this.deps.env),
-          timeoutMs: JOB_TIMEOUT_MS,
-          ...(claude.caps.stream ? { onLine: (l: string) => stream.feed(l) } : {}),
-        }),
+      const res = await this.owning(target, () =>
+        this.slot(() =>
+          this.deps.run(claude.bin, args, {
+            cwd: place.folder,
+            env: claudeEnv(place.transcript?.configDir, this.deps.env),
+            timeoutMs: JOB_TIMEOUT_MS,
+            ...(claude.caps.stream ? { onLine: (l: string) => stream.feed(l) } : {}),
+          }),
+        ),
       );
       stream.close();
       this.lastEnd.set(target, this.deps.now());
@@ -1014,6 +1032,18 @@ export class ControlDaemon {
       : ["--output-format", "json"];
   }
 
+  /** Mark a session as held by one of the daemon's runs while `fn` runs. */
+  private async owning<T>(session: string, fn: () => Promise<T>): Promise<T> {
+    this.ownRuns.set(session, (this.ownRuns.get(session) ?? 0) + 1);
+    try {
+      return await fn();
+    } finally {
+      const n = (this.ownRuns.get(session) ?? 1) - 1;
+      if (n > 0) this.ownRuns.set(session, n);
+      else this.ownRuns.delete(session);
+    }
+  }
+
   private limits() {
     const l = this.cfg.limits ?? {};
     const n = (v: unknown, d: number) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : d);
@@ -1050,8 +1080,11 @@ export class ControlDaemon {
     }
     this.startsRunning++;
     this.startTimes.push(now);
+    const sid = parseSessionRef(cmd.session)!.id;
     try {
-      await this.startOne(r, id, cmd, sent);
+      // On the session's own queue, and held as the daemon's own: a message sent while
+      // the start still runs waits for it and resumes the session, never forks it.
+      await this.serial(sid, () => this.owning(sid, () => this.startOne(r, id, cmd, sent)));
     } finally {
       this.startsRunning--;
     }
