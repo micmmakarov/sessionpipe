@@ -66,6 +66,9 @@
         "safe",
         "auto"
       ]
+    },
+    "files": {
+      "type": "boolean"
     }
   },
   "required": [

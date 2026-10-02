@@ -5,7 +5,9 @@
 import { describe, expect, it } from "vitest";
 import {
   type Assertion,
+  filesProblem,
   fromB64url,
+  parseCommand,
   parseSessionRef,
   type SignedCommand,
   verifyCommand,
@@ -62,6 +64,33 @@ describe("verifyCommand", () => {
     expect(parseSessionRef("codex:01999a7c-1f2e")).toEqual({ harness: "codex", id: "01999a7c-1f2e" });
     expect(parseSessionRef("Claude:x")).toBeNull();
     expect(parseSessionRef(":x")).toBeNull();
+  });
+
+  it("checks a start's files: lengths after NFC, names unique across case and form, only on a start", () => {
+    const f = { name: "a.png", type: "image/png", size: 10, sha256: "A".repeat(43) };
+    expect(filesProblem([f])).toBeNull();
+    // 201 code units as sent, 200 characters after NFC: allowed.
+    expect(filesProblem([{ ...f, name: `${"n".repeat(195)}e\u0301.bin` }])).toBeNull();
+    expect(filesProblem([{ ...f, name: `${"n".repeat(196)}e\u0301.bin` }])).toMatch(/1 to 200/);
+    // The same name in NFC and NFD is the same file on a Mac.
+    expect(
+      filesProblem([
+        { ...f, name: "caf\u00e9.png" },
+        { ...f, name: "CAFE\u0301.png" },
+      ]),
+    ).toMatch(/same name/);
+    expect(filesProblem([{ ...f, type: "image/png; charset=x" }])).toMatch(/media type/);
+    expect(filesProblem([null])).toMatch(/object/);
+    for (const kind of ["permission.answer", "cancel"]) {
+      const c = commandStr({ kind, text: undefined, for: "perm-1", decision: "deny", files: [f] });
+      expect(parseCommand(kind === "cancel" ? c.replace(/"for":"perm-1","decision":"deny",/, "") : c)).toMatchObject({
+        ok: false,
+        code: "bad_fields",
+      });
+    }
+    const st = (files: unknown) => parseCommand(commandStr({ kind: "start", cwd: "/tmp", files }));
+    expect(st([f]).ok).toBe(true);
+    expect(st(null)).toMatchObject({ ok: false, code: "bad_fields" });
   });
 
   it("decodes base64url strictly", () => {

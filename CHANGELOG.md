@@ -5,6 +5,19 @@ and released in lockstep. This file records protocol-level changes.
 
 ## Unreleased
 
+- Control: a `start` may carry `files` (CONTROL.md §3.1, §6; HTTP.md §3; still
+  Draft). Up to 10 files, 25 MiB each and 50 MiB together, each named in the signed
+  command by its SHA-256 (base64url), so a receiver cannot swap one. The receiver
+  holds the bytes and serves them at `GET {control}/files/{sha256}` with the machine's
+  token; the machine stops reading past the signed size, checks length and hash,
+  writes them under `<cwd>/.sessionpipe/files/<session id>/` (self-ignoring
+  `.gitignore`, no symlinks followed, mode 0600) and starts the session with the text
+  plus the list of relative paths. Any file problem acks `failed` with code `file` and
+  starts nothing. `files` on another kind, `null` or empty is `bad_fields`.
+  Schemas: `control-command` gains `files`; `control-pair` and `control-hello` gain
+  `files: true` (the machine takes attachments — a receiver should not send files to
+  one that doesn't say so); the well-known `control` object may say `files: true`.
+  24 new control vectors (`61`–`84`).
 - Control rewritten before anyone implemented it (CONTROL.md, HTTP.md §3; still
   Draft, milestone M6). The old draft let whoever held a bearer token prompt an agent
   and answer "allow"; now:
