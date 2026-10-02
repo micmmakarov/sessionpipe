@@ -492,6 +492,45 @@ setTimeout(() => { fs.appendFileSync(${JSON.stringify(marks)}, "-\\n");
     expect(rx.acks.find((a) => a.id === after.id)?.outcome).toBe("taken");
   });
 
+  it("a message while the daemon's own start still runs waits and resumes it, never forks", {
+    timeout: 30_000,
+  }, async () => {
+    await startDaemon();
+    const marks = path.join(tmp, "runs.log");
+    // A slow stand-in claude: writes the transcript at once (as a real run does), then works.
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const fs = require("fs"), path = require("path"); const a = process.argv.slice(2);
+const i = a.indexOf("--resume"), j = a.indexOf("--session-id");
+const sid = i >= 0 ? a[i + 1] : a[j + 1];
+fs.appendFileSync(${JSON.stringify(marks)}, JSON.stringify({ start: Date.now(), args: a.slice(0, -1) }) + "\\n");
+const dir = path.join(${JSON.stringify(configDir)}, "projects", ${JSON.stringify(project)}.replace(/[^a-zA-Z0-9]/g, "-"));
+fs.mkdirSync(dir, { recursive: true });
+fs.appendFileSync(path.join(dir, sid + ".jsonl"), JSON.stringify({ type: "user", cwd: ${JSON.stringify(project)} }) + "\\n");
+setTimeout(() => { fs.appendFileSync(${JSON.stringify(marks)}, JSON.stringify({ end: Date.now() }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "result", result: "done " + a.includes("--resume"), session_id: sid, is_error: false })); }, 1500);
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+    const NEW = "0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7d01";
+    const q1 = await rx.send({ kind: "start", session: `claude-code:${NEW}`, cwd: project, text: "build it" });
+    await new Promise((r) => setTimeout(r, 400));
+    const q2 = await rx.send({ session: `claude-code:${NEW}`, text: "just merge when ready" });
+    expect(await rx.waitAck(q1.id, 20_000)).toMatchObject({ outcome: "delivered" });
+    expect(await rx.waitAck(q2.id, 20_000)).toMatchObject({ outcome: "delivered", mode: "resume" });
+    const runs = readFileSync(marks, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const starts = runs.filter((x) => x.start);
+    expect(starts).toHaveLength(2);
+    expect(starts[1].args).toContain("--resume");
+    expect(starts[1].args).not.toContain("--fork-session");
+    // One after the other: the resume began after the start ended.
+    expect(starts[1].start).toBeGreaterThanOrEqual(runs.find((x) => x.end).end);
+  });
+
   it("start without the SDK is a headless claude -p --session-id", async () => {
     await startDaemon();
     const NEW = "0b6f2c7e-3d4a-4f1b-9c8e-2a1d5e6f7a8d";
