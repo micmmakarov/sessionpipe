@@ -39,6 +39,16 @@ sessionpipe control keys [remove <id>]
 sessionpipe control off             # tell the receiver, forget its token and keys
 ```
 
+Pairing through `npx` first installs that version globally and runs pairing from
+that persistent copy. On Homebrew, the daemon uses a matching stable Node link
+so a Node upgrade does not leave it pointing at a removed Cellar version.
+
+Services paired with older versions are **not** repaired by `install` or `update`.
+After upgrading, run `sessionpipe control pair <receiver>` again (without
+`--no-service`) to rewrite the service with persistent paths. On Linux, restart an
+already-running daemon afterward with `systemctl --user restart sessionpipe-control.service`;
+macOS pairing reloads the LaunchAgent.
+
 One daemon per computer holds one long-poll per receiver and delivers each message the
 cheapest way the session allows: to `sessionpipe wait` parked in the session's
 background (in place, ~60 ms, no network), at the session's next Stop if it is

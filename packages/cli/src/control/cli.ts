@@ -7,6 +7,7 @@ import { claudeControl, claudeDirs, readConfig, stateDir, writeConfig } from "@s
 
 const { detectCaps, findClaude, runClaude } = claudeControl;
 
+import { rerunGlobally, stableNode, viaNpx } from "../runtime.js";
 import { ControlDaemon } from "./daemon.js";
 import { ask, socketPath } from "./local.js";
 import { installService, off, pair, removeKey, uninstallService } from "./pair.js";
@@ -60,6 +61,7 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       // `spacesheep.dev` is enough: a bare host means https.
       const raw = argv[2];
       if (!raw || raw.startsWith("-")) return out(`usage:\n${CONTROL_HELP}`);
+      if (viaNpx(distDir)) return rerunGlobally(argv, out);
       const url = (/^https?:\/\//.test(raw) ? raw : `https://${raw}`).replace(/\/$/, "");
       const cfg = readConfig();
       const sink = cfg.sinks.find((s) => s.url.replace(/\/$/, "") === url);
@@ -111,7 +113,7 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       } catch {}
       if (argv.includes("--no-service"))
         out("  Daemon: not installed as a service (--no-service); run `sessionpipe control run` yourself");
-      else out(`  Daemon: ${installService({ node: process.execPath, cli })}`);
+      else out(`  Daemon: ${installService({ node: stableNode(process.execPath), cli })}`);
       return;
     }
     case "mode": {

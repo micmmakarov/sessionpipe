@@ -29,6 +29,7 @@ import {
 } from "@sessionpipe/core";
 import { CONTROL_HELP, controlMain, waitMain } from "./control/cli.js";
 import { buildSinks, factsState, flush, jobsDir, runJob, VERSION } from "./run.js";
+import { rerunGlobally, stableNode, viaNpx } from "./runtime.js";
 
 process.stdout.on("error", (e: NodeJS.ErrnoException) => {
   if (e.code === "EPIPE") process.exit(0);
@@ -58,24 +59,6 @@ function hookCommand(): HookCommand {
     command: `${JSON.stringify(node)} ${JSON.stringify(script)} ${a.join(" ")}`,
   });
 }
-/** Homebrew's versioned Cellar path dies on `brew upgrade node`; its stable links survive. */
-function stableNode(exe: string): string {
-  const m = /^(.*)\/Cellar\/(node(?:@\d+)?)\/[^/]+\/bin\/node$/.exec(exe);
-  if (!m) return exe;
-  let real: string;
-  try {
-    real = realpathSync(exe);
-  } catch {
-    return exe;
-  }
-  for (const c of [`${m[1]}/opt/${m[2]}/bin/node`, `${m[1]}/bin/node`]) {
-    try {
-      if (realpathSync(c) === real) return c;
-    } catch {}
-  }
-  return exe;
-}
-const viaNpx = /[\\/]_npx[\\/]/.test(distDir) || /[\\/]\.npm[\\/]/.test(distDir);
 
 function selectedAdapters(): typeof ADAPTERS {
   const named = ADAPTERS.filter((a) => has(`--${a.name}`));
@@ -141,41 +124,7 @@ Docs: https://sessionpipe.org · nothing leaves this machine until you add a sin
 }
 
 async function install(): Promise<void> {
-  if (viaNpx) {
-    out(`  Installing sessionpipe@${VERSION} globally, so the hooks start in milliseconds…`);
-    try {
-      // Homebrew's default prefix is the versioned Cellar folder that `brew upgrade
-      // node` deletes, and its bin is not on PATH (issue #13): install into ~/.local
-      // there, and run the copy from the prefix we installed into.
-      let prefix = "";
-      try {
-        prefix = execFileSync("npm", ["prefix", "-g"], {
-          encoding: "utf8",
-          timeout: 15000,
-          stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-      } catch {}
-      const target = /\/Cellar\/node(?:@\d+)?\/[^/]+/.test(prefix) ? path.join(os.homedir(), ".local") : prefix;
-      execFileSync("npm", ["install", "-g", `sessionpipe@${VERSION}`, ...(target ? ["--prefix", target] : [])], {
-        stdio: ["ignore", "ignore", "inherit"],
-      });
-      const bin =
-        process.platform === "win32"
-          ? path.join(target, "sessionpipe.cmd")
-          : target
-            ? path.join(target, "bin", "sessionpipe")
-            : "sessionpipe";
-      if (target && target !== prefix)
-        out(`  Installed into ${target}; make sure ${path.join(target, "bin")} is on your PATH.`);
-      execFileSync(bin, args, { stdio: "inherit", shell: process.platform === "win32" });
-      return;
-    } catch {
-      out(
-        "  ! couldn't install globally (`npm install -g sessionpipe` failed). Run it yourself, then `sessionpipe install`.",
-      );
-      process.exit(1);
-    }
-  }
+  if (viaNpx(distDir)) return rerunGlobally(args, out);
   const cfg = readConfig();
   const machine = flag("--machine");
   if (machine) cfg.machine = machine.slice(0, 80);
