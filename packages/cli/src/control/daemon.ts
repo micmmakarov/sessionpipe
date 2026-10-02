@@ -6,7 +6,7 @@
 // through the Agent SDK, or by a headless resume or fork — then acks how.
 //
 // A receiver can queue a message; it can never make this process run one.
-import { existsSync, mkdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { claudeControl, redactSecrets } from "@sessionpipe/core";
@@ -283,7 +283,20 @@ export class ControlDaemon {
     this.server = net.createServer((s) => this.onConn(s));
     return new Promise((resolve, reject) => {
       this.server!.once("error", reject);
-      this.server!.listen(this.sock, () => resolve());
+      // The socket answers status, waiters and permission prompts to whoever can
+      // connect, so it is born 0600 (umask over the bind) and kept there.
+      const unix = process.platform !== "win32";
+      const umask = unix ? process.umask(0o077) : 0;
+      try {
+        this.server!.listen(this.sock, () => {
+          try {
+            if (unix) chmodSync(this.sock, 0o600);
+          } catch {}
+          resolve();
+        });
+      } finally {
+        if (unix) process.umask(umask);
+      }
     });
   }
 

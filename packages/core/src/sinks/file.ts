@@ -14,8 +14,9 @@ export class FileSink implements Sink {
   ) {}
   async send(events: Event[]): Promise<DeliveryResult> {
     try {
-      mkdirSync(path.dirname(this.file), { recursive: true });
-      appendFileSync(this.file, `${events.map((e) => JSON.stringify(e)).join("\n")}\n`);
+      // The same events the outbox keeps 0600: turn text at tier 2, tool calls at 3.
+      mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
+      appendFileSync(this.file, `${events.map((e) => JSON.stringify(e)).join("\n")}\n`, { mode: 0o600 });
       return { ok: true, acknowledged: events.length, accepted: events.length, duplicates: 0, rejected: [] };
     } catch (e) {
       return { ok: false, acknowledged: 0, error: String((e as Error).message), action: "retry" };

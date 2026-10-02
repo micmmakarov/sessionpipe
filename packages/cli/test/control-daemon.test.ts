@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -274,6 +275,11 @@ describe("pairing (CONTROL.md §2)", () => {
 const unix = process.platform !== "win32";
 
 describe.runIf(unix)("delivery", () => {
+  it("the socket is 0600: only this user can reach the daemon", async () => {
+    await startDaemon();
+    expect(statSync(sock).mode & 0o777).toBe(0o600);
+  });
+
   it("waiter: in place, in milliseconds, framed", async () => {
     await startDaemon();
     const got = waitForMessage(SESSION, { env });

@@ -24,6 +24,7 @@ import {
   machineName,
   makeEvent,
   Outbox,
+  privateDir,
   readConfig,
   redactDeep,
   type Session,
@@ -114,7 +115,7 @@ export function log(state: string, line: string): void {
     try {
       if (statSync(f).size > 1024 * 1024) renameSync(f, `${f}.1`);
     } catch {}
-    appendFileSync(f, `${new Date().toISOString()} ${line}\n`);
+    appendFileSync(f, `${new Date().toISOString()} ${line}\n`, { mode: 0o600 });
   } catch {}
 }
 
@@ -158,6 +159,9 @@ export async function runJob(
   opts: { state?: string; now?: number } = {},
 ): Promise<{ events: Event[]; delivered: Record<string, number> }> {
   const state = opts.state ?? stateDir();
+  try {
+    privateDir(state);
+  } catch {}
   const cfg = readConfig();
   const adapter = adapterByName(job.harness);
   if (!adapter) return { events: [], delivered: {} };

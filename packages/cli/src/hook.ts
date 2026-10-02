@@ -164,10 +164,11 @@ function finish(spawned: boolean): never {
   const total = Number(process.hrtime.bigint() - t0) / 1e6;
   const ms = workMs ?? total;
   try {
-    mkdirSync(state, { recursive: true });
+    mkdirSync(state, { recursive: true, mode: 0o700 });
     appendFileSync(
       path.join(state, "timing.jsonl"),
       `${JSON.stringify({ at: Date.now(), harness, event, ms: Math.round(ms * 10) / 10, spawned, ...(workMs !== null ? { control_wait_ms: Math.round(total - workMs) } : {}) })}\n`,
+      { mode: 0o600 },
     );
   } catch {}
   process.exit(0);
