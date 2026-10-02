@@ -94,6 +94,7 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
       version: VERSION,
       folders: cfg.folders,
       mode: cfg.mode,
+      files: true,
     }),
   });
   const s = await json(started);

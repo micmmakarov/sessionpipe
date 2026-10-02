@@ -3,23 +3,23 @@
   "description": "A grant from an RS256 passkey (Windows Hello).",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"vLTcWXbqxU8pk8xojBur_g\",\"iat\":1790800000000}",
-      "csig": "SpWrCfszWHBC5CIht6E1Wds-PvVRgQRe5grS8-qGu3bUYZ-JAr0g2m7RCSUILDtNrf48INdRdDT2T6dw32aB3g",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"cAqNSgRprrqLKs-HD6oRFA\",\"iat\":1790800000000}",
+      "csig": "H7U8Z6kzBwgBLEFmcVdwJdVbjLQsIbBIGBcaz94nS-KZ6i5v2Aa0QB5-S6XpJbL1dKLqKHEUdZDsR55Yh924PA",
       "grant": {
-        "cred": "okhPp0BhA68ljhkTNJI53AUQfgwNXJU7",
+        "cred": "YLK59VYdv6X4mQyeSZxUy7t3eIaIfFXr",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
-        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiMkdtcUpobnpFTGlOaTN0TjdhYkRjNTJpZ3k5c0dRUEF3MEljdHllRHppbyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "jt1LjQZD7NpArytzAgmD5fAzPBMwsini8pFOf8C8yBcbbmrHgdaFRmoNPRKySIVvrDfqOGIS5q0GlJulIgnHz_40fg3eIRDLA5apCfTTlyqZ8cfbpWVQGkoA_AaY8BvEb5jH0H3zKDG4eJjTZQ3FFYtGl8KMEL7kY1awiq-I69C2uOH906chfNqYgHu6UV3AzMfABO2b6jBlyskG5c2fTjAQ7VGJoRVVwNJJuhhBnWpRJUrn4gSP4EpUZvOBTLYYdqifWL7KZ84g2TtxKBKuVDG-7dsIX6t1RtChj9G8QrlClC8JkGg2ER2gqwBMbYPTxowcoHaHPxq-ClNHUcQJxA",
-        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq0sZOXjcYCk4VqcXts93qkPK32jsGLmuLaYj6veiSY29gycOtxkDCNN7cwmvtwnivVVETj7kHaUpkSse__1Bew\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicmtwZTZ1T21GSWc4X2NKUUstOEduenZibFdZSFZvb2Fyd1RWR3Z5RFFiYyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "qRWoX35qL7NkMLnhhbhbQOcfzkWuQEOOEFNsg6z7g5dATiRNKdJxJDG0CNi-qOUHS_fAH-G60M4GGEJvl0Zl_AcyCdH9IPbwJ6Empj3TuwFjBIzHCUmu7KwIyEUQvjKkkB-dHHZyRWc_BDV3-6OxXeLbrFgvhyu4AYXcGc00IC-YB8WgiudDljI6IYcflpMOmjfRqePPskjZD0PC8Zp1L-UeOdxlHkl2hLFfQce0QO8Ye4YvTA31izOak8itiyDG1YVCbb0Db58KszChaLEmpSgYigLo_Iz2heba_BBWu-j4EaIy-6wALBpRfrJ8fXMIapfZDpTMfcQLeAVPIhKUbg",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEg32jJhY1PMn1jVuCJmpSSRrKACzEJY1fWf46-7xnUkDekGF3KZQgwcMJtr57dTJBCiEhdXgHrB_TK6uPKReybw\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
       }
     },
     "machine": "m_testmachine0000000001",
     "rp_id": "receiver.example",
     "trusted": [
       {
-        "id": "okhPp0BhA68ljhkTNJI53AUQfgwNXJU7",
+        "id": "YLK59VYdv6X4mQyeSZxUy7t3eIaIfFXr",
         "alg": -257,
-        "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp_HckLfEwAt8XdqyGyU0h8LW0J-F7lkAoY-vCZ1ihSkoZN-JCTlFHQQ_pbjrzjIW45gGb0XfjEjbE7NFHwCQ5WTKwJaDokzRglkdKpDrjm_FcvjcRoQIChHi7mnmPXVgcdzJUadVvzfhQ2XkrSduVuYi9uC2cZ0ipl9tTlhE95mAfXDTYlmFH_K2l6pmvEZmzwd8BVKBx2uNzTuXWA47zcSgeSTQuSjUyOpnpygAfU-KRtMwjoOKb2iZ6_yUShCKArNEWTz66tDwSYBKwLWNQIFHp-PndU8nhQ6VyPrOTBopCwZf3-9PaPmQhlyuS6fwVcJq2bI9IcXpWG3QI1ExAQIDAQAB"
+        "spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0j7g5Mxir1zuE4kBGfKfU-8B7FZI43l4DyZkgv2B3GKmwHIWTNh6RpnowWdVjzOkW4pmOyTqe-oJFByHKD9rTcjVGteq0FkPcFqrVduhG9nRWX6o_1mZce-IjVEcFHvRc3jFYF1WkhcSo3susoV3AvV_hcIp70FLHXoj-DBFi-JGJBJ69X1kq4G_Uix2VIJuTibtyLPeriXlJYYGifjamW3BMrZoooauZ-Pvuboq_hQCmwvsC1487iNp5cXS9eXKdfQ3axxMSKczP-2x4zYHm9AV58ekDoT3XNLus-zWoaKOMvo_0-pmpoDaMHmNtLvUNb2mRAhrxiqJDB87tYWQ3QIDAQAB"
       }
     ],
     "now": 1790800060000

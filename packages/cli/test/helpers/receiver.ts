@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // A receiver that speaks the control half of HTTP.md §3, in-process, for the daemon
 // tests: well-known, pairing (with a passkey's proof), the per-machine poll with
-// redelivery until acked (paused by `taken`), acks, hello and off. The person's side
+// redelivery until acked (paused by `taken`), acks, hello, off and the files a start
+// names (GET {control}/files/{sha256}). The person's side
 // (signing) uses the core test authenticator, so every signature is real.
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -46,6 +47,25 @@ export class FakeReceiver {
   /** Declare control.open_pairing: pairing may start with no token and a poll_key. */
   openPairing = false;
   pollKey: string | null = null;
+  readonly pairBodies: Record<string, unknown>[] = [];
+  /** Files by base64url sha256, as the person uploaded them (or as a bad receiver swaps them). */
+  readonly files = new Map<string, { bytes: Uint8Array; type: string }>();
+  /** Send files without content-length, in 64 KiB chunks (a stream the machine must cap). */
+  chunked = false;
+  readonly fileGets: string[] = [];
+  /** Bytes of the last file request the server actually got written before the client hung up. */
+  lastFileSent = 0;
+
+  /** The person uploads a file: answers the entry a start's `files` names it with. */
+  async upload(
+    name: string,
+    type: string,
+    bytes: Uint8Array,
+  ): Promise<{ name: string; type: string; size: number; sha256: string }> {
+    const h = Buffer.from(await sha256(bytes)).toString("base64url");
+    this.files.set(h, { bytes, type });
+    return { name, type, size: bytes.length, sha256: h };
+  }
 
   async start(port = 0): Promise<void> {
     this.server = createServer((req, res) => void this.route(req, res));
@@ -151,6 +171,7 @@ export class FakeReceiver {
     const base = "/api/sessionpipe/v1/control";
     if (u.pathname === `${base}/pair` && req.method === "POST") {
       const b = await this.body(req);
+      this.pairBodies.push(b);
       if (!sinkAuth) {
         if (!this.openPairing || auth || typeof b.poll_key !== "string") return send(401);
         this.pollKey = b.poll_key;
@@ -180,6 +201,28 @@ export class FakeReceiver {
     }
     if (!u.pathname.startsWith(base)) return send(404);
     if (!machineAuth) return send(401);
+    if (u.pathname.startsWith(`${base}/files/`) && req.method === "GET") {
+      const h = decodeURIComponent(u.pathname.slice(`${base}/files/`.length));
+      this.fileGets.push(h);
+      const f = this.files.get(h);
+      if (!f) return send(404);
+      if (!this.chunked) {
+        res.writeHead(200, { "content-type": f.type, "content-length": String(f.bytes.length) });
+        res.end(Buffer.from(f.bytes));
+        this.lastFileSent = f.bytes.length;
+        return;
+      }
+      res.writeHead(200, { "content-type": f.type });
+      this.lastFileSent = 0;
+      for (let i = 0; i < f.bytes.length && !res.destroyed; i += 65_536) {
+        const chunk = f.bytes.subarray(i, i + 65_536);
+        if (!res.write(Buffer.from(chunk))) await new Promise((r) => res.once("drain", r).once("close", r));
+        if (!res.destroyed) this.lastFileSent += chunk.length;
+        await new Promise((r) => setTimeout(r, 1));
+      }
+      res.end();
+      return;
+    }
     if (u.pathname === `${base}/hello`) {
       this.hellos.push(await this.body(req));
       return send(204);

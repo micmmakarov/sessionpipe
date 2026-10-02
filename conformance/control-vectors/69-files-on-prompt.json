@@ -1,0 +1,31 @@
+{
+  "name": "files-on-prompt",
+  "description": "Only a start may carry files.",
+  "input": {
+    "signed": {
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"lFu_36Gh8ESx-Pu4Bx2gTQ\",\"iat\":1790800000000,\"files\":[{\"name\":\"screenshot.png\",\"type\":\"image/png\",\"size\":183402,\"sha256\":\"0BNhTcFKN-4g_pIAVzerfTQn5-k1gK1W74pCIF5_ek4\"}]}",
+      "csig": "-03IivUcumyFjaL4m3nWW64JBT6LaxBMyRLEKDFSdobxwKMQpfG0vCzNxxC-rY78CjX6_bsadR2crwnH6oh5UQ",
+      "grant": {
+        "cred": "Qmx3443pB8ITmoagpJmCCACj0Sigs6rR",
+        "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicmtwZTZ1T21GSWc4X2NKUUstOEduenZibFdZSFZvb2Fyd1RWR3Z5RFFiYyIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIQC0ClKQpTbe9smLNd_RB2nNsX0k-ntWGK5DpdcoQgqdgAIgUjUCsZcZ-jjZN-zPJ1P_Ce88ataKvsrrWe1P3W9P5oI",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEg32jJhY1PMn1jVuCJmpSSRrKACzEJY1fWf46-7xnUkDekGF3KZQgwcMJtr57dTJBCiEhdXgHrB_TK6uPKReybw\",\"iat\":1790799940000,\"exp\":1790843140000,\"rp\":\"receiver.example\"}"
+      }
+    },
+    "machine": "m_testmachine0000000001",
+    "rp_id": "receiver.example",
+    "trusted": [
+      {
+        "id": "Qmx3443pB8ITmoagpJmCCACj0Sigs6rR",
+        "alg": -7,
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3rR0VxARv6H8G2DvQj_4R2lRd-XAAMvEIW0tYtwmpaiXmnRTEmQL5D-baFVL2IXuotTNECD_NU_d4w-AEgiKqw"
+      }
+    ],
+    "now": 1790800060000
+  },
+  "expect": {
+    "ok": false,
+    "code": "bad_fields"
+  }
+}

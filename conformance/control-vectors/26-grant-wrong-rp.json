@@ -3,23 +3,23 @@
   "description": "The grant names another rp id.",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"E4twz58Grlt-iexGI6Ntug\",\"iat\":1790800000000}",
-      "csig": "-QVpfwAv7tjYjYLEbm6C4bRG6L9Xy3aBgb4preYR_6DhQ-Bbaicy4zQBwd23qwoNcynWS4HYJl0CU2l4xsYXpQ",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"2jzgb2dNPQdgKJjI4xW2Lw\",\"iat\":1790800000000}",
+      "csig": "y14g5pLdSWYJ3kuCqqWCBDotg33DTneCf8kMhzmthw0LUiaJpClzreMZ4R9IZZ6JIxDwqnN9ypj8ipkLPp_6fw",
       "grant": {
-        "cred": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
+        "cred": "Qmx3443pB8ITmoagpJmCCACj0Sigs6rR",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
-        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoieEF0akIxNW9HX3BtTzNRT05UQjdqeTFESWRjd1BzWVFNblZIbnpaSlhPSSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEYCIQDCDNqiJVyxXeQbl6qtkQtn7-SmYsozd_ImXAusRg5TugIhALwr4nJyb_xWI4BW0vgCPfIqP_o4wVAUltE_WVbE79fK",
-        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq0sZOXjcYCk4VqcXts93qkPK32jsGLmuLaYj6veiSY29gycOtxkDCNN7cwmvtwnivVVETj7kHaUpkSse__1Bew\",\"iat\":1790799940000,\"exp\":1790803600000,\"rp\":\"evil.example\"}"
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoieG9RbnhwR2huVHRYUmY2enR5UnZqc1JHQVJUSnF1VEVDTTZUWE1MbG9DMCIsIm9yaWdpbiI6Imh0dHBzOi8vcmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIQCP0OtKojzGiJhfiH156bp6Zl9OenkbGwRLKOZQid85xAIgBK_u9puddXk4A6Ga8k75XX0tC9UM572UjBJRT6M4IrI",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEg32jJhY1PMn1jVuCJmpSSRrKACzEJY1fWf46-7xnUkDekGF3KZQgwcMJtr57dTJBCiEhdXgHrB_TK6uPKReybw\",\"iat\":1790799940000,\"exp\":1790803600000,\"rp\":\"evil.example\"}"
       }
     },
     "machine": "m_testmachine0000000001",
     "rp_id": "receiver.example",
     "trusted": [
       {
-        "id": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
+        "id": "Qmx3443pB8ITmoagpJmCCACj0Sigs6rR",
         "alg": -7,
-        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8qRtJkQFhLd9xjMbo0C99sg39giVDk8l697MnuQzrbPIOtQumw8f0ge0XCLwuHzxi8192Nz8Lf9ZDxM0ZRCcDA"
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3rR0VxARv6H8G2DvQj_4R2lRd-XAAMvEIW0tYtwmpaiXmnRTEmQL5D-baFVL2IXuotTNECD_NU_d4w-AEgiKqw"
       }
     ],
     "now": 1790800060000

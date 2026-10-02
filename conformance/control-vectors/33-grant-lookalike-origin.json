@@ -3,23 +3,23 @@
   "description": "An origin that ends in the rp id without being a subdomain.",
   "input": {
     "signed": {
-      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"_01ZnjfADsCkAAglx4O5NA\",\"iat\":1790800000000}",
-      "csig": "-aRqLMEtozmWQa6b0PHhBHgD89X5aaRj1F3Ldte0IKOwChHwFioqCxF9cUx4X7Z8Z3PqYhWyaskW4zoVtX3sfA",
+      "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"prompt\",\"session\":\"claude-code:8c132906-8c3f-4814-870a-afc3d05e1d2e\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"EFlphenv5TUAyfx7gDkJKw\",\"iat\":1790800000000}",
+      "csig": "hD6jlH2Szu751MKCv8WJ42Csyqip1g3kOBtsknjXJL9v7d5cVIssOMNHhlRWuAASMP5l6Vjw7JV_4bH2isZtXA",
       "grant": {
-        "cred": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
+        "cred": "Qmx3443pB8ITmoagpJmCCACj0Sigs6rR",
         "ad": "tq21o0mX3Y6Rfy9222k5JGexApF1SebHaw_vL_v20iMFAAAABw",
-        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiektFNDlUOENrWDFEU05USWgwLXAxMUdMS1gzNGVGdllwWVpYUHdoVFJobyIsIm9yaWdpbiI6Imh0dHBzOi8vbm90cmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
-        "sig": "MEYCIQDGkhcJjiw8NTdpy5NExKYhG1X07zsnxx7mlWTXAfiVqQIhALTExwzz9AzT3_m9LCoCDL46SAmbxYl76Grl-Xxx68C1",
-        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq0sZOXjcYCk4VqcXts93qkPK32jsGLmuLaYj6veiSY29gycOtxkDCNN7cwmvtwnivVVETj7kHaUpkSse__1Bew\",\"iat\":1790799940000,\"exp\":1790803600000,\"rp\":\"receiver.example\"}"
+        "cd": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiOGY4eXJOX3pzeUQwSDVjRHFiTGgyN2VUT2F0a2l6WUV5NTFfTWtOMEtkOCIsIm9yaWdpbiI6Imh0dHBzOi8vbm90cmVjZWl2ZXIuZXhhbXBsZSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+        "sig": "MEUCIH-Qkglh2amIeXtz4-Ezk80uPWhhBvN3jQJAeTgeOrGXAiEAhr0Pkv1mr0YPKo6VAzsZ1PZ_FnPVsuXRqRt7_66-gD4",
+        "str": "{\"v\":1,\"t\":\"sessionpipe.grant\",\"pub\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEg32jJhY1PMn1jVuCJmpSSRrKACzEJY1fWf46-7xnUkDekGF3KZQgwcMJtr57dTJBCiEhdXgHrB_TK6uPKReybw\",\"iat\":1790799940000,\"exp\":1790803600000,\"rp\":\"receiver.example\"}"
       }
     },
     "machine": "m_testmachine0000000001",
     "rp_id": "receiver.example",
     "trusted": [
       {
-        "id": "VSklUPxovOAW0n0smAuApt2vRcDBsRSu",
+        "id": "Qmx3443pB8ITmoagpJmCCACj0Sigs6rR",
         "alg": -7,
-        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8qRtJkQFhLd9xjMbo0C99sg39giVDk8l697MnuQzrbPIOtQumw8f0ge0XCLwuHzxi8192Nz8Lf9ZDxM0ZRCcDA"
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3rR0VxARv6H8G2DvQj_4R2lRd-XAAMvEIW0tYtwmpaiXmnRTEmQL5D-baFVL2IXuotTNECD_NU_d4w-AEgiKqw"
       }
     ],
     "now": 1790800060000
