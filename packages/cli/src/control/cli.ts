@@ -3,7 +3,18 @@
 import { existsSync, realpathSync, unwatchFile, watchFile } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { claudeControl, claudeDirs, Outbox, readConfig, stateDir, type Tier, writeConfig } from "@sessionpipe/core";
+import {
+  antigravityControl,
+  claudeControl,
+  claudeDirs,
+  codexControl,
+  drivableHarnesses,
+  Outbox,
+  readConfig,
+  stateDir,
+  type Tier,
+  writeConfig,
+} from "@sessionpipe/core";
 
 const { claudeLogin, detectCaps, findClaude, runClaude } = claudeControl;
 
@@ -27,9 +38,11 @@ export const CONTROL_HELP = `  sessionpipe control pair <receiver> [--folder DIR
 
 const MODE_TEXT = `  auto  Claude Code's auto mode: the session reads, edits and runs commands, and Claude Code's
         own safety check stops what looks dangerous. Pick this to get work done from your phone.
+        (Codex runs with --approve-for-me, Antigravity with --mode accept-edits.)
   safe  Only what each folder's Claude Code settings already allow: with no allow rules, a
         session can't even read a file. Pick this if this machine holds things no agent
-        should touch unattended.`;
+        should touch unattended. (Codex runs in its workspace-write sandbox and never
+        escalates; Antigravity is denied every tool call that would need approval.)`;
 
 /** Ask the person at this machine, once: auto or safe. Not a terminal (an agent ran the
  *  pair command): safe, and say how to change it. */
@@ -210,6 +223,10 @@ async function runDaemon(out: (s?: string) => void, distDir: string): Promise<vo
     log,
     claudeDirs: () => claudeDirs(),
     claude: claudeNow,
+    codex: () => codexControl.findCodex(),
+    agy: () => antigravityControl.findAgy(),
+    codexLogin: (bin) => codexControl.codexLogin(bin),
+    harnesses: () => drivableHarnesses(),
     run: runClaude,
     sdk,
     login: async (configDir) => {

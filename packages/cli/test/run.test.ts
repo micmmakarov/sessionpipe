@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Issue #9 (no event lost to the lock race) and advisory GHSA-8f6f-c3c9-j5p6
 // (the outbox holds redacted strings at rest, 0600/0700).
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { Outbox } from "@sessionpipe/core";
 import { afterEach, describe, expect, it } from "vitest";
+import { aliasFile, readAliases, receiverIdOf, writeAliases } from "../src/control/aliases.js";
 import { enqueueJob, runJob, sweepJobs } from "../src/run.js";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "sp-run-"));
@@ -64,4 +66,74 @@ describe("runJob", () => {
     const { events } = new Outbox(tmp).read({ harness: "codex", session: "race-1" }, 0, 100);
     expect(events.some((e) => e.type === "session.ended")).toBe(true);
   });
+});
+
+describe("sessions the control daemon named (control/aliases.ts)", () => {
+  it("aliases are written whole, 0600, and looked up both ways", () => {
+    const file = aliasFile(path.join(tmp, "control"));
+    expect(readAliases(file)).toEqual({});
+    writeAliases(file, { "codex:start-1": { id: "thread-1", cwd: tmp, at: "2026-10-04T00:00:00.000Z" } });
+    expect(readAliases(file)["codex:start-1"]).toMatchObject({ id: "thread-1", cwd: tmp });
+    expect(receiverIdOf(readAliases(file), "codex", "thread-1")).toBe("start-1");
+    expect(receiverIdOf(readAliases(file), "antigravity", "thread-1")).toBeNull();
+    expect(receiverIdOf(readAliases(file), "codex", "start-1")).toBeNull();
+    if (process.platform !== "win32") expect(statSync(file).mode & 0o777).toBe(0o600);
+    writeFileSync(file, "{");
+    expect(readAliases(file)).toEqual({});
+  });
+
+  it("a hook event of a session the daemon started goes out under the start's id", async () => {
+    writeAliases(aliasFile(path.join(tmp, "control")), {
+      "codex:start-1": { id: "race-1", cwd: tmp, at: "2026-10-04T00:00:00.000Z" },
+    });
+    const { events } = await runJob(job("SessionStart", { source: "startup" }), { state: tmp });
+    expect(events.map((e) => e.session.id)).toEqual(["start-1"]);
+    const outbox = new Outbox(tmp);
+    expect(outbox.read({ harness: "codex", session: "start-1" }, 0, 10).events).toHaveLength(1);
+    expect(outbox.read({ harness: "codex", session: "race-1" }, 0, 10).events).toHaveLength(0);
+  });
+
+  it.runIf(process.platform !== "win32")(
+    "every harness tells the daemon, with the session's own folder; Antigravity's folder is kept",
+    async () => {
+      mkdirSync(tmp, { recursive: true }); // the last test's cleanup took it
+      const sock = path.join(tmp, "control.sock");
+      const got: Record<string, unknown>[] = [];
+      const server = net.createServer((c) =>
+        c.once("data", (d) => {
+          got.push(JSON.parse(d.toString("utf8").split("\n")[0] as string));
+          c.end(`${JSON.stringify({ op: "ok" })}\n`);
+        }),
+      );
+      await new Promise<void>((r) => server.listen(sock, () => r()));
+      try {
+        const ws = path.join(tmp, "ws");
+        mkdirSync(ws, { recursive: true });
+        writeAliases(aliasFile(path.join(tmp, "control")), {
+          "antigravity:start-2": { id: "conv-1", cwd: ws, at: "2026-10-04T00:00:00.000Z" },
+        });
+        await runJob(
+          {
+            harness: "antigravity",
+            event: "Stop",
+            argv: ["antigravity", "Stop"],
+            stdin: JSON.stringify({ conversationId: "conv-1", workspacePaths: [`file://${ws}`] }),
+            cwd: "/",
+            env: {},
+            at: Date.now(),
+          },
+          { state: tmp },
+        );
+        await runJob(job("Stop", { cwd: ws }), { state: tmp });
+        expect(got).toEqual([
+          { op: "event", session: "antigravity:start-2", event: "Stop", cwd: ws },
+          { op: "event", session: "codex:race-1", event: "Stop", cwd: ws },
+        ]);
+        const facts = JSON.parse(readFileSync(path.join(tmp, "facts", "antigravity", "start-2.json"), "utf8"));
+        expect(facts.cwd).toBe(ws);
+      } finally {
+        await new Promise<void>((r) => server.close(() => r()));
+      }
+    },
+  );
 });

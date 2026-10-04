@@ -25,7 +25,7 @@ No telemetry. Secrets never leave (`secrets@1` runs above tier 0, always). Your
 server or none. Pre-release: the reference receiver is still being built; see the
 [roadmap](https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md).
 
-## Control: messages to your sessions (M6, Claude Code first)
+## Control: messages to your sessions (M6: Claude Code, Codex, Antigravity)
 
 A receiver that lists `control` can carry a message from your phone to a session on
 this machine. It is signed on your device and **checked here**, against a key you
@@ -67,6 +67,21 @@ its prompt, the PermissionRequest hook waits for your signed answer, and whichev
 comes first wins. Nothing is ever auto-allowed. Safe mode (the default) runs headless
 turns with `--permission-mode dontAsk`, so nothing that needs approval runs while
 you're away.
+
+Codex and Antigravity sessions are reached headlessly too, when `codex` or `agy` is
+installed (the daemon looks on PATH, beside its own Node, in `~/.local/bin`, or where
+`SESSIONPIPE_CODEX` / `SESSIONPIPE_AGY` point). A new session is
+`codex exec --json -C <folder>` or `agy -p … --output-format stream-json`; the next
+message is `codex exec resume <thread>` or `agy --conversation <id>`. Safe mode runs
+Codex in its `workspace-write` sandbox and agy with no permission flag (it denies, and
+the reply lists, what it wasn't allowed to do); auto mode passes `--approve-for-me` /
+`--mode accept-edits`. The bypass flags are never passed. Both CLIs pick a new
+session's id themselves, so the daemon keeps the one your start named: it records the
+pair in `~/.local/state/sessionpipe/control/aliases.json`, and your receiver keeps
+seeing one session under one id. A message to a Codex session someone has open (its
+rollout written in the last 90 seconds) is acked `unsupported` rather than resumed beside them.
+Before a Codex run the daemon checks `codex login status` (or `CODEX_API_KEY`) and says
+`codex login --device-auth` if it isn't signed in.
 
 ## Updates
 

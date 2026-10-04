@@ -60,10 +60,11 @@ export class FakeReceiver {
     return new Promise((r) => this.server.close(() => r()));
   }
 
-  /** The person signs a command and the receiver queues it for the machine. */
+  /** The person signs a command and the receiver queues it for the machine (`hold`:
+   *  signed only, so several can be enqueued together and arrive in one poll). */
   async send(
     fields: Record<string, unknown>,
-    o: { confirm?: boolean; expiresInMs?: number; tamper?: (c: string) => string; as?: Passkey } = {},
+    o: { confirm?: boolean; expiresInMs?: number; tamper?: (c: string) => string; as?: Passkey; hold?: boolean } = {},
   ): Promise<Queued> {
     const now = Date.now();
     const cmd = commandStr({ machine: this.machine, iat: now, nonce: nonce(), ...fields });
@@ -81,7 +82,7 @@ export class FakeReceiver {
       at: new Date(now).toISOString(),
       expires_at: new Date(now + (o.expiresInMs ?? 3600_000)).toISOString(),
     };
-    this.enqueue(q);
+    if (!o.hold) this.enqueue(q);
     return q;
   }
 
@@ -95,7 +96,12 @@ export class FakeReceiver {
   private waiters: (() => void)[] = [];
 
   finalAck(id: string): Record<string, unknown> | undefined {
-    return this.acks.find((a) => a.id === id && a.outcome !== "taken");
+    return this.acks.find((a) => a.id === id && a.outcome !== "taken" && a.outcome !== "progress");
+  }
+
+  /** The `progress` acks for one message, in the order they came. */
+  progress(id: string): Record<string, unknown>[] {
+    return this.acks.filter((a) => a.id === id && a.outcome === "progress");
   }
 
   async waitAck(id: string, ms = 10_000): Promise<Record<string, unknown>> {
@@ -188,6 +194,7 @@ export class FakeReceiver {
       const b = (await this.body(req)) as { acks?: Record<string, unknown>[] };
       for (const a of b.acks ?? []) {
         this.acks.push(a);
+        if (a.outcome === "progress") continue;
         const list = this.queue.get(this.machine) ?? [];
         const q = list.find((x) => x.id === a.id);
         if (!q) continue;
