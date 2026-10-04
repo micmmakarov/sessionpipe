@@ -166,8 +166,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(path.join(built, "cl
       expect(alive(second.pid)).toBe(false);
       expect(log).toContain("exiting 75 so the supervising sessionpipe starts 9.9.10");
       expect(log).toContain("the daemon is restarting onto its new version");
-      // The receiver heard from each version in turn.
-      const said = rx.hellos.map((h) => (h as { version?: string }).version);
+      // The receiver heard from each version in turn (the newest one's hello can land a
+      // moment after its socket answers, so wait for it under a loaded test run).
+      const heard = () => rx.hellos.map((h) => (h as { version?: string }).version);
+      for (let i = 0; i < 100 && !heard().includes("9.9.10"); i++) await new Promise((r) => setTimeout(r, 50));
+      const said = heard();
       expect(said).toEqual(expect.arrayContaining([version, "9.9.9", "9.9.10"]));
 
       // Stopping the parent stops the daemon it runs, and both exit 0.
