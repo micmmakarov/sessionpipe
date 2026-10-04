@@ -64,7 +64,7 @@ export const controlFile = (env: NodeJS.ProcessEnv = process.env) =>
   path.join(path.dirname(configFile(env)), "control.json");
 export const controlState = (env: NodeJS.ProcessEnv = process.env) => path.join(stateDir(env), "control");
 
-function writePrivate(file: string, value: unknown): void {
+export function writePrivate(file: string, value: unknown): void {
   mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const tmp = `${file}.${process.pid}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -89,6 +89,17 @@ export function readControl(env: NodeJS.ProcessEnv = process.env, run: Runner = 
     };
   } catch {
     return null;
+  }
+}
+
+/** How many receivers this machine is paired with, from control.json alone (no
+ *  keychain read: `status` shouldn't ask one). */
+export function pairedCount(env: NodeJS.ProcessEnv = process.env): number {
+  try {
+    const j = JSON.parse(readFileSync(controlFile(env), "utf8")) as { receivers?: unknown };
+    return Array.isArray(j.receivers) ? j.receivers.length : 0;
+  } catch {
+    return 0;
   }
 }
 

@@ -75,6 +75,15 @@ HMAC-SHA256 for Standard-Webhooks signatures, and ECDSA P-256 / RSA PKCS#1 v1.5
 signature *verification* (WebCrypto) for control commands. It contains no encryption
 of its own and needs no export notice.
 
-**Does sessionpipe phone home?** No. There is no telemetry. The optional daily
-version check is a plain read of the npm registry and is off with
-`SESSIONPIPE_NO_UPDATE_CHECK=1`.
+**Does sessionpipe phone home?** No. There is no telemetry. Where the control daemon
+runs, it reads `https://registry.npmjs.org/sessionpipe/latest` about a minute after it
+starts and then at most once a day: a plain GET that carries nothing about you, the
+machine or its sessions. When that names a newer release, the daemon waits until it is
+idle and installs it with `npm install --global --ignore-scripts` into the prefix it runs
+from (npm then talks to the registry as npm always does), and restarts onto it. An
+automatic update trusts the registry and the package's publisher exactly as your first
+install did, a day later at most; to pin a version, turn it off with
+`sessionpipe update off` (`"update_check": false` in `config.json`) or
+`SESSIONPIPE_NO_UPDATE_CHECK=1` in the daemon's environment. A copy that isn't a global
+npm install (npx, a checkout, a dev build) never updates itself, and `sessionpipe
+update` by hand works either way.
