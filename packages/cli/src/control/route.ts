@@ -15,15 +15,19 @@ export interface SessionView {
   midTurn: boolean;
   /** A live process holds the session (registry entry or a fresh transcript write). */
   live: boolean;
-  /** The transcript exists on this machine. */
+  /** The transcript exists on this machine (Codex, Antigravity: the session was placed). */
   known: boolean;
-  /** This Claude Code can copy a session (`--fork-session`). */
+  /** This Claude Code can copy a session (`--fork-session`); no other harness can. */
   canFork: boolean;
   /** The harness has an input API (OpenCode, Codex app-server) — none is wired yet. */
   api: boolean;
 }
 
 export type Route = { mode: DeliveryMode } | { unsupported: string } | { refused: "no_session" };
+
+/** The harnesses the daemon can run a turn of by itself: resume an idle session, start a
+ *  new one (`claude -p`, `codex exec`, `agy -p`). */
+export const HEADLESS = new Set(["claude-code", "codex", "antigravity"]);
 
 /** Where a prompt (or a start) goes. Never two writers on one transcript: a live
  *  session gets a fork, never a resume. */
@@ -32,11 +36,16 @@ export function routePrompt(s: SessionView): Route {
   if (s.waiter) return { mode: "waiter" };
   if (s.midTurn) return { mode: "turn" };
   if (s.api) return { mode: "api" };
-  if (s.harness !== "claude-code") return { unsupported: `no idle delivery for ${s.harness} yet` };
+  if (!HEADLESS.has(s.harness)) return { unsupported: `no idle delivery for ${s.harness} yet` };
   if (!s.known) return { refused: "no_session" };
   if (!s.live) return { mode: "resume" };
   if (s.canFork) return { mode: "fork" };
-  return { unsupported: "the session is open and this Claude Code can't copy it (no --fork-session)" };
+  return {
+    unsupported:
+      s.harness === "claude-code"
+        ? "the session is open and this Claude Code can't copy it (no --fork-session)"
+        : `the session is open in ${s.harness} right now, and a ${s.harness} session can't be copied: send it again once it has been idle a couple of minutes`,
+  };
 }
 
 /** How each kind is delivered, before the session's state is looked at. */
@@ -52,7 +61,7 @@ export function kindPath(
     case "cancel":
       return "cancel";
     case "start":
-      return harness === "claude-code" ? "start" : { unsupported: `can't start a ${harness} session` };
+      return HEADLESS.has(harness) ? "start" : { unsupported: `can't start a ${harness} session` };
     default:
       return { unsupported: `unknown kind ${String(kind)}` };
   }

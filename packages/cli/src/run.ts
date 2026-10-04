@@ -36,20 +36,27 @@ import {
   tilde,
   writeConfig,
 } from "@sessionpipe/core";
+import { aliasFile, readAliases, receiverIdOf } from "./control/aliases.js";
 import { ask, socketPath } from "./control/local.js";
 import { HttpSink } from "./http-sink.js";
 import { sinkWithSecrets } from "./secrets.js";
 
-async function tellDaemon(state: string, job: Job, session: string, transcript?: string): Promise<void> {
+async function tellDaemon(
+  state: string,
+  job: Job,
+  session: string,
+  cwd: string | undefined,
+  transcript?: string,
+): Promise<void> {
   const sock = socketPath(state);
   if (process.platform !== "win32" && !existsSync(sock)) return;
   await ask(
     sock,
     {
       op: "event",
-      session: `claude-code:${session}`,
+      session: `${job.harness}:${session}`,
       event: job.event,
-      cwd: job.cwd,
+      ...(cwd ? { cwd } : {}),
       ...(transcript ? { transcript } : {}),
     },
     300,
@@ -171,12 +178,18 @@ export async function runJob(
   if (!adapter) return { events: [], delivered: {} };
   const r = adapter.fromHook({ argv: job.argv, stdin: job.stdin, env: { ...process.env, ...job.env }, cwd: job.cwd });
   if (!r || !r.session.id) return { events: [], delivered: {} };
-  // The control daemon learns each Claude Code session's turn state from its events
-  // (a message for a session mid-turn waits for its Stop; a pending permission prompt
+  // A session the control daemon started goes by the id its start command named, not
+  // the one the harness picked (CONTROL.md §6 `start`; control/aliases.ts): its events
+  // say so, and so does everything below. The adapter's own reading of the session
+  // (facts, a remote URL) keeps the harness's id.
+  const id =
+    receiverIdOf(readAliases(aliasFile(path.join(state, "control"))), job.harness, r.session.id) ?? r.session.id;
+  // The control daemon learns each session's turn state and folder from its events (a
+  // message for a session mid-turn waits for its Stop; a pending permission prompt
   // closes when the tool runs). A local round trip, and nothing when no daemon runs.
-  if (job.harness === "claude-code") await tellDaemon(state, job, r.session.id, r.transcript);
+  await tellDaemon(state, job, id, r.session.cwd, r.transcript);
   const outbox = new Outbox(state);
-  const ref = { harness: job.harness, session: r.session.id };
+  const ref = { harness: job.harness, session: id };
   // Hooks of one session fire close together (parallel subagents, issue #9): wait
   // for the lock with a short backoff before giving the job back to the queue.
   let release = takeLock(state, ref);
@@ -185,13 +198,13 @@ export async function runJob(
     release = takeLock(state, ref);
   }
   if (!release) {
-    log(state, `${job.harness} ${job.event}: session ${r.session.id} locked for 6 s, re-queued`);
+    log(state, `${job.harness} ${job.event}: session ${id} locked for 6 s, re-queued`);
     enqueueJob(state, job);
     return { events: [], delivered: {} };
   }
   try {
     const facts = factsState(state);
-    const mem = facts.get(job.harness, r.session.id);
+    const mem = facts.get(job.harness, id);
     // Heartbeat-class events read no facts (they fire every tool call); the rest refresh them.
     const heavy = !/^(PreToolUse|PostToolUse|PostToolUseFailure|BeforeTool|AfterTool|PostInvocation)$/.test(job.event);
     let learned: Partial<Session> = {};
@@ -199,8 +212,13 @@ export async function runJob(
       const f = adapter.facts(r.session, r.transcript, r.hints ?? {}, facts);
       const { started_at: _s, last_at: _l, first_ask: _fa, harness_version, ...rest } = f;
       learned = rest;
-      if (harness_version) facts.save(job.harness, r.session.id, { harness_version });
-      facts.save(job.harness, r.session.id, { session: { ...(mem.session as object), ...learned } });
+      if (harness_version) facts.save(job.harness, id, { harness_version });
+      facts.save(job.harness, id, { session: { ...(mem.session as object), ...learned } });
+      // Antigravity's transcript never says which folder a conversation runs in; the
+      // hooks do. Kept raw (this file is the machine's own, 0600), so the control
+      // daemon still knows where to resume it after a restart.
+      if (job.harness === "antigravity" && r.session.cwd && path.isAbsolute(r.session.cwd))
+        facts.save(job.harness, id, { cwd: r.session.cwd });
     }
     const known = (mem.session as Partial<Session> | undefined) ?? {};
     const cwdRaw = learned.cwd ?? r.session.cwd ?? known.cwd;
@@ -210,13 +228,13 @@ export async function runJob(
       ...learned,
       ...git,
       ...(learned.branch ? { branch: learned.branch } : {}),
-      id: r.session.id,
+      id,
       seq: 0,
       machine: machineName(cfg, os.hostname()),
       ...(cwdRaw ? { cwd: tilde(cwdRaw) } : {}),
       ...(r.session.model ? { model: r.session.model } : {}),
     };
-    const version = (facts.get(job.harness, r.session.id).harness_version as string | undefined) ?? undefined;
+    const version = (facts.get(job.harness, id).harness_version as string | undefined) ?? undefined;
     const events: Event[] = [];
     for (const a of r.events) {
       const e = makeEvent(a, {
@@ -233,7 +251,7 @@ export async function runJob(
       r.transcript &&
       r.events.some((e) => e.type === "turn.ended" || e.type === "session.ended")
     ) {
-      const cur = facts.get(job.harness, r.session.id);
+      const cur = facts.get(job.harness, id);
       const fromLine = Number(cur.transcript_line) || 0;
       let turnNo = Number(cur.transcript_turns) || 0;
       const read = adapter.readTranscript(r.transcript, fromLine);
@@ -253,8 +271,7 @@ export async function runJob(
           ),
         );
       }
-      if (read.turns.length)
-        facts.save(job.harness, r.session.id, { transcript_line: read.line, transcript_turns: turnNo });
+      if (read.turns.length) facts.save(job.harness, id, { transcript_line: read.line, transcript_turns: turnNo });
     }
     // At rest the outbox holds redacted strings (advisory GHSA-8f6f-c3c9-j5p6): the
     // tier-3 fields stay, with their secrets already gone; filterEvent runs the same
@@ -263,10 +280,7 @@ export async function runJob(
       ref,
       events.map((e) => ({ ...e, session: redactDeep(e.session), data: redactDeep(e.data) })),
     );
-    log(
-      state,
-      `${job.harness} ${job.event}: ${events.map((e) => e.type).join(",") || "nothing"} (${r.session.id.slice(0, 8)})`,
-    );
+    log(state, `${job.harness} ${job.event}: ${events.map((e) => e.type).join(",") || "nothing"} (${id.slice(0, 8)})`);
     const delivered = await flush(state, cfg.sinks, outbox, ref);
     if (Math.random() < 0.02) outbox.prune(cfg.keep_days ?? 30);
     return { events, delivered };

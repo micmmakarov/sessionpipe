@@ -3,14 +3,30 @@
 // long-poll per paired receiver, verifies every command itself against the keys
 // enrolled at this terminal, and delivers each one the cheapest way the session
 // allows — to a parked waiter, at the session's next Stop, to a session it holds
-// through the Agent SDK, or by a headless resume or fork — then acks how.
+// through the Agent SDK, or by a headless resume or fork — then acks how. Claude Code,
+// Codex (`codex exec`) and Antigravity (`agy`) sessions can be resumed and started
+// headlessly; the Agent SDK, waiters, Stop blocks and forks are Claude Code's.
 //
 // A receiver can queue a message; it can never make this process run one.
-import { existsSync, mkdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { claudeControl, redactSecrets } from "@sessionpipe/core";
+import {
+  antigravityControl,
+  claudeControl,
+  codexControl,
+  deniedNote,
+  JOB_TIMEOUT_MS,
+  jobEnv,
+  type Login,
+  type Reading,
+  type RunOptions,
+  type RunResult,
+  redactSecrets,
+  safeId,
+} from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
+import { type Alias, type Aliases, aliasFile, readAliases, receiverIdOf, writeAliases } from "./aliases.js";
 import { ask, type LocalReply, type LocalRequest } from "./local.js";
 import { awaitAnswer, transcriptEnd } from "./reply.js";
 import { type DeliveryMode, frame, frameStart, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
@@ -31,7 +47,6 @@ const {
   claudeEnv,
   findTranscript,
   isUuid,
-  JOB_TIMEOUT_MS,
   liveProcess,
   loginHint,
   modeFlags,
@@ -40,8 +55,42 @@ const {
   sessionFolder,
 } = claudeControl;
 type Caps = claudeControl.Caps;
-type RunResult = claudeControl.RunResult;
-type Login = claudeControl.Login;
+type Transcript = claudeControl.Transcript;
+
+/** Where a session lives: its folder, and how the harness names it. */
+interface Placed {
+  folder: string;
+  /** Claude Code's transcript. */
+  transcript: Transcript | null;
+  /** Codex / Antigravity: the harness's own id to resume (an alias's, else the command's). */
+  target?: string;
+  /** Codex: the session's rollout file, whose writes say whether it is in use. */
+  file?: string | null;
+}
+
+/** A harness the daemon runs headlessly besides Claude Code (codex-control.ts,
+ *  antigravity-control.ts). */
+interface Driver {
+  label: string;
+  cmd: string;
+  bin: () => string | null;
+  args: (o: { mode: "safe" | "auto"; prompt: string; cwd: string; resume?: string }) => string[];
+  reading: () => Reading & { warnings?: string[] };
+  login?: (bin: string) => Promise<Login>;
+  loginHint?: string;
+}
+
+/** A start, read from the command before it is verified: only ever used to order a
+ *  prompt behind it, never to run anything. */
+function startNamed(cmd: unknown): string | null {
+  if (typeof cmd !== "string" || cmd.length > 64 * 1024 || !cmd.includes('"start"')) return null;
+  try {
+    const c = JSON.parse(cmd) as { kind?: unknown; session?: unknown };
+    return c?.kind === "start" && typeof c.session === "string" ? c.session : null;
+  } catch {
+    return null;
+  }
+}
 
 declare const __SESSIONPIPE_VERSION__: string;
 const VERSION = typeof __SESSIONPIPE_VERSION__ === "string" ? __SESSIONPIPE_VERSION__ : "0.0.0";
@@ -101,11 +150,16 @@ export interface DaemonDeps {
   log: (line: string) => void;
   claudeDirs: () => string[];
   claude: () => { bin: string; caps: Caps } | null;
-  run: (
-    bin: string,
-    args: string[],
-    o: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number; onLine?: (line: string) => void },
-  ) => Promise<RunResult>;
+  /** Codex CLI's `codex` and Antigravity's `agy` on this machine (null: not installed).
+   *  Absent: this daemon doesn't drive that harness. */
+  codex?: () => string | null;
+  agy?: () => string | null;
+  /** Is Codex signed in as this process sees it? Asked before a run. */
+  codexLogin?: (bin: string) => Promise<Login>;
+  /** The harnesses every hello advertises (core's drivableHarnesses); by default, the
+   *  ones the finders above find. */
+  harnesses?: () => string[];
+  run: (bin: string, args: string[], o: RunOptions) => Promise<RunResult>;
   sdk?: SdkHost | null;
   /** How long to follow a live session's turn for an in-place answer (tests shorten it). */
   answerWaitMs?: number;
@@ -239,6 +293,12 @@ export class ControlDaemon {
   /** Every open local connection: stop() ends them, or the server's close would wait
    *  on a client that never says anything. */
   private readonly conns = new Set<net.Socket>();
+  /** Codex and Antigravity sessions the daemon started, under the start's id (aliases.ts). */
+  private aliases: Aliases;
+  /** Starts in hand, by the session they name, from the moment they arrive: a prompt
+   *  for that session that came in the same poll waits for its start rather than
+   *  finding no session (2026-10-04: a start and a prompt queued back to back). */
+  private readonly startsPending = new Map<string, Promise<void>>();
 
   constructor(
     private cfg: ControlConfig,
@@ -249,6 +309,7 @@ export class ControlDaemon {
     this.nonces = new NonceStore(path.join(dir, "nonces.jsonl"), deps.now);
     this.acks = new AckOutbox(path.join(dir, "acks.jsonl"));
     this.state = readState(path.join(dir, "state.json"));
+    this.aliases = readAliases(aliasFile(dir));
   }
 
   // --- lifecycle ------------------------------------------------------------------
@@ -310,7 +371,7 @@ export class ControlDaemon {
    *  for ten minutes: a session killed mid-turn never sends its Stop. */
   busy(): string | null {
     if (this.inflight.size) return `${this.inflight.size} message(s) in hand`;
-    if (this.procs || this.ownRuns.size) return "a headless Claude Code run";
+    if (this.procs || this.ownRuns.size) return "a headless agent run";
     if (this.startsRunning) return "a session starting";
     for (const s of this.sdkSessions.values()) if (s.busy) return "an Agent SDK session mid-turn";
     for (const l of this.live.values()) if (l.attentions.size) return "a permission prompt waiting for an answer";
@@ -532,7 +593,9 @@ export class ControlDaemon {
   }
 
   private onEvent(e: Extract<LocalRequest, { op: "event" }>): void {
-    const l = this.liveOf(e.session);
+    // A worker that read the aliases a moment before a start recorded its session still
+    // names the harness's own id; this daemon knows the start's.
+    const l = this.liveOf(this.named(e.session));
     l.lastEvent = this.deps.now();
     if (e.cwd) l.cwd = e.cwd;
     if (e.transcript) l.transcript = e.transcript;
@@ -702,10 +765,11 @@ export class ControlDaemon {
     void this.refreshSessionTools();
     const waiting = [...this.live].filter(([, l]) => l.waiter).map(([k]) => k);
     const modes: DeliveryMode[] = ["waiter", "turn", "resume", "fork", ...(this.deps.sdk ? (["sdk"] as const) : [])];
+    const harnesses = this.harnesses();
     for (const r of this.cfg.receivers) {
       const body = {
         name: this.cfg.name,
-        harnesses: ["claude-code"],
+        harnesses,
         modes,
         keys: r.keys.map((k) => k.id),
         version: VERSION,
@@ -795,6 +859,30 @@ export class ControlDaemon {
     // this one verifies must not verify too and come back `replay`. Every path below
     // ends in finish(), which lets go of it.
     this.inflight.add(m.id);
+    // A start is marked now too, before its verification: messages of one poll are
+    // handled side by side, and a prompt queued right behind its start may finish
+    // verifying first. Marked unverified, it only ever makes such a prompt wait.
+    const starting = startNamed(m.cmd);
+    let done = (): void => {};
+    if (starting) {
+      const mine = new Promise<void>((res) => {
+        done = res;
+      });
+      const before = this.startsPending.get(starting);
+      const all = before ? Promise.all([before, mine]).then(() => undefined) : mine;
+      this.startsPending.set(starting, all);
+      void all.then(() => {
+        if (this.startsPending.get(starting) === all) this.startsPending.delete(starting);
+      });
+    }
+    try {
+      await this.handleVerified(r, m);
+    } finally {
+      done();
+    }
+  }
+
+  private async handleVerified(r: PairedReceiver, m: Carried): Promise<void> {
     const sent = Date.parse(m.at) || this.deps.now();
     if (Date.parse(m.expires_at) <= this.deps.now()) return this.finish(r, m.id, { outcome: "expired" });
     const v = await verifyCommand(
@@ -815,10 +903,12 @@ export class ControlDaemon {
     try {
       if (kp === "start") return await this.startSession(r, m.id, cmd, sent);
       let place = this.place(cmd.session);
-      // A session the daemon is still starting may have no transcript yet: wait for
-      // that run on the session's queue, then place it again.
-      if ("refused" in place && this.ownRuns.has(ref.id)) {
+      // A session the daemon is still starting may have no transcript (or, for Codex and
+      // Antigravity, no name) yet: wait for that start, then place it again.
+      const starting = kp === "prompt" ? this.startsPending.get(cmd.session) : undefined;
+      if ("refused" in place && (starting || this.ownRuns.has(ref.id))) {
         this.finish(r, m.id, { outcome: "taken" });
+        await starting;
         await this.serial(ref.id, async () => {});
         place = this.place(cmd.session);
       }
@@ -841,11 +931,11 @@ export class ControlDaemon {
   }
 
   /** Where the session lives, and whether its folder is allowed — read from the
-   *  session's own transcript (Claude Code) or the hooks' cwd, never the command. */
-  private place(
-    session: string,
-  ): { refused: string; why: string } | { folder: string; transcript: ReturnType<typeof findTranscript> } {
+   *  session's own transcript (Claude Code, Codex), the folder its start recorded, or
+   *  the hooks' cwd, never the command. */
+  private place(session: string): { refused: string; why: string } | Placed {
     const ref = parseSessionRef(session)!;
+    if (ref.harness === "codex" || ref.harness === "antigravity") return this.placeDriven(session, ref);
     if (ref.harness === "claude-code") {
       const target = this.state.copies[ref.id] ?? ref.id;
       const t = findTranscript(target, this.deps.claudeDirs()) ?? findTranscript(ref.id, this.deps.claudeDirs());
@@ -859,6 +949,106 @@ export class ControlDaemon {
     const ok = cwd && this.allowed(cwd);
     if (!ok) return { refused: cwd ? "folder" : "no_session", why: "no allowed folder known for that session" };
     return { folder: ok, transcript: null };
+  }
+
+  /** A Codex or Antigravity session: one the daemon started is its alias (the harness's
+   *  id and the start's folder); one the hooks reported is Codex's rollout (its
+   *  `session_meta` cwd) or, for Antigravity, the folder its hooks gave. */
+  private placeDriven(
+    session: string,
+    ref: { harness: string; id: string },
+  ): { refused: string; why: string } | Placed {
+    const a = this.aliasOf(ref.harness, ref.id);
+    const target = a?.id ?? ref.id;
+    let cwd: string | undefined = a?.cwd || undefined;
+    let file: string | null = null;
+    if (ref.harness === "codex") {
+      file = isUuid(target) ? codexControl.findRollout(target, this.deps.env ?? process.env) : null;
+      if (!a && !file) return { refused: "no_session", why: `no Codex session ${ref.id.slice(0, 8)} on this machine` };
+      cwd ||= file ? codexControl.codexFacts(file).cwd : undefined;
+    } else cwd ||= this.live.get(session)?.cwd || this.factsCwd(ref.harness, ref.id);
+    if (!cwd)
+      return {
+        refused: "no_session",
+        why: `no folder known for ${ref.harness === "codex" ? "Codex" : "Antigravity"} session ${ref.id.slice(0, 8)}`,
+      };
+    const ok = this.allowed(cwd);
+    if (!ok) return { refused: "folder", why: "that session's folder isn't one this machine allows" };
+    return { folder: ok, transcript: null, target, file };
+  }
+
+  /** The folder the worker recorded for a session from its hooks (run.ts, facts). */
+  private factsCwd(harness: string, id: string): string | undefined {
+    try {
+      const f = path.join(path.dirname(this.dir), "facts", safeId(harness), `${safeId(id)}.json`);
+      const cwd = (JSON.parse(readFileSync(f, "utf8")) as { cwd?: unknown }).cwd;
+      return typeof cwd === "string" && path.isAbsolute(cwd) ? cwd : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private aliasOf(harness: string, id: string): Alias | null {
+    return this.aliases[`${harness}:${id}`] ?? null;
+  }
+
+  /** The harness revealed its own id for a session the command named: from now on that
+   *  is where the command's id leads (aliases.ts). Written before anything else reads it. */
+  private setAlias(harness: string, id: string, real: string, cwd: string): void {
+    this.aliases = {
+      ...this.aliases,
+      [`${harness}:${id}`]: { id: real, cwd, at: new Date(this.deps.now()).toISOString() },
+    };
+    try {
+      writeAliases(aliasFile(this.dir), this.aliases);
+    } catch (e) {
+      this.deps.log(
+        `couldn't record ${harness}:${id.slice(0, 8)} → ${real.slice(0, 8)}: ${String((e as Error)?.message || e)}`,
+      );
+    }
+  }
+
+  /** `<harness>:<harness's id>` → `<harness>:<the start's id>` for a session the daemon named. */
+  private named(session: string): string {
+    const i = session.indexOf(":");
+    if (i <= 0) return session;
+    const harness = session.slice(0, i);
+    const as = receiverIdOf(this.aliases, harness, session.slice(i + 1));
+    return as ? `${harness}:${as}` : session;
+  }
+
+  private driver(harness: string): Driver | null {
+    if (harness === "codex")
+      return {
+        label: "Codex",
+        cmd: "codex",
+        bin: () => this.deps.codex?.() ?? null,
+        args: ({ mode, prompt, cwd, resume }) =>
+          resume ? codexControl.codexArgs({ mode, prompt, resume }) : codexControl.codexArgs({ mode, prompt, cwd }),
+        reading: () => codexControl.reading(),
+        ...(this.deps.codexLogin ? { login: this.deps.codexLogin } : {}),
+        loginHint: codexControl.LOGIN_HINT,
+      };
+    if (harness === "antigravity")
+      return {
+        label: "Antigravity",
+        cmd: "agy",
+        bin: () => this.deps.agy?.() ?? null,
+        args: ({ mode, prompt, resume }) =>
+          resume ? antigravityControl.agyArgs({ mode, prompt, resume }) : antigravityControl.agyArgs({ mode, prompt }),
+        reading: () => antigravityControl.reading(),
+      };
+    return null;
+  }
+
+  /** The harnesses this machine can run a message in, for hello. */
+  private harnesses(): string[] {
+    if (this.deps.harnesses) return this.deps.harnesses();
+    return [
+      ...(this.deps.claude() ? ["claude-code"] : []),
+      ...(this.deps.codex?.() ? ["codex"] : []),
+      ...(this.deps.agy?.() ? ["antigravity"] : []),
+    ];
   }
 
   private allowed(dir: string): string | null {
@@ -916,9 +1106,29 @@ export class ControlDaemon {
     this.finish(r, id, { outcome: "delivered", mode: "sdk" }, sent);
   }
 
-  private view(session: string, transcript: ReturnType<typeof findTranscript>) {
+  private view(session: string, place: Placed) {
     const ref = parseSessionRef(session)!;
     const l = this.live.get(session);
+    if (ref.harness !== "claude-code") {
+      // Codex: a rollout someone else wrote in the last 90 s is a session in use.
+      // Antigravity keeps no file that says so: only the daemon's own run (whose
+      // messages wait in line behind it) holds one.
+      const live =
+        !this.ownRuns.has(ref.id) &&
+        !!place.file &&
+        recentlyWritten(place.file, this.lastEnd.get(ref.id), this.deps.now());
+      return {
+        harness: ref.harness,
+        sdk: false,
+        waiter: !!l?.waiter && !l.waiter.destroyed,
+        midTurn: !!l?.midTurn,
+        live,
+        known: true,
+        canFork: false,
+        api: false,
+      };
+    }
+    const transcript = place.transcript;
     const claude = ref.harness === "claude-code" ? this.deps.claude() : null;
     const target = this.state.copies[ref.id] ?? ref.id;
     const t = transcript;
@@ -940,14 +1150,8 @@ export class ControlDaemon {
     };
   }
 
-  private async prompt(
-    r: PairedReceiver,
-    id: string,
-    cmd: ControlCommand,
-    place: { folder: string; transcript: ReturnType<typeof findTranscript> },
-    sent: number,
-  ): Promise<void> {
-    const route = routePrompt(this.view(cmd.session, place.transcript));
+  private async prompt(r: PairedReceiver, id: string, cmd: ControlCommand, place: Placed, sent: number): Promise<void> {
+    const route = routePrompt(this.view(cmd.session, place));
     if ("unsupported" in route) return this.finish(r, id, { outcome: "unsupported", detail: route.unsupported });
     if ("refused" in route) return this.finish(r, id, { outcome: "refused", code: route.refused });
     const ref = parseSessionRef(cmd.session)!;
@@ -1026,28 +1230,122 @@ export class ControlDaemon {
   /** Null when Claude Code is signed in for this account (or can't say); otherwise what
    *  to tell the person. */
   private async loginProblem(configDir?: string): Promise<string | null> {
-    if (!this.deps.login) return null;
-    const key = configDir ?? "";
+    const login = this.deps.login;
+    if (!login) return null;
+    if (await this.signedIn(configDir ?? "", () => login(configDir))) return null;
+    this.deps.log(`claude isn't signed in for ${configDir ?? "the default account"} as the daemon sees it`);
+    return loginHint(configDir, this.deps.platform ?? process.platform);
+  }
+
+  /** One harness account's login, asked at most every 10 minutes (30 s after a no). */
+  private async signedIn(key: string, ask: () => Promise<Login>): Promise<boolean> {
     const now = this.deps.now();
     const hit = this.logins.get(key);
     let login = hit && now - hit.at < (hit.login.loggedIn === false ? 30_000 : 600_000) ? hit.login : null;
     if (!login) {
-      login = await this.deps.login(configDir).catch((): Login => ({ loggedIn: null }));
+      login = await ask().catch((): Login => ({ loggedIn: null }));
       this.logins.set(key, { at: now, login });
     }
-    if (login.loggedIn !== false) return null;
-    this.deps.log(`claude isn't signed in for ${configDir ?? "the default account"} as the daemon sees it`);
-    return loginHint(configDir, this.deps.platform ?? process.platform);
+    return login.loggedIn !== false;
+  }
+
+  /** Null when a Codex or Antigravity run may go ahead; otherwise what to tell the person. */
+  private async drivenProblem(drv: Driver): Promise<{ bin: string } | { failed: string }> {
+    const bin = drv.bin();
+    if (!bin) return { failed: `${drv.label} isn't installed on this machine` };
+    const login = drv.login;
+    if (login && !(await this.signedIn(`${drv.cmd}:`, () => login(bin)))) {
+      this.deps.log(`${drv.cmd} isn't signed in as the daemon sees it`);
+      return { failed: drv.loginHint ?? `${drv.label} isn't signed in on this machine` };
+    }
+    return { bin };
+  }
+
+  /** A Codex or Antigravity session's next message: a headless turn resumed under the
+   *  harness's own id, after any run of the daemon's own that holds it. */
+  private async resumeDriven(r: PairedReceiver, id: string, cmd: ControlCommand, place: Placed, sent: number) {
+    const ref = parseSessionRef(cmd.session)!;
+    const drv = this.driver(ref.harness)!;
+    const ready = await this.drivenProblem(drv);
+    if ("failed" in ready) return this.finish(r, id, { outcome: "failed", detail: ready.failed });
+    this.finish(r, id, { outcome: "taken" });
+    await this.serial(ref.id, async () => {
+      // Read again: the start this waited for may have named the session meanwhile.
+      const target = this.aliasOf(ref.harness, ref.id)?.id ?? place.target ?? ref.id;
+      const args = drv.args({
+        mode: this.cfg.mode,
+        prompt: frame(cmd.text as string, r.url),
+        cwd: place.folder,
+        resume: target,
+      });
+      this.deps.log(`${id.slice(-8)}: ${drv.cmd} resume ${target.slice(0, 8)} (${this.cfg.mode}) in ${place.folder}`);
+      await this.drive(r, id, ref, drv, ready.bin, args, place.folder, sent, target);
+    });
+  }
+
+  /** Run one Codex or Antigravity turn and ack it: `progress` as its answer grows, then
+   *  `delivered` (mode `resume`) with the reply. The moment the harness names the session
+   *  — a start's new one, or a fresh one for an id it didn't know — the command's id
+   *  becomes its alias, so the next message resumes it. */
+  private async drive(
+    r: PairedReceiver,
+    id: string,
+    ref: { harness: string; id: string },
+    drv: Driver,
+    bin: string,
+    args: string[],
+    cwd: string,
+    sent: number,
+    asked: string | null,
+  ): Promise<void> {
+    const stream = this.answerStream(r, id);
+    const reading = drv.reading();
+    let named: string | null = null;
+    const name = () => {
+      const s = reading.session;
+      if (!s || s === named) return;
+      named = s;
+      if (s !== asked) this.setAlias(ref.harness, ref.id, s, cwd);
+    };
+    const onLine = (l: string) => {
+      if (reading.feed(l)) stream.set(reading.text);
+      name();
+    };
+    const res = await this.owning(ref.id, () =>
+      this.slot(() =>
+        this.deps.run(bin, args, {
+          cwd,
+          env: jobEnv(this.deps.env),
+          timeoutMs: JOB_TIMEOUT_MS,
+          onLine,
+          keep: () => false,
+        }),
+      ),
+    );
+    // A runner that doesn't stream hands the whole output over at the end.
+    if (!reading.lines && res.stdout) for (const l of res.stdout.split("\n")) if (l.trim()) onLine(l);
+    stream.close();
+    this.lastEnd.set(ref.id, this.deps.now());
+    if (reading.warnings?.length)
+      this.deps.log(`${id.slice(-8)}: ${drv.cmd} warned: ${reading.warnings.join(" · ").slice(0, 400)}`);
+    const out = reading.outcome(res);
+    if ("failed" in out) return this.finish(r, id, { outcome: "failed", detail: out.failed });
+    const moved =
+      asked && named && named !== asked
+        ? `\n\n(${drv.label} didn't find that session on this machine, so this ran in a new one; later messages continue there.)`
+        : "";
+    this.finish(r, id, { outcome: "delivered", mode: "resume", reply: out.reply + moved }, sent);
   }
 
   private async headless(
     r: PairedReceiver,
     id: string,
     cmd: ControlCommand,
-    place: { folder: string; transcript: ReturnType<typeof findTranscript> },
+    place: Placed,
     mode: "resume" | "fork",
     sent: number,
   ): Promise<void> {
+    if (parseSessionRef(cmd.session)?.harness !== "claude-code") return this.resumeDriven(r, id, cmd, place, sent);
     const claude = this.deps.claude();
     if (!claude)
       return this.finish(r, id, { outcome: "failed", detail: "Claude Code isn't installed on this machine" });
@@ -1118,9 +1416,7 @@ export class ControlDaemon {
     if (j.is_error) return { failed: String(j.result || j.subtype || "Claude Code reported an error") };
     const denials = Array.isArray(j.permission_denials) ? j.permission_denials : [];
     const names = [...new Set(denials.map((d) => d?.tool_name).filter((n): n is string => typeof n === "string"))];
-    const tail = denials.length
-      ? `\n\n(Not allowed on this machine, since nobody was there to approve: ${names.join(", ") || `${denials.length} action(s)`}.)`
-      : "";
+    const tail = deniedNote(names, denials.length);
     const text =
       typeof j.result === "string" && j.result.trim() ? j.result : "(Claude Code finished without a written reply.)";
     return { reply: text + tail, ...(typeof j.session_id === "string" ? { session: j.session_id } : {}) };
@@ -1282,6 +1578,7 @@ export class ControlDaemon {
         code: "folder",
         detail: "that folder isn't one this machine allows",
       });
+    if (ref.harness !== "claude-code") return this.startDriven(r, id, cmd, ref, cwd, sent);
     if (findTranscript(ref.id, this.deps.claudeDirs()) || this.sdkSessions.has(ref.id))
       return this.finish(r, id, {
         outcome: "refused",
@@ -1338,6 +1635,36 @@ export class ControlDaemon {
     const out = this.outcome(res);
     if ("failed" in out) return this.finish(r, id, { outcome: "failed", detail: out.failed });
     this.finish(r, id, { outcome: "delivered", mode: "resume", reply: out.reply }, sent);
+  }
+
+  /** A new Codex or Antigravity session: the harness picks its id, and the start's id
+   *  becomes its name (aliases.ts) as soon as the run says what it picked. */
+  private async startDriven(
+    r: PairedReceiver,
+    id: string,
+    cmd: ControlCommand,
+    ref: { harness: string; id: string },
+    cwd: string,
+    sent: number,
+  ): Promise<void> {
+    const drv = this.driver(ref.harness)!;
+    const env = this.deps.env ?? process.env;
+    if (
+      this.aliasOf(ref.harness, ref.id) ||
+      this.live.get(cmd.session)?.cwd ||
+      (ref.harness === "codex" && isUuid(ref.id) && codexControl.findRollout(ref.id, env))
+    )
+      return this.finish(r, id, {
+        outcome: "refused",
+        code: "bad_session",
+        detail: "that new session's id is already taken",
+      });
+    const ready = await this.drivenProblem(drv);
+    if ("failed" in ready) return this.finish(r, id, { outcome: "failed", detail: ready.failed });
+    this.finish(r, id, { outcome: "taken" });
+    const args = drv.args({ mode: this.cfg.mode, prompt: frameStart(cmd.text as string, r.url), cwd });
+    this.deps.log(`${id.slice(-8)}: ${drv.cmd} new session for ${ref.id.slice(0, 8)} (${this.cfg.mode}) in ${cwd}`);
+    await this.drive(r, id, ref, drv, ready.bin, args, cwd, sent, null);
   }
 
   private closeIdleSdk(): void {

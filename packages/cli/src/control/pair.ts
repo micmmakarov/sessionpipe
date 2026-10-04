@@ -9,6 +9,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { drivableHarnesses } from "@sessionpipe/core";
 import { type TrustedKey, verifyEnrollment } from "@sessionpipe/core/control";
 import {
   type ControlConfig,
@@ -37,6 +38,8 @@ export interface PairOptions {
   env?: NodeJS.ProcessEnv;
   /** Called with a sessions key the receiver handed over at pairing. */
   addSink?: (token: string) => void;
+  /** The harnesses this machine can run a message in (default: those installed here). */
+  harnesses?: string[];
 }
 
 async function json(r: Response): Promise<Record<string, unknown>> {
@@ -96,7 +99,7 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
       ...(pollKey ? { poll_key: pollKey } : {}),
       ...(existing ? { machine: existing.machine } : {}),
       name: cfg.name,
-      harnesses: ["claude-code"],
+      harnesses: o.harnesses ?? drivableHarnesses(o.env ?? process.env),
       modes: ["waiter", "turn", "resume", "fork"],
       version: VERSION,
       folders: cfg.folders,
