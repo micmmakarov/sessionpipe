@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { type Carried, ControlDaemon, type DaemonDeps, type SdkHost } from "../src/control/daemon.js";
+import { type Carried, ControlDaemon, type DaemonDeps, DaemonRunning, type SdkHost } from "../src/control/daemon.js";
 import { ask } from "../src/control/local.js";
 import { pair } from "../src/control/pair.js";
 import { routePrompt } from "../src/control/route.js";
@@ -87,6 +87,8 @@ async function startDaemon(
     /** The token as control.json gave it ("" = in a keychain that was locked). */
     token?: string;
     reread?: DaemonDeps["token"];
+    /** Anything else the daemon is handed (the updater's hooks). */
+    extra?: Partial<DaemonDeps>;
   } = {},
 ) {
   const c = cfg(o.folders);
@@ -116,6 +118,7 @@ async function startDaemon(
     env,
     ...(o.login ? { login: o.login } : {}),
     ...(o.reread ? { token: o.reread } : {}),
+    ...o.extra,
   });
   await d.start();
 }
@@ -776,5 +779,136 @@ describe.runIf(unix)("the built hook talks to the daemon", () => {
     const out = await runHook("PermissionRequest", { session_id: SID, tool_name: "Bash", tool_input: {} });
     expect(out).toBe("");
     expect(Date.now() - t).toBeLessThan(3000);
+  });
+});
+
+describe.runIf(unix)("one daemon, and when it may restart (autoupdate.ts)", () => {
+  /** A stand-in claude that takes its time, so a run is in hand for a while. */
+  function slowClaude(ms: number): void {
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const a = process.argv.slice(2);
+setTimeout(() => process.stdout.write(JSON.stringify({ type: "result", result: "slow", session_id: a[a.indexOf("--resume") + 1], is_error: false })), ${ms});
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+  }
+
+  it("busy while a headless run is in hand, idle once it is acked", async () => {
+    slowClaude(600);
+    await startDaemon();
+    expect(d?.busy()).toBeNull();
+    const q = await rx.send({ session: SESSION, text: "take your time" });
+    let seen: string | null = null;
+    for (let i = 0; i < 50 && !seen; i++) {
+      seen = d?.busy() ?? null;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(seen).toMatch(/message\(s\) in hand|headless/);
+    expect(rx.finalAck(q.id)).toBeUndefined();
+    await rx.waitAck(q.id);
+    for (let i = 0; i < 50 && d?.busy(); i++) await new Promise((r) => setTimeout(r, 20));
+    expect(d?.busy()).toBeNull();
+    expect(((await ask(sock, { op: "status" }, 500)) as { status: { busy: unknown } }).status.busy).toBeNull();
+  });
+
+  it("busy while a permission prompt waits for an answer", async () => {
+    await startDaemon();
+    const hook = ask(sock, { op: "permission", session: SESSION, attention: "perm-0123456789abcdef" }, 5000);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(d?.busy()).toMatch(/permission prompt/);
+    await ask(sock, { op: "event", session: SESSION, event: "PostToolUse" }, 500);
+    await hook;
+    expect(d?.busy()).toBeNull();
+  });
+
+  it("busy while someone's session is mid-turn, until its Stop", async () => {
+    await startDaemon();
+    await ask(sock, { op: "event", session: SESSION, event: "UserPromptSubmit" }, 500);
+    expect(d?.busy()).toMatch(/mid-turn/);
+    await ask(sock, { op: "event", session: SESSION, event: "Stop" }, 500);
+    expect(d?.busy()).toBeNull();
+  });
+
+  it("paused intake leaves new messages with the receiver until it resumes", async () => {
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 100));
+    d?.pauseIntake();
+    await new Promise((r) => setTimeout(r, 300));
+    const polls = rx.polls.length;
+    const q = await rx.send({ session: SESSION, text: "after the update" });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(rx.acks.some((a) => a.id === q.id)).toBe(false);
+    expect(rx.polls.length).toBe(polls);
+    d?.resumeIntake();
+    expect(await rx.waitAck(q.id)).toMatchObject({ outcome: "delivered", mode: "resume" });
+  });
+
+  it("a second daemon on the same socket doesn't start; the first keeps serving", async () => {
+    await startDaemon();
+    const second = new ControlDaemon(cfg(), path.join(tmp, "state", "control2"), sock, {
+      now: Date.now,
+      fetch,
+      log: () => {},
+      claudeDirs: () => [configDir],
+      claude: () => null,
+      run: async () => ({ code: 0, signal: null, stdout: "", stderr: "", tooBig: false, timedOut: false }),
+    });
+    const err = await second.start().then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(DaemonRunning);
+    expect(String((err as Error).message)).toMatch(new RegExp(`pid ${process.pid}`));
+    await second.stop();
+    expect(existsSync(sock)).toBe(true);
+    expect(await ask(sock, { op: "status" }, 500)).toMatchObject({ op: "status" });
+  });
+
+  it("a dead daemon's socket file is taken over; stepping aside never removes another daemon's", async () => {
+    // What a crashed daemon leaves: a socket file with nobody listening.
+    writeFileSync(sock, "");
+    let lost = 0;
+    await startDaemon({ extra: { onLostSocket: () => lost++ } });
+    expect(await ask(sock, { op: "status" }, 500)).toMatchObject({ op: "status" });
+    // Another daemon replaces the file (two started at once): this one steps aside...
+    const net = await import("node:net");
+    rmSync(sock);
+    const other = net.createServer((c) => c.once("data", () => c.end(`${JSON.stringify({ op: "none" })}\n`)));
+    await new Promise<void>((r) => other.listen(sock, () => r()));
+    await (d as unknown as { checkSocket(): Promise<void> }).checkSocket();
+    expect(lost).toBe(1);
+    // ...and leaves the other's socket where it is, answering.
+    expect(existsSync(sock)).toBe(true);
+    expect(await ask(sock, { op: "status" }, 500)).toEqual({ op: "none" });
+    await new Promise<void>((r) => other.close(() => r()));
+  });
+
+  it("a socket file someone deleted is made again", async () => {
+    await startDaemon();
+    rmSync(sock);
+    expect(await ask(sock, { op: "status" }, 300)).toBeNull();
+    await (d as unknown as { checkSocket(): Promise<void> }).checkSocket();
+    expect(await ask(sock, { op: "status" }, 500)).toMatchObject({ op: "status" });
+  });
+
+  it("restart: `sessionpipe update` asks over the socket; the updater decides", async () => {
+    let asked = 0;
+    await startDaemon({
+      extra: {
+        onRestart: () => {
+          asked++;
+          return true;
+        },
+        updateStatus: () => ({ latest: "9.9.9" }),
+      },
+    });
+    expect(await ask(sock, { op: "restart" }, 500)).toEqual({ op: "ok" });
+    expect(asked).toBe(1);
+    const st = (await ask(sock, { op: "status" }, 500)) as { status: { pid: number; update: unknown } };
+    expect(st.status).toMatchObject({ pid: process.pid, update: { latest: "9.9.9" } });
+    // An op it doesn't know closes the connection rather than leaving it open.
+    expect(await ask(sock, { op: "nope" } as never, 500)).toBeNull();
   });
 });
