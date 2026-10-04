@@ -123,6 +123,46 @@ describe("install / uninstall", () => {
     antigravity.uninstall(env);
     expect(readFileSync(file, "utf8")).toBe(before);
   });
+  it("antigravity: never hooks PreToolUse, whose `{}` is a deny; an older install's entry is stale and replaced", () => {
+    const file = path.join(home, ".gemini", "config", "hooks.json");
+    antigravity.install(cmd, env);
+    expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
+    antigravity.install(cmd, env, { lean: false });
+    expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
+    // What 0.1–0.6.0 wrote: the same group plus a PreToolUse one.
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    old.sessionpipe = {
+      enabled: true,
+      PreInvocation: old.sessionpipe.PreInvocation,
+      PostInvocation: old.sessionpipe.PostInvocation,
+      PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "hook antigravity PreToolUse", timeout: 5 }] }],
+      PostToolUse: old.sessionpipe.PostToolUse,
+      Stop: old.sessionpipe.Stop,
+    };
+    writeFileSync(file, `${JSON.stringify(old, null, 2)}\n`);
+    expect(antigravity.installed(cmd, env)[0]?.state).toBe("stale");
+    expect(antigravity.install(cmd, env)[0]?.changed).toBe(true);
+    expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
+    expect(antigravity.installed(cmd, env)[0]?.state).toBe("current");
+  });
+  it("antigravity: PostToolUse names no tool, so it is a beat; a named one still ends the tool", () => {
+    const base = { conversationId: "c1", stepIdx: 4 };
+    const beat = antigravity.fromHook({
+      argv: ["antigravity", "PostToolUse"],
+      stdin: JSON.stringify(base),
+      env: {},
+      cwd: "/",
+    });
+    expect(beat?.events.map((e) => e.type)).toEqual(["session.heartbeat"]);
+    expect(beat?.stdout).toBe("{}\n");
+    const named = antigravity.fromHook({
+      argv: ["antigravity", "PostToolUse"],
+      stdin: JSON.stringify({ ...base, toolCall: { name: "view_file" }, error: "nope" }),
+      env: {},
+      cwd: "/",
+    });
+    expect(named?.events[0]).toMatchObject({ type: "tool.ended", data: { tool: "view_file", ok: false } });
+  });
 });
 
 describe("issue #8: files that are not plain JSON, and byte-identical round trips", () => {
