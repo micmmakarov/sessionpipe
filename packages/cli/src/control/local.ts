@@ -18,7 +18,9 @@ export type LocalRequest =
   /** The worker reports a hook event: turn state and attention closure. */
   | { op: "event"; session: string; event: string; transcript?: string; cwd?: string }
   /** `sessionpipe control status`. */
-  | { op: "status" };
+  | { op: "status" }
+  /** `sessionpipe update` installed a new copy: restart onto it once nothing is in hand. */
+  | { op: "restart" };
 
 export type LocalReply =
   | { op: "message"; text: string; id: string }

@@ -11,7 +11,7 @@ import net from "node:net";
 import path from "node:path";
 import { claudeControl, redactSecrets } from "@sessionpipe/core";
 import { type ControlCommand, parseSessionRef, verifyCommand } from "@sessionpipe/core/control";
-import type { LocalReply, LocalRequest } from "./local.js";
+import { ask, type LocalReply, type LocalRequest } from "./local.js";
 import { awaitAnswer, transcriptEnd } from "./reply.js";
 import { type DeliveryMode, frame, frameStart, IN_PLACE_ANSWER, kindPath, routePrompt } from "./route.js";
 import {
@@ -120,6 +120,22 @@ export interface DaemonDeps {
    *  locked when the daemon started and has unlocked since. */
   token?: (r: PairedReceiver) => string | null;
   platform?: NodeJS.Platform;
+  /** `sessionpipe update` installed a new copy: restart onto it once idle. True when
+   *  accepted (autoupdate.ts). */
+  onRestart?: () => boolean;
+  /** The updater's view, for `control status`. */
+  updateStatus?: () => unknown;
+  /** Another daemon took the socket path: this one has stopped and should exit. */
+  onLostSocket?: () => void;
+}
+
+/** Another daemon already answers on the socket: this one must not start. */
+export class DaemonRunning extends Error {
+  constructor(readonly other: { pid?: number; version?: string }) {
+    super(
+      `another control daemon already serves this machine (${other.pid ? `pid ${other.pid}, ` : ""}sessionpipe ${other.version ?? "?"})`,
+    );
+  }
 }
 
 interface TurnPending {
@@ -144,6 +160,7 @@ interface Live {
 
 export interface Status {
   version: string;
+  pid: number;
   name: string;
   receivers: {
     url: string;
@@ -160,6 +177,9 @@ export interface Status {
   nonces: number;
   acks_pending: number;
   delivered: Record<string, number>;
+  /** Null when the daemon could restart now (nothing in hand); otherwise what it holds. */
+  busy: string | null;
+  update?: unknown;
 }
 
 /** The machine's own caps (CONTROL.md §6 `start`): every command is the owner's,
@@ -208,6 +228,17 @@ export class ControlDaemon {
   private readonly procWaiters: (() => void)[] = [];
   /** configDir → the last login answer and when (a yes is kept 10 minutes, a no 30 s). */
   private readonly logins = new Map<string, { at: number; login: Login }>();
+  /** Intake paused for an update: the long-polls end and wait for this. */
+  private paused: { until: Promise<void>; go: () => void } | null = null;
+  /** Poll answers whose messages are being read and handed out. */
+  private receiving = 0;
+  /** The socket file this daemon created (dev:ino): stop() removes only that one, and a
+   *  different file at the path means another daemon took over. */
+  private sockId: string | null = null;
+  private ownTimer: NodeJS.Timeout | null = null;
+  /** Every open local connection: stop() ends them, or the server's close would wait
+   *  on a client that never says anything. */
+  private readonly conns = new Set<net.Socket>();
 
   constructor(
     private cfg: ControlConfig,
@@ -233,24 +264,104 @@ export class ControlDaemon {
     void this.flushAcks();
     const idle = setInterval(() => this.closeIdleSdk(), 60_000);
     idle.unref();
-    this.deps.log(`control daemon ${VERSION} up · ${this.cfg.receivers.length} receiver(s) · socket ${this.sock}`);
+    if (this.sockId) {
+      this.ownTimer = setInterval(() => void this.checkSocket(), 10_000);
+      this.ownTimer.unref();
+    }
+    this.deps.log(
+      `control daemon ${VERSION} up · pid ${process.pid} · ${this.cfg.receivers.length} receiver(s) · socket ${this.sock}`,
+    );
   }
 
-  async stop(): Promise<void> {
+  /** `leaveSocket`: the socket path is another daemon's now. Closing a Unix-socket
+   *  server makes Node unlink its path whoever holds it, so this one's server is left
+   *  open for the process's exit to drop. */
+  async stop(o: { leaveSocket?: boolean } = {}): Promise<void> {
     this.running = false;
+    this.paused?.go();
     for (const a of this.aborts) a.abort();
     if (this.helloTimer) clearInterval(this.helloTimer);
     if (this.helloSoon) clearTimeout(this.helloSoon);
+    if (this.ownTimer) clearInterval(this.ownTimer);
     for (const s of this.sdkSessions.values()) s.close();
     for (const l of this.live.values()) {
       l.waiter?.destroy();
       for (const a of l.attentions.values()) a.destroy();
     }
+    for (const c of this.conns) c.destroy();
+    if (o.leaveSocket) {
+      this.sockId = null;
+      return;
+    }
     await new Promise<void>((r) => (this.server ? this.server.close(() => r()) : r()));
-    if (process.platform !== "win32")
+    this.server = null;
+    // Only the socket file this daemon made: after a hand-over the path is someone else's.
+    if (process.platform !== "win32" && this.sockId && socketId(this.sock) === this.sockId)
       try {
         unlinkSync(this.sock);
       } catch {}
+    this.sockId = null;
+  }
+
+  /** Null when nothing is in hand, so a restart would interrupt nothing; otherwise what
+   *  is. Parked waiters don't count: a waiter reconnects in silence (CONTROL.md §8). A
+   *  session someone is working in mid-turn does (a restart forgets it is mid-turn, so a
+   *  message to it would fork rather than wait for its Stop), unless it has been silent
+   *  for ten minutes: a session killed mid-turn never sends its Stop. */
+  busy(): string | null {
+    if (this.inflight.size) return `${this.inflight.size} message(s) in hand`;
+    if (this.procs || this.ownRuns.size) return "a headless Claude Code run";
+    if (this.startsRunning) return "a session starting";
+    for (const s of this.sdkSessions.values()) if (s.busy) return "an Agent SDK session mid-turn";
+    for (const l of this.live.values()) if (l.attentions.size) return "a permission prompt waiting for an answer";
+    const now = this.deps.now();
+    for (const l of this.live.values())
+      if (l.midTurn && now - l.lastEvent < 10 * 60_000) return "a session on this machine mid-turn";
+    if (this.receiving) return "messages just received";
+    if (this.flushing) return "acks being sent";
+    return null;
+  }
+
+  /** Stop taking messages: every long-poll ends now and waits for resumeIntake(). The
+   *  receiver keeps what arrives meanwhile; the local socket keeps answering. */
+  pauseIntake(): void {
+    if (this.paused) return;
+    let go!: () => void;
+    const until = new Promise<void>((r) => {
+      go = r;
+    });
+    this.paused = { until, go };
+    for (const a of this.aborts) a.abort();
+  }
+
+  resumeIntake(): void {
+    const p = this.paused;
+    this.paused = null;
+    p?.go();
+  }
+
+  /** The socket path still holds this daemon's file. Gone: listen again. Replaced:
+   *  another daemon took over (two started at once), so this one steps aside. */
+  private async checkSocket(): Promise<void> {
+    if (!this.running || !this.sockId) return;
+    const now = socketId(this.sock);
+    if (now === this.sockId) return;
+    if (now === null) {
+      // Someone deleted the file. The old server keeps the connections it has (closing
+      // it would wait on parked waiters, and unlink the path again); a new one takes it.
+      this.deps.log(`the socket ${this.sock} vanished; listening again`);
+      this.server?.unref();
+      this.server = null;
+      try {
+        await this.listen();
+      } catch (e) {
+        this.deps.log(`couldn't listen again: ${String((e as Error)?.message || e)}`);
+      }
+      return;
+    }
+    this.deps.log("another control daemon took over the socket; this one stops");
+    await this.stop({ leaveSocket: true });
+    this.deps.onLostSocket?.();
   }
 
   reload(cfg: ControlConfig): void {
@@ -262,6 +373,7 @@ export class ControlDaemon {
   status(): Status {
     return {
       version: VERSION,
+      pid: process.pid,
       name: this.cfg.name,
       receivers: this.cfg.receivers.map((r) => {
         const p = this.polling.get(r.control + r.machine);
@@ -281,27 +393,36 @@ export class ControlDaemon {
       nonces: this.nonces.size,
       acks_pending: this.acks.all().length,
       delivered: { ...this.delivered },
+      busy: this.busy(),
+      ...(this.deps.updateStatus ? { update: this.deps.updateStatus() } : {}),
     };
   }
 
   // --- the local socket -----------------------------------------------------------
 
-  private listen(): Promise<void> {
+  /** One daemon per machine: a daemon that answers on the socket keeps it, and this
+   *  one doesn't start. A socket file nobody answers on is a dead daemon's; it goes. */
+  private async listen(): Promise<void> {
+    const other = await ask(this.sock, { op: "status" }, 1500);
+    if (other?.op === "status") throw new DaemonRunning((other.status ?? {}) as { pid?: number; version?: string });
     if (process.platform !== "win32") {
       try {
         if (existsSync(this.sock)) unlinkSync(this.sock);
       } catch {}
     }
     this.server = net.createServer((s) => this.onConn(s));
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.server!.once("error", reject);
       this.server!.listen(this.sock, () => resolve());
     });
+    if (process.platform !== "win32") this.sockId = socketId(this.sock);
   }
 
   private onConn(s: net.Socket): void {
     let buf = "";
     let handled = false;
+    this.conns.add(s);
+    s.on("close", () => this.conns.delete(s));
     s.on("error", () => {});
     s.on("data", (d) => {
       if (handled) return;
@@ -392,6 +513,11 @@ export class ControlDaemon {
         this.onEvent(req);
         this.reply(s, { op: "ok" });
         return;
+      case "restart":
+        this.reply(s, this.deps.onRestart?.() ? { op: "ok" } : { op: "none" });
+        return;
+      default:
+        s.destroy();
     }
   }
 
@@ -450,6 +576,10 @@ export class ControlDaemon {
       // The current record every round: `control pair` may have added a key since.
       const r = this.cfg.receivers.find((x) => x.control + x.machine === key);
       if (!this.running || !r) break;
+      if (this.paused) {
+        await this.paused.until;
+        continue;
+      }
       if (!r.token) {
         // Its token lives in a keychain this process can't read yet (locked, or nobody
         // logged in): ask again every 30 s rather than poll with no bearer.
@@ -489,18 +619,23 @@ export class ControlDaemon {
           break;
         }
         if (res.status === 200) {
-          const body = (await res.json()) as { messages?: Carried[] };
-          // Looked up again: a key may have been added while this poll was parked.
-          const cur = this.cfg.receivers.find((x) => x.control + x.machine === key) ?? r;
           let fresh = 0;
-          // Not awaited: a headless turn can run for half an hour, and the next
-          // message (for another session, or a permission answer) must not wait
-          // behind it. handle() orders what must be ordered (one session's prompts).
-          for (const m of body.messages ?? []) {
-            if (m && !this.inflight.has(m.id)) fresh++;
-            void this.handle(cur, m).catch((e) =>
-              this.deps.log(`handle ${String(m?.id).slice(-8)}: ${String((e as Error)?.message || e)}`),
-            );
+          this.receiving++;
+          try {
+            const body = (await res.json()) as { messages?: Carried[] };
+            // Looked up again: a key may have been added while this poll was parked.
+            const cur = this.cfg.receivers.find((x) => x.control + x.machine === key) ?? r;
+            // Not awaited: a headless turn can run for half an hour, and the next
+            // message (for another session, or a permission answer) must not wait
+            // behind it. handle() orders what must be ordered (one session's prompts).
+            for (const m of body.messages ?? []) {
+              if (m && !this.inflight.has(m.id)) fresh++;
+              void this.handle(cur, m).catch((e) =>
+                this.deps.log(`handle ${String(m?.id).slice(-8)}: ${String((e as Error)?.message || e)}`),
+              );
+            }
+          } finally {
+            this.receiving--;
           }
           // Only messages already in hand (a receiver that ignores `taken`): don't
           // turn the long-poll into a spin.
@@ -517,6 +652,8 @@ export class ControlDaemon {
         }
       } catch (e) {
         if (!this.running) break;
+        // Paused for an update: the abort was ours, not the network's.
+        if (this.paused) continue;
         st.error = String((e as Error)?.message || e).slice(0, 120);
         downSince ||= this.deps.now();
         await sleep(pause(backoff++));
@@ -1217,3 +1354,13 @@ export class ControlDaemon {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms).unref?.());
+
+/** dev:ino of the file at `p`, or null when there is none. */
+function socketId(p: string): string | null {
+  try {
+    const st = statSync(p);
+    return `${st.dev}:${st.ino}`;
+  } catch {
+    return null;
+  }
+}
