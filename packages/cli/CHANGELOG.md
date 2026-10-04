@@ -1,5 +1,17 @@
 # sessionpipe
 
+## 0.6.0
+
+### Minor Changes
+
+- f62bad9: The control daemon updates itself. About a minute after it starts and then once a day (the last check is kept in `state/control/update.json`, so restarts and sleeping machines don't ask more often), it reads npm's `latest`; when that is newer it waits until nothing is in hand (no delivery, headless run, start, SDK turn, open permission prompt, session mid-turn or ack flush), pauses intake, installs with `npm install --global --ignore-scripts` into the prefix it runs from, re-arms the hooks of the harnesses already set up, and restarts onto the new code: exit 75 under launchd or systemd (every service file ever written restarts on a non-zero exit; new ones also carry `SESSIONPIPE_SERVICE` and `RestartForceExitStatus=75`), and otherwise the old process stays as the new daemon's parent. Off with `sessionpipe update off` (`update_check: false`, now actually read), `SESSIONPIPE_NO_UPDATE_CHECK`, or when the copy isn't a writable global npm install. `status` and `doctor` show whether it's on, the last check and the latest version.
+  
+  One daemon per machine: `control run` no longer takes the socket from a daemon that answers on it (it says so and exits 0), steps aside if another daemon replaces its socket file, and never deletes another daemon's socket. `sessionpipe update` installs through the same path (npm run by the daemon's own node, the copy on disk checked, only the configured harnesses re-armed) and asks a running daemon to restart onto it once idle.
+
+### Patch Changes
+
+- e474c81: A started session's first message puts the person's words first and the "sent via" line after, so Claude Code names the session from what they asked instead of "Message via spacesheep.dev (sessionpipe control, s…".
+
 ## 0.5.0
 
 ### Minor Changes
