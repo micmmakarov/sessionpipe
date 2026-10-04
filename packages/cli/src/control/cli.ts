@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // `sessionpipe control pair | keys | off | run | status` and `sessionpipe wait`.
-import { existsSync, realpathSync, watchFile } from "node:fs";
+import { existsSync, realpathSync, unwatchFile, watchFile } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { claudeControl, claudeDirs, Outbox, readConfig, stateDir, type Tier, writeConfig } from "@sessionpipe/core";
@@ -8,10 +8,12 @@ import { claudeControl, claudeDirs, Outbox, readConfig, stateDir, type Tier, wri
 const { claudeLogin, detectCaps, findClaude, runClaude } = claudeControl;
 
 import { isBroad } from "../connect.js";
-import { flush } from "../run.js";
+import { flush, VERSION } from "../run.js";
 import { rerunGlobally, stableNode, viaNpx } from "../runtime.js";
 import { controlAccount, secretGet, sinkWithSecrets } from "../secrets.js";
-import { ControlDaemon } from "./daemon.js";
+import { installedVersion, installVersion, latestVersion } from "../update.js";
+import { AutoUpdater, autoUpdateOff, restartVia, supervise, UPDATE_EXIT, updateFile } from "./autoupdate.js";
+import { ControlDaemon, DaemonRunning } from "./daemon.js";
 import { ask, socketPath } from "./local.js";
 import { installService, off, pair, removeKey, uninstallService } from "./pair.js";
 import { loadSdk } from "./sdk.js";
@@ -171,13 +173,21 @@ export async function controlMain(argv: string[], out: (s?: string) => void, dis
       return out(JSON.stringify(r.status, null, 2));
     }
     case "run":
-      return runDaemon(out);
+      return runDaemon(out, distDir);
     default:
       return out(CONTROL_HELP);
   }
 }
 
-async function runDaemon(out: (s?: string) => void): Promise<void> {
+/** The harnesses set up on this machine, whose hooks an update re-arms. */
+export function enabledHarnesses(harnesses: Record<string, { enabled?: boolean }>): string[] {
+  return Object.entries(harnesses)
+    .filter(([, h]) => h?.enabled !== false)
+    .map(([n]) => n)
+    .filter((n) => /^[a-z][a-z0-9-]{0,40}$/.test(n));
+}
+
+async function runDaemon(out: (s?: string) => void, distDir: string): Promise<void> {
   const cfg = readControl();
   if (!cfg?.receivers.length) {
     out("control isn't paired on this machine; nothing to do (`sessionpipe control pair <receiver>`)");
@@ -193,6 +203,7 @@ async function runDaemon(out: (s?: string) => void): Promise<void> {
     return claude;
   };
   const sdk = await loadSdk({ claudeBin: findClaude(), env: process.env, log });
+  let updater: AutoUpdater | null = null;
   const d = new ControlDaemon(cfg, controlState(), socketPath(stateDir()), {
     now: Date.now,
     fetch,
@@ -206,8 +217,19 @@ async function runDaemon(out: (s?: string) => void): Promise<void> {
       return c ? claudeLogin(c.bin, configDir) : { loggedIn: null };
     },
     token: (r) => (r.token_in ? secretGet(r.token_in, controlAccount(r.machine)) : null),
+    onRestart: () => updater?.restartWhenIdle() ?? false,
+    updateStatus: () => (updater ? updater.record() : null),
+    // Two daemons started at once and the other one holds the socket: leave it to it.
+    onLostSocket: () => process.exit(0),
   });
-  await d.start();
+  try {
+    await d.start();
+  } catch (e) {
+    if (!(e instanceof DaemonRunning)) throw e;
+    // Exit 0: no service manager restarts a daemon that stepped aside on purpose.
+    log(`${e.message}; this one exits`);
+    process.exit(0);
+  }
   // A sink whose token lives in a keychain can't send from a hook's worker that runs
   // where the keychain is locked (a session started over ssh). This daemon runs in the
   // person's own session, so it drains what those workers left, once a minute.
@@ -220,12 +242,54 @@ async function runDaemon(out: (s?: string) => void): Promise<void> {
     const next = readControl();
     if (next) d.reload(next);
   });
+  let stopping = false;
   const bye = async () => {
+    if (stopping) return;
+    stopping = true;
+    updater?.stop();
     await d.stop();
     process.exit(0);
   };
-  process.on("SIGTERM", bye);
-  process.on("SIGINT", bye);
+  const signals = ["SIGTERM", "SIGINT"] as const;
+  for (const sig of signals) process.on(sig, bye);
+
+  // Restart onto the code now on disk. The daemon is stopped first (its socket closed,
+  // its long-polls ended), so two never poll at once.
+  const restart = async (_from: string, to: string): Promise<void> => {
+    stopping = true;
+    updater?.stop();
+    clearInterval(drain);
+    unwatchFile(controlFile());
+    for (const sig of signals) process.off(sig, bye);
+    await d.stop();
+    const via = restartVia({ env: process.env, platform: process.platform, pid: process.pid, ppid: process.ppid });
+    if (via) {
+      log(`exiting ${UPDATE_EXIT} so ${via === "supervisor" ? "the supervising sessionpipe" : via} starts ${to}`);
+      process.exit(UPDATE_EXIT);
+    }
+    // Nobody restarts this process: it stays, as the new daemon's parent.
+    let cli = path.join(distDir, "cli.js");
+    try {
+      cli = realpathSync(cli);
+    } catch {}
+    log(`no service manager restarts this daemon: pid ${process.pid} now runs ${to} as its child`);
+    const sup = supervise({ node: process.execPath, args: [cli, "control", "run"], env: process.env, log });
+    for (const sig of [...signals, "SIGHUP"] as const) process.on(sig, () => sup.stop(sig));
+  };
+  updater = new AutoUpdater({
+    now: Date.now,
+    log,
+    version: VERSION,
+    file: updateFile(),
+    off: () => autoUpdateOff({ env: process.env, config: readConfig(), distDir }),
+    latest: () => latestVersion(fetch),
+    installed: () => installedVersion({ node: process.execPath, distDir }),
+    install: (v) =>
+      installVersion(v, { node: process.execPath, distDir, harnesses: enabledHarnesses(readConfig().harnesses) }),
+    daemon: d,
+    restart,
+  });
+  updater.start();
 }
 
 export async function waitMain(argv: string[], out: (s?: string) => void): Promise<void> {

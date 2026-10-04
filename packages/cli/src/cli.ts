@@ -3,7 +3,7 @@
 // sessionpipe: install once, hook everything, choose per sink what leaves.
 //   connect · install · uninstall · sink add|list|remove|test · secrets · status ·
 //   doctor · tail · backfill · forget · replay · update · hook · worker
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,12 +31,15 @@ import {
   writeConfig,
 } from "@sessionpipe/core";
 import { connectFolders, connectTier } from "./connect.js";
-import { CONTROL_HELP, controlMain, waitMain } from "./control/cli.js";
-import { moveControlSecrets, readControl } from "./control/store.js";
+import { autoUpdateOff, readUpdate, updateFile, updateLine, updateSummary } from "./control/autoupdate.js";
+import { CONTROL_HELP, controlMain, enabledHarnesses, waitMain } from "./control/cli.js";
+import { ask, socketPath } from "./control/local.js";
+import { moveControlSecrets, pairedCount, readControl } from "./control/store.js";
 import { installLauncher, launcherPath, launcherState, removeLauncher, usesLauncher } from "./launcher.js";
 import { buildSinks, factsState, flush, jobsDir, runJob, VERSION } from "./run.js";
 import { rerunGlobally, stableNode, viaNpx } from "./runtime.js";
 import { bestStore, dropSinkSecrets, moveSinkSecrets, type StoreName, sinkWithSecrets, storeLabel } from "./secrets.js";
+import { globalPrefix, installVersion, isNewer, latestVersion } from "./update.js";
 
 process.stdout.on("error", (e: NodeJS.ErrnoException) => {
   if (e.code === "EPIPE") process.exit(0);
@@ -137,7 +140,7 @@ function help(): void {
   sessionpipe status | doctor [--json]
   sessionpipe tail [--session ID] [--tier N] [--harness NAME]
   sessionpipe backfill [--days 30] | forget <harness> <session> | replay --sink NAME
-  sessionpipe update
+  sessionpipe update [off|on]       (install the latest now; off/on: the daemon's daily update)
 ${CONTROL_HELP}
 
 Docs: https://sessionpipe.org · nothing leaves this machine until you add a sink.`);
@@ -635,6 +638,7 @@ function status(): void {
       `  sink      ${s.name.padEnd(16)} tier ${Math.min(s.tier, s.max_tier ?? 3)}  ${s.paused ? `PAUSED ${s.paused}` : pending ? `${pending} session file(s) with undelivered events` : "up to date"}`,
     );
   }
+  out(`  update:   ${updateLine(updateState(cfg), Date.now())}`);
   const t = timing();
   if (t)
     out(
@@ -711,9 +715,15 @@ async function doctor(): Promise<void> {
     sinks: [],
     timing: timing(),
     hook_wall_ms: hookWall(),
+    update: updateState(cfg),
     warnings: [] as string[],
   };
   const warnings = report.warnings as string[];
+  const upd = report.update as ReturnType<typeof updateState>;
+  if (upd.failed)
+    warnings.push(
+      `the control daemon couldn't install sessionpipe ${upd.failed.version}: ${upd.failed.error}. It tries again tomorrow; \`sessionpipe update\` tries now.`,
+    );
   if (usesLauncher()) {
     const l = launcherState(VERSION);
     report.launcher = { file: tilde(l.file), node: l.node, node_ok: l.nodeOk, version: l.version };
@@ -825,6 +835,7 @@ async function doctor(): Promise<void> {
     out(
       `  claude ${a.dir.padEnd(26)} ${a.signed_in === true ? "signed in" : a.signed_in === false ? "NOT signed in from here" : "can't tell"}`,
     );
+  out(`  update ${updateLine(upd, Date.now())}`);
   const t = report.timing as { p50: number; p95: number; n: number } | null;
   out(
     w
@@ -918,33 +929,74 @@ async function workerFromArgv(): Promise<void> {
   await runJob(job);
 }
 
-async function update(): Promise<void> {
-  if (process.env.SESSIONPIPE_NO_UPDATE_CHECK) return out("  update check is off (SESSIONPIPE_NO_UPDATE_CHECK)");
-  try {
-    const r = await fetch("https://registry.npmjs.org/sessionpipe/latest", { signal: AbortSignal.timeout(8000) });
-    const j = (await r.json()) as { version?: string };
-    if (!j.version) throw new Error("no version");
-    if (j.version === VERSION) return out(`  sessionpipe ${VERSION} is current`);
-    out(`  ${j.version} is available (you run ${VERSION}); installing into this copy's prefix…`);
-    const prefix = prefixOf(distDir);
-    execFileSync("npm", ["install", "-g", `sessionpipe@${j.version}`, ...(prefix ? ["--prefix", prefix] : [])], {
-      stdio: "inherit",
-    });
-    out("  re-arming hooks…");
-    const bin = prefix ? path.join(prefix, "bin", "sessionpipe") : "sessionpipe";
-    const p = spawn(bin, ["install", "--backfill", "0"], { stdio: "inherit" });
-    await new Promise((r) => p.on("exit", r));
-  } catch (e) {
-    out(`  couldn't check npm: ${(e as Error).message}`);
-  }
+/** Whether the daemon updates this copy by itself, and what it last found. */
+function updateState(cfg: Config) {
+  return updateSummary({
+    // The shell's own SESSIONPIPE_NO_UPDATE_CHECK says nothing about the daemon's
+    // environment; the daemon records that one itself.
+    off: autoUpdateOff({ env: {}, config: cfg, distDir }),
+    paired: pairedCount() > 0,
+    rec: readUpdate(updateFile()),
+  });
 }
-function prefixOf(p: string): string | null {
-  const re =
-    process.platform === "win32"
-      ? /^(.*?)[\\/]node_modules[\\/]sessionpipe[\\/]/
-      : /^(.*)\/lib\/node_modules\/sessionpipe\//;
-  const m = re.exec(p);
-  return m?.[1] ?? null;
+
+/** `sessionpipe update [off|on]`: install the latest release into this copy's prefix
+ *  now, then have the daemon restart onto it once idle; or switch the daemon's daily
+ *  update off or on (config.json `update_check`; the daemon reads it every ten minutes). */
+async function update(): Promise<void> {
+  const sub = args[1];
+  if (sub === "off" || sub === "on") {
+    const cfg = readConfig();
+    cfg.update_check = sub === "on";
+    writeConfig(cfg);
+    return out(
+      sub === "off"
+        ? "  ✓ The control daemon no longer checks npm or updates itself. `sessionpipe update` still updates by hand; `sessionpipe update on` undoes this."
+        : "  ✓ The control daemon checks npm once a day and installs a new release when it's idle.",
+    );
+  }
+  if (process.env.SESSIONPIPE_NO_UPDATE_CHECK) return out("  update check is off (SESSIONPIPE_NO_UPDATE_CHECK)");
+  let latest: string;
+  try {
+    latest = await latestVersion();
+  } catch (e) {
+    return out(`  couldn't check npm: ${(e as Error).message}`);
+  }
+  if (!isNewer(latest, VERSION)) return out(`  sessionpipe ${VERSION} is current (npm latest: ${latest})`);
+  const prefix = globalPrefix(distDir);
+  if (!prefix)
+    return out(
+      `  ${latest} is available (you run ${VERSION}), but this copy isn't a global npm install (npx, a checkout or a dev build): \`npm install -g sessionpipe@${latest}\` installs one.`,
+    );
+  out(`  ${latest} is available (you run ${VERSION}); installing into ${tilde(prefix)}…`);
+  const r = await installVersion(latest, {
+    node: process.execPath,
+    distDir,
+    harnesses: enabledHarnesses(readConfig().harnesses),
+  });
+  if (!r.ok) {
+    process.exitCode = 1;
+    return out(`  ✗ ${r.error}`);
+  }
+  out(`  ✓ sessionpipe ${latest} installed in ${(r.ms / 1000).toFixed(1)} s; ${r.hooks}`);
+  // The daemon still runs the old code: it restarts onto this copy when nothing is in hand.
+  const sock = socketPath(state);
+  const st = await ask(sock, { op: "status" }, 2000);
+  if (st?.op !== "status") return;
+  const running = (st.status as { version?: string }).version ?? "?";
+  if (running === latest) return;
+  const r2 = await ask(sock, { op: "restart" }, 2000);
+  if (r2?.op === "ok") out(`  The control daemon (${running}) restarts onto ${latest} as soon as nothing is in hand.`);
+  else
+    out(
+      `  The control daemon still runs ${running} and can't restart itself: ${
+        process.platform === "darwin"
+          ? `\`launchctl kickstart -k gui/${process.getuid?.() ?? "$(id -u)"}/org.sessionpipe.control\``
+          : process.platform === "linux"
+            ? "`systemctl --user restart sessionpipe-control.service`"
+            : "stop `sessionpipe control run` and start it again"
+      } moves it (a run in progress stops).`,
+    );
 }
 
 main().catch((e) => {

@@ -68,6 +68,50 @@ comes first wins. Nothing is ever auto-allowed. Safe mode (the default) runs hea
 turns with `--permission-mode dontAsk`, so nothing that needs approval runs while
 you're away.
 
+## Updates
+
+The control daemon keeps its own copy current. About a minute after it starts, and then
+once a day (the last check is kept in `~/.local/state/sessionpipe/control/update.json`,
+so a restart or a machine that sleeps doesn't ask more often), it reads
+`https://registry.npmjs.org/sessionpipe/latest`. When that is a newer release it waits
+until nothing is in hand — no message being delivered, no headless run or new session,
+no Agent SDK turn, no permission prompt waiting for your answer, no session of yours
+mid-turn — stops taking new
+messages (the receiver holds them meanwhile), runs
+`npm install --global --ignore-scripts sessionpipe@<version>` into the prefix it was
+installed in, re-copies the hook launcher's files, and restarts onto the new code. A
+running turn is never interrupted.
+
+How it restarts depends on how it runs:
+
+- **launchd (macOS) or systemd (Linux)**, as `control pair` / `connect` set it up: the
+  daemon exits with code 75 and the service starts it again. Every service file
+  sessionpipe has written restarts on a non-zero exit, so older installs need nothing.
+- **Anything else** (a terminal, tmux, a container that starts `sessionpipe control run`
+  itself): the old process stays as the new daemon's parent, with the same environment
+  and output, and restarts it the same way after each later update. Whatever waits on
+  the daemon (a shell, a container's init) keeps waiting.
+
+One daemon runs per machine: a second `sessionpipe control run` finds the first one
+answering on the local socket, says so, and exits 0.
+
+Only a global npm install that this user can write updates itself; a copy in the npx
+cache, a git checkout or a dev build is left alone. `sessionpipe status` and
+`sessionpipe doctor` say whether it's on, when it last checked and what it found; the
+daemon's log (`~/.local/state/sessionpipe/control/daemon.log` under launchd,
+`journalctl --user -u sessionpipe-control.service` under systemd) has one line per check
+and per update.
+
+```sh
+sessionpipe update off      # the daemon stops checking ("update_check": false in config.json)
+sessionpipe update on
+sessionpipe update          # install the latest now; the daemon restarts onto it once idle
+```
+
+`SESSIONPIPE_NO_UPDATE_CHECK=1` turns it off too, but only where the daemon can see it:
+a launchd or systemd service doesn't inherit your shell's variables, while
+`sessionpipe update off` reaches it (it re-reads the config every ten minutes).
+
 Docs and the protocol: [sessionpipe.org](https://sessionpipe.org) · Source:
 [github.com/micmmakarov/sessionpipe](https://github.com/micmmakarov/sessionpipe) · Apache-2.0.
 Provided as-is; check what a sink receives with `sessionpipe tail` before you point it anywhere.

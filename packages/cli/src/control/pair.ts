@@ -207,6 +207,9 @@ export function removeKey(id: string, env?: NodeJS.ProcessEnv): number {
 const LABEL = "org.sessionpipe.control";
 const UNIT = "sessionpipe-control.service";
 
+/** Both files restart the daemon when it exits non-zero; an update exits UPDATE_EXIT
+ *  (75, autoupdate.ts) to come back on the new code. SESSIONPIPE_SERVICE tells the
+ *  daemon which manager that is (files from before it are recognized without it). */
 export function serviceFiles(o: { node: string; cli: string; logDir: string; home?: string }) {
   const home = o.home ?? os.homedir();
   const xml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -217,6 +220,7 @@ export function serviceFiles(o: { node: string; cli: string; logDir: string; hom
   <key>Label</key><string>${LABEL}</string>
   <key>ProgramArguments</key>
   <array><string>${xml(o.node)}</string><string>${xml(o.cli)}</string><string>control</string><string>run</string></array>
+  <key>EnvironmentVariables</key><dict><key>SESSIONPIPE_SERVICE</key><string>launchd</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ProcessType</key><string>Background</string>
@@ -232,7 +236,9 @@ After=network-online.target
 
 [Service]
 ExecStart=${q(o.node)} ${q(o.cli)} control run
+Environment=SESSIONPIPE_SERVICE=systemd
 Restart=on-failure
+RestartForceExitStatus=75
 RestartSec=5
 
 [Install]

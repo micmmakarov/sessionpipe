@@ -31,6 +31,9 @@ setup: the hooks for every agent and every Claude Code account here, a sink at t
 signed messages from your devices, the keys in your keychain when this session has one
 unlocked, a background daemon that keeps running after you log out, and the last 30
 days backfilled. It asks nothing else; run it again and it only fixes what's missing.
+The daemon then keeps sessionpipe up to date by itself, installing a new release once a
+day at most and only when it's idle (`sessionpipe update off` stops that; see
+[the CLI's README](packages/cli/README.md#updates)).
 
 Or only the hooks, with nothing sent anywhere:
 
