@@ -25,6 +25,29 @@ No telemetry. Secrets never leave (`secrets@1` runs above tier 0, always). Your
 server or none. Pre-release: the reference receiver is still being built; see the
 [roadmap](https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md).
 
+## Antigravity: repair blocked tool calls
+
+Older installs registered `PreToolUse` and answered `{}`, which can deny every tool
+call. sessionpipe no longer registers this event: it requires a permission decision,
+and a passive observer must not auto-approve tools or prompt for every call.
+
+With the fixed version, `sessionpipe install --antigravity --backfill 0` removes the
+old entry automatically. `sessionpipe update` also re-runs the installer for already
+configured harnesses after installing the new release. No manual JSON edit is needed.
+Restart Antigravity afterward to reload hooks in already-open conversations; new
+conversations read the repaired file. Re-installing an older release can restore the
+bad entry.
+
+Antigravity no longer reports `tool.started`. Its documented `PostToolUse` payload
+has `stepIdx` and `error`, without a tool name; without a verified transcript step
+mapping this becomes a heartbeat. Payloads that do supply a name still produce
+`tool.ended`. Turn events and transcript capture continue as before.
+
+`sessionpipe doctor` checks the past 24 hours for `PreToolUse` records at least a
+minute old with zero `PostToolUse`, and warns about likely blocked tools with repair
+instructions. This historical warning may persist briefly after a repair, until a
+completion is recorded or the old records age out.
+
 ## Control: messages to your sessions (M6, Claude Code first)
 
 A receiver that lists `control` can carry a message from your phone to a session on

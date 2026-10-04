@@ -39,7 +39,7 @@ presents that as its own reading.
 - **Config written by `sessionpipe install`** is one entry per event, running
   `"<absolute node>" "<absolute dist/hook.js>" <harness> <event>` with quoted absolute
   paths. Never `#!/usr/bin/env node`, never an npx path.
-- **stdout**: nothing, except where the harness parses it (Antigravity: `{}`).
+- **stdout**: nothing, except where the harness parses it (Antigravity observer events: `{}`; never register `PreToolUse`).
 - **`session.seq`** is assigned by the sender's outbox, not by the adapter; adapter
   fixtures wildcard it.
 - **Facts** (title, url, model, account_id, repo, branch) are read by the worker from
@@ -112,15 +112,36 @@ machine.)*
 
 | | |
 |---|---|
-| Config | `~/.gemini/config/hooks.json`: top-level keys are hook **names**; ours is `sessionpipe` = `{"enabled":true,"PreInvocation":[handler],"PostInvocation":[handler],"PreToolUse":[{"matcher":"*","hooks":[handler]}],"PostToolUse":[…],"Stop":[handler]}`. Timeouts in **seconds**. The file is read when a conversation starts. |
-| Mapping | `PreInvocation` with `invocationNum` 0 → `session.started` (`source: unknown`) **and** `turn.started`; later `PreInvocation`s → nothing at tier ≥ 1 (a heartbeat below) · `PreToolUse`/`PostToolUse` → `tool.*` (`toolCall.name`, `error`) · `Stop` → `turn.ended` (`terminationReason`; `error` → `error`). No session end exists. |
-| Ids in stdin (camelCase, **no event name** — it rides in argv) | `conversationId`, `workspacePaths[]` (paths or `file://` URIs), `transcriptPath`, `artifactDirectoryPath`, `modelName` (`auto` means unknown), `invocationNum`, `initialNumSteps`, `toolCall.{name,args}`, `stepIdx`, `executionNum`, `terminationReason`, `fullyIdle`. |
-| stdout | **`{}` always**; non-JSON is a deny. |
+| Config | `~/.gemini/config/hooks.json`: top-level keys are hook **names**; ours is `sessionpipe` = `{"enabled":true,"PreInvocation":[handler],"PostInvocation":[handler],"PostToolUse":[{"matcher":"*","hooks":[handler]}],"Stop":[handler]}`. Timeouts in **seconds**. The file is read when a conversation starts. |
+| Mapping | `PreInvocation` with `invocationNum` 0 → `session.started` (`source: unknown`) **and** `turn.started`; later `PreInvocation`s → `session.heartbeat` · `PostToolUse` → `tool.ended` only if a valid `toolCall.name` or `toolName` is supplied, otherwise `session.heartbeat` · `Stop` → `turn.ended` (`terminationReason`; `error` → `error`). No session end exists. |
+| Ids in stdin (camelCase, **no event name** — it rides in argv) | `conversationId`, `workspacePaths[]` (paths or `file://` URIs), `transcriptPath`, `artifactDirectoryPath`, `modelName` (`auto` means unknown), `invocationNum`, `initialNumSteps`, `stepIdx`, `executionNum`, `terminationReason`, `fullyIdle`. |
+| stdout | `{}` for the four registered observer events. **Do not register `PreToolUse`**: its required `decision` field makes `{}` invalid, while `allow` overrides the person's review settings. A stale `PreToolUse` invocation gets no answer, which is not a substitute for removing the registration and reloading the harness. |
 | Transcript (tier 2) | `<data dir>/brain/<conversationId>/.system_generated/logs/transcript.jsonl` — data dirs `~/.gemini/antigravity`, `antigravity-cli`, `antigravity-ide`; records `type: USER_INPUT \| PLANNER_RESPONSE`, `content` with `<USER_REQUEST>` wrapping. |
 | Facts | Title: first `USER_INPUT` (`first-ask`). URL: `https://antigravity.google.com/r/<installation_uuid>-v2?p=c/<id>?section=<project>` from `antigravity_state.pbtxt` and `~/.gemini/config/projects/*.json`. |
 
-Fixtures: *(recording pending: a recorder hook is installed on the recording
-machine; the next conversation fills them.)*
+`install` replaces sessionpipe's named group, so existing `PreToolUse` entries
+are removed on the next install or update with the fixed version, including full
+(tier ≥ 1) installs. Other named groups are preserved. Restart Antigravity to
+reload already-open conversations; new conversations read the repaired file.
+
+The [documented PostToolUse input](https://antigravity.google/docs/hooks#posttooluse)
+has only `stepIdx` and `error` beyond the common fields, not `toolCall`. No verified
+transcript tool-step fixture is available here to validate a `stepIdx` lookup, so
+this adapter does not guess a tool name from transcript text or line order. There
+are no live `tool.started` events; documented payloads produce heartbeats, and
+`tool.ended` remains available only when a name is actually supplied. Turn events
+and transcript capture are unchanged.
+
+`doctor` warns when `timing.jsonl` contains Antigravity `PreToolUse` records at
+least a minute old but no `PostToolUse` in the last 24 hours. This is evidence of
+likely blocking, not proof (a tool may hang). It ignores other harnesses and
+malformed lines; the historical warning can remain after repair until a completion
+arrives or those records age out.
+
+Fixtures: the reported 0.5.0 registration lives in
+`conformance/install/antigravity/pre-tool-use-0.5.0.json` and drives install/update
+migration tests. Real Antigravity hook/transcript recordings are still pending;
+contract-shaped synthetic unit tests cover the reduced event mapping.
 
 ## Cursor (`cursor`) — M7
 

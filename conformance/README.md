@@ -3,6 +3,9 @@
 - `harness/<name>/*.json` — `{ input: { argv, stdin, env, files }, expect: [events] }`,
   recorded from **real** hook payloads (secrets scrubbed; `npm run fixture-scan` gates it).
   `"*"` in an expected event is a wildcard for `id` and `time`.
+- `install/<name>/*.json` — reported hook configurations, with provenance and any
+  omissions noted. Exercised by the installer and CLI migration tests; these are not
+  hook stdin recordings. Antigravity's 0.5.0 entry must disappear on install/update.
 - `redaction/secrets.json`, `redaction/pii.json` — `[{ in, out }]` vectors for the rulesets.
 - `delivery/*.json` — receiver scenarios: dedup, 413 split, 403 tier, retry, forget, control.
   A control scenario's `enqueue` step is the receiver's own test door: the runner signs

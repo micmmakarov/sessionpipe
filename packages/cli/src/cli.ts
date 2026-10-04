@@ -35,6 +35,7 @@ import { autoUpdateOff, readUpdate, updateFile, updateLine, updateSummary } from
 import { CONTROL_HELP, controlMain, enabledHarnesses, waitMain } from "./control/cli.js";
 import { ask, socketPath } from "./control/local.js";
 import { moveControlSecrets, pairedCount, readControl } from "./control/store.js";
+import { hookHealthWarnings } from "./hook-health.js";
 import { installLauncher, launcherPath, launcherState, removeLauncher, usesLauncher } from "./launcher.js";
 import { buildSinks, factsState, flush, jobsDir, runJob, VERSION } from "./run.js";
 import { rerunGlobally, stableNode, viaNpx } from "./runtime.js";
@@ -719,6 +720,7 @@ async function doctor(): Promise<void> {
     warnings: [] as string[],
   };
   const warnings = report.warnings as string[];
+  warnings.push(...(await hookHealthWarnings(path.join(state, "timing.jsonl"))));
   const upd = report.update as ReturnType<typeof updateState>;
   if (upd.failed)
     warnings.push(
@@ -790,7 +792,9 @@ async function doctor(): Promise<void> {
     for (const r of st)
       if (r.state === "stale")
         warnings.push(
-          `${a.name}: the hook in ${tilde(r.file)} points at an old node or script path; run \`sessionpipe install\` again.`,
+          a.name === "antigravity" && r.note
+            ? `${a.name}: ${r.note}`
+            : `${a.name}: the hook in ${tilde(r.file)} points at an old node or script path; run \`sessionpipe install\` again.`,
         );
     for (const r of st)
       if (r.state === "misplaced")

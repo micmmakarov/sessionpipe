@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Install writes only our entries; uninstall leaves every config file byte-identical
 // to before — with someone else's hooks in place, on every harness's file shape.
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -113,7 +114,8 @@ describe("install / uninstall", () => {
     antigravity.install(cmd, env);
     const j = JSON.parse(readFileSync(file, "utf8"));
     expect(j["other-hook"]).toBeDefined();
-    expect(j.sessionpipe.PreToolUse[0].matcher).toBe("*");
+    expect(j.sessionpipe.PreToolUse).toBeUndefined();
+    expect(j.sessionpipe.PostToolUse[0].matcher).toBe("*");
     expect(j.sessionpipe.Stop[0].timeout).toBe(5);
     expect(antigravity.fromHook({ argv: ["antigravity", "Stop"], stdin: "not json", env: {}, cwd: "/" })?.stdout).toBe(
       "{}\n",
@@ -170,5 +172,49 @@ describe("issue #12: a lean install hooks one tool event", () => {
     claudeCode.install(cmd, env, { lean: false });
     expect(JSON.parse(readFileSync(file, "utf8")).hooks.PreToolUse).toBeDefined();
     expect(claudeCode.installed(cmd, env, { lean: true }).find((r) => r.file === file)?.state).toBe("stale");
+  });
+});
+
+describe("Antigravity permission hooks are never installed", () => {
+  it.each([true, false])("removes an old PreToolUse entry, including on re-arm (lean=%s)", (lean) => {
+    const file = path.join(home, ".gemini", "config", "hooks.json");
+    antigravity.install(cmd, env, { lean });
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    const reported = JSON.parse(
+      readFileSync(
+        new URL("../../../conformance/install/antigravity/pre-tool-use-0.5.0.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    old.sessionpipe.PreToolUse = reported.config.sessionpipe.PreToolUse;
+    old.other = { PreToolUse: [{ command: "my-safety-gate" }] };
+    writeFileSync(file, JSON.stringify(old));
+    expect(antigravity.installed(cmd, env, { lean })[0]?.state).toBe("stale");
+    expect(antigravity.install(cmd, env, { lean })[0]?.changed).toBe(true);
+    const repaired = JSON.parse(readFileSync(file, "utf8"));
+    expect(repaired.sessionpipe.PreToolUse).toBeUndefined();
+    expect(repaired.other).toEqual(old.other);
+    expect(Object.keys(repaired.sessionpipe)).toEqual([
+      "enabled",
+      "PreInvocation",
+      "PostInvocation",
+      "PostToolUse",
+      "Stop",
+    ]);
+    expect(antigravity.install(cmd, env, { lean })[0]?.changed).toBe(false);
+    expect(antigravity.installed(cmd, env, { lean })[0]?.state).toBe("current");
+  });
+});
+
+// Hash the exact bytes written by the pre-fix adapters, including whitespace and
+// command arguments. Antigravity changes must not alter another harness's hooks.
+describe("other harnesses keep their installed bytes", () => {
+  it.each([true, false])("matches the baseline hook files (lean=%s)", (lean) => {
+    const hashes: Record<string, string[]> = {};
+    for (const a of [claudeCode, codex, geminiCli]) {
+      const reports = a.install(cmd, env, { lean });
+      hashes[a.name] = reports.map((r) => createHash("sha256").update(readFileSync(r.file)).digest("hex"));
+    }
+    expect(hashes).toMatchSnapshot();
   });
 });

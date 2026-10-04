@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // The hook path. A harness runs `node hook.js <harness> <event>`; this reads stdin,
 // writes one job file, spawns the worker detached, prints what the harness needs
-// ({} for Antigravity) and exits 0 — in milliseconds, with nothing but node:
-// builtins imported (the build checks that). No network, no schema library, no
+// ({} for Antigravity observer events) and exits 0 — in milliseconds, importing
+// only node: builtins (the build checks that). No network, no schema library, no
 // config parsing beyond one small file read for the throttle.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -34,8 +34,10 @@ function configFile(): string {
   return path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "sessionpipe", "config.json");
 }
 
-// Antigravity parses stdout as the hook's answer; `{}` is "carry on" for every event.
-if (harness === "antigravity") {
+// PreToolUse is no longer registered: it requires a permission decision, which a
+// passive observer cannot supply. Silence is not a repair for a cached old hook;
+// install removes that entry and Antigravity must reload its configuration.
+if (harness === "antigravity" && /^(PreInvocation|PostInvocation|PostToolUse|Stop)$/.test(event)) {
   try {
     writeFileSync(1, "{}\n");
   } catch {}

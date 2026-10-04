@@ -2,7 +2,8 @@
 // Antigravity (Google) — docs: https://antigravity.google/docs/hooks
 // Config: ~/.gemini/config/hooks.json — top-level keys are hook NAMES, ours is
 // "sessionpipe". stdin is camelCase with NO event name (it rides in argv). Every
-// hook must print `{}`; non-JSON is a deny. Timeouts in seconds. No session end
+// registered hook prints `{}`. PreToolUse requires a permission decision, so a
+// passive observer must not register it. Timeouts in seconds. No session end
 // exists. Ported from spacesheep-cli lib/sessions.js (facts, remote url, projects).
 import {
   existsSync,
@@ -33,7 +34,7 @@ import type {
 
 const NAME = "antigravity";
 const HOOK_NAME = "sessionpipe";
-export const AG_EVENTS = ["PreInvocation", "PostInvocation", "PreToolUse", "PostToolUse", "Stop"] as const;
+export const AG_EVENTS = ["PreInvocation", "PostInvocation", "PostToolUse", "Stop"] as const;
 const gemini = (env: NodeJS.ProcessEnv) => env.GEMINI_CLI_HOME || path.join(HOME, ".gemini");
 const hooksFile = (env: NodeJS.ProcessEnv) => path.join(gemini(env), "config", "hooks.json");
 const projectsDir = (env: NodeJS.ProcessEnv) => path.join(gemini(env), "config", "projects");
@@ -42,11 +43,10 @@ const dataDirs = (env: NodeJS.ProcessEnv) =>
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const validTool = (n: unknown): n is string => typeof n === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(n);
 
-function entry(cmd: HookCommand, lean?: boolean) {
+function entry(cmd: HookCommand) {
   const handler = (e: string) => ({ type: "command", command: cmd([NAME, e]).command, timeout: 5 });
   const out: Record<string, unknown> = { enabled: true };
   for (const e of AG_EVENTS) {
-    if (lean && e === "PreToolUse") continue;
     out[e] = /Tool/.test(e) ? [{ matcher: "*", hooks: [handler(e)] }] : [handler(e)];
   }
   return out;
@@ -58,12 +58,12 @@ export const antigravity: Adapter = {
   detect: (env = process.env) =>
     existsSync(path.join(gemini(env), "config")) || dataDirs(env).some((d) => existsSync(d)),
   configFiles: (env = process.env) => [hooksFile(env)],
-  install(cmd, env = process.env, opts: InstallOptions = {}): InstallReport[] {
+  install(cmd, env = process.env): InstallReport[] {
     const file = hooksFile(env);
     const f = readJsonFile(file);
     if (!f.ok) return [{ file, changed: false, skipped: true, note: `${f.reason}; not touched` }];
     const hooks = f.value;
-    const e = entry(cmd, opts.lean);
+    const e = entry(cmd);
     if (JSON.stringify(hooks[HOOK_NAME]) === JSON.stringify(e)) return [{ file, changed: false }];
     hooks[HOOK_NAME] = e;
     mkdirSync(path.dirname(file), { recursive: true });
@@ -73,7 +73,7 @@ export const antigravity: Adapter = {
         file,
         changed: true,
         created: !f.existed,
-        note: "hooks.json is read when a conversation starts; open ones report after a restart",
+        note: "hooks.json is read when a conversation starts; restart Antigravity to remove hooks from open conversations",
       },
     ];
   },
@@ -92,26 +92,33 @@ export const antigravity: Adapter = {
     writeFileSync(file, formatJson(hooks, f));
     return [{ file, changed: true }];
   },
-  installed(cmd, env = process.env, opts: InstallOptions = {}) {
+  installed(cmd, env = process.env) {
     const file = hooksFile(env);
     const f = readJsonFile(file);
     const have = f.ok ? f.value[HOOK_NAME] : undefined;
     return [
       {
         file,
-        state: !have ? "missing" : JSON.stringify(have) === JSON.stringify(entry(cmd, opts.lean)) ? "current" : "stale",
+        state: !have ? "missing" : JSON.stringify(have) === JSON.stringify(entry(cmd)) ? "current" : "stale",
+        ...(have && typeof have === "object" && "PreToolUse" in have
+          ? {
+              note: "sessionpipe PreToolUse can block tool calls; run `sessionpipe install` to remove it, then restart Antigravity",
+            }
+          : {}),
       },
     ];
   },
 
   fromHook(input: HookInput): HookResult | null {
     const event = input.argv[1] ?? "";
+    // Old queued jobs must not manufacture starts or permission answers.
+    if (event === "PreToolUse") return null;
     let s: Record<string, unknown> = {};
     try {
       s = input.stdin ? (JSON.parse(input.stdin) as Record<string, unknown>) : {};
     } catch {}
     const id = (s.conversationId ?? s.session_id ?? s.sessionId) as string | undefined;
-    // Antigravity parses stdout as the hook's answer; `{}` is "carry on" for every event.
+    // Only the registered observer events accept an empty JSON answer.
     if (!id) return { session: { id: "" }, events: [], stdout: "{}\n" };
     const workspaces = agWorkspaces(s.workspacePaths);
     const session: HookResult["session"] = { id: String(id), cwd: workspaces[0] ?? input.cwd };
@@ -130,10 +137,10 @@ export const antigravity: Adapter = {
         break;
       case "PostInvocation":
         break;
-      case "PreToolUse":
-        if (tool) events.push(ev("tool.started", { tool, input: toolCall?.args }));
-        break;
       case "PostToolUse":
+        // The documented payload has stepIdx/error, not toolCall. Keep names from
+        // versions that supply them; without a verified transcript step mapping,
+        // omit the tool event rather than invent a name or a start time.
         if (tool)
           events.push(
             ev("tool.ended", {
@@ -143,6 +150,7 @@ export const antigravity: Adapter = {
               input: toolCall?.args,
             }),
           );
+        else events.push(ev("session.heartbeat", {}));
         break;
       case "Stop":
         events.push(ev("turn.ended", { reason: s.error ? "error" : "stop" }));

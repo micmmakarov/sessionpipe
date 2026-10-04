@@ -1,0 +1,24 @@
+{
+  "recorded": {
+    "source": "User report dated 2026-10-04: the PreToolUse registration from ~/.gemini/config/hooks.json, transcribed from the report; other entries omitted",
+    "sessionpipe_version": "0.5.0",
+    "harness_version": "2.19.1",
+    "redaction": "The reporter's home directory is /Users/example"
+  },
+  "config": {
+    "sessionpipe": {
+      "PreToolUse": [
+        {
+          "matcher": "*",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "\"/Users/example/.local/share/sessionpipe/sessionpipe-hook\" antigravity PreToolUse",
+              "timeout": 5
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
