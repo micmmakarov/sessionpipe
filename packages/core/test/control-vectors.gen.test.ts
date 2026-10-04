@@ -445,11 +445,12 @@ describe.runIf(WRITE)("write control vectors", () => {
       { kind: "start", cwd: "spacesheep" },
       "bad_fields",
     );
-    await shape(
+    ok(
       "start-other-harness",
-      "Only Claude Code sessions can be started.",
-      { kind: "start", session: "codex:0199a", cwd: "/tmp" },
-      "bad_fields",
+      "A new Codex session: any harness the machine can drive may be started (the harness picks its own id; the machine keeps this one as its name).",
+      await signed(pk, day, commandStr({ kind: "start", session: "codex:0199a", cwd: "/tmp" })),
+      "grant",
+      "start",
     );
     await shape("cancel-with-text", "A cancel carrying text.", { kind: "cancel" }, "bad_fields");
     const someKey = { id: "AAAAAAAAAAAAAAAAAAAAAA", alg: -7, spki: "A".repeat(91) };
