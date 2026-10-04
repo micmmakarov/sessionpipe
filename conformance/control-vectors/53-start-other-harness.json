@@ -1,6 +1,6 @@
 {
   "name": "start-other-harness",
-  "description": "Only Claude Code sessions can be started.",
+  "description": "A new Codex session: any harness the machine can drive may be started (the harness picks its own id; the machine keeps this one as its name).",
   "input": {
     "signed": {
       "cmd": "{\"v\":1,\"t\":\"sessionpipe.control\",\"machine\":\"m_testmachine0000000001\",\"kind\":\"start\",\"session\":\"codex:0199a\",\"text\":\"Add the Oct 8 row\",\"nonce\":\"FIIZP4pApA70fEjBzURSPw\",\"iat\":1790800000000,\"cwd\":\"/tmp\"}",
@@ -25,7 +25,8 @@
     "now": 1790800060000
   },
   "expect": {
-    "ok": false,
-    "code": "bad_fields"
+    "ok": true,
+    "via": "grant",
+    "kind": "start"
   }
 }

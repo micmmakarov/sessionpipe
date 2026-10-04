@@ -389,7 +389,6 @@ export function parseCommand(str: unknown): Parsed {
       break;
     case "start":
       if (!text()) return bad("bad_fields", `a new session needs text, at most ${TEXT_MAX} characters`);
-      if (ref.harness !== "claude-code") return bad("bad_fields", "only Claude Code sessions can be started");
       if (typeof c.cwd !== "string" || !isAbsolute(c.cwd) || c.cwd.length > 1024)
         return bad("bad_fields", "a new session needs an absolute folder");
       if (has("for") || has("decision")) return bad("bad_fields", "a start carries text and cwd");

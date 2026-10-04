@@ -5,6 +5,17 @@ and released in lockstep. This file records protocol-level changes.
 
 ## Unreleased
 
+- Control: `start` is no longer Claude Code's alone (CONTROL.md §6; asked for by the
+  maintainer on 2026-10-04, so the spec change ships with its code). A `start` names a
+  session of any harness the machine can drive headlessly — the reference daemon drives
+  Claude Code, Codex (`codex exec`) and Antigravity (`agy -p`) and lists them in its
+  hello — and `resume` covers Codex (`codex exec resume`) and Antigravity
+  (`agy --conversation`). New rule: a machine whose harness names its own sessions
+  keeps the command's id as the session's name in everything it reports (acks, later
+  prompts, hook events); a prompt for a session whose start is still running waits for
+  it. Conformance: `control-vectors/53-start-other-harness.json` (a Codex start) now
+  verifies, where it was refused `bad_fields`. ADAPTERS.md: Codex and Antigravity gain a
+  Control row, and Antigravity's row no longer lists the PreToolUse hook 0.6.1 removed.
 - Control rewritten before anyone implemented it (CONTROL.md, HTTP.md §3; still
   Draft, milestone M6). The old draft let whoever held a bearer token prompt an agent
   and answer "allow"; now:

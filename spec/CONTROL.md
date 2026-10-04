@@ -169,7 +169,9 @@ the other only UUIDs). The caps were raised to 20 000 / 48 000 on 2026-10-01: a 
 5. The `nonce` is unseen for **25 hours**. The machine records it **before** it runs
    the command, and a failure to record it refuses the command.
 6. The session's folder, read from the session's own transcript and never from the
-   command, is on the machine's allowlist (for `start`, the `cwd`).
+   command, is on the machine's allowlist (for `start`, the `cwd`; for a session the
+   machine itself started where the harness's transcript doesn't say, the folder that
+   start ran in).
 7. `permission.answer` with `allow` needs `for` to name an attention that is open
    **right now** on that session (§7).
 
@@ -196,7 +198,7 @@ used:
 | `waiter` | The session runs `sessionpipe wait` in the background (§8) | Claude Code | 0 turns, no network |
 | `turn` | The session is mid-turn: the message lands at its next Stop | Claude Code, Codex, Gemini CLI (AfterAgent), Cursor, Copilot CLI, Droid, Kiro | 0 turns |
 | `api` | The harness has an input API | OpenCode, Codex app-server | 0 turns |
-| `resume` | No live process holds the session | Claude Code (`claude -p --resume`) | cold start |
+| `resume` | No live process holds the session | Claude Code (`claude -p --resume`), Codex (`codex exec resume`), Antigravity (`agy --conversation`) | cold start |
 | `fork` | Live and idle, with no waiter | Claude Code (`--fork-session`) | cold start |
 
 Nothing fits: acked `unsupported`. **Never two writers on one transcript**: a session a
@@ -243,9 +245,22 @@ OpenCode `/session/:id/abort`; Codex app-server interrupt); everywhere else acke
 
 ### `start`
 
-A new Claude Code session with the command's session id, in `cwd`: through the Agent
-SDK when the daemon has it, else `claude -p --session-id`. Acked `delivered` with mode
-`sdk` or `resume`, and the reply.
+A new session of the command's harness, in `cwd`, for any harness the machine can drive
+headlessly (it lists them in its hello's `harnesses`; any other is acked
+`unsupported`). Claude Code: with the command's session id, through the Agent SDK when
+the daemon has it, else `claude -p --session-id`. Codex: `codex exec`. Antigravity:
+`agy -p`. Acked `delivered` with mode `sdk` or `resume`, and the reply.
+
+Some harnesses name their own sessions: neither `codex exec` nor `agy` can be told which
+id a new session gets. A machine whose harness names its own sessions **keeps the
+command's id as the session's name in everything it reports**: the start's acks carry
+no other `session`, a later `prompt` to that id resumes the harness's own session, and
+the hook events of that session are sent under the command's id. The reference daemon
+records the pair (and the folder the start ran in) the moment the harness reveals its
+id, in `aliases.json` beside its nonces; a hook event that the sender's worker read
+before that moment may still name the harness's id. A `prompt` for a session whose
+`start` the machine is still running waits for that start, even when the two arrive in
+the same poll, and then resumes it.
 
 A receiver MAY name, in its well-known `control.session_tools`, MCP servers
 (`mcp__<server>`) that a session answering its message may use without asking: its
