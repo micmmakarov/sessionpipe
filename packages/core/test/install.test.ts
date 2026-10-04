@@ -5,7 +5,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { antigravity, claudeCode, codex, geminiCli } from "../src/adapters/index.js";
+import {
+  AG_STALE_PRETOOL,
+  antigravity,
+  antigravityAnswer,
+  claudeCode,
+  codex,
+  geminiCli,
+} from "../src/adapters/index.js";
 import type { HookCommand } from "../src/adapters/types.js";
 
 let home: string;
@@ -113,13 +120,64 @@ describe("install / uninstall", () => {
     antigravity.install(cmd, env);
     const j = JSON.parse(readFileSync(file, "utf8"));
     expect(j["other-hook"]).toBeDefined();
-    expect(j.sessionpipe.PreToolUse[0].matcher).toBe("*");
+    expect(j.sessionpipe.PostToolUse[0].matcher).toBe("*");
     expect(j.sessionpipe.Stop[0].timeout).toBe(5);
     expect(antigravity.fromHook({ argv: ["antigravity", "Stop"], stdin: "not json", env: {}, cwd: "/" })?.stdout).toBe(
       "{}\n",
     );
     antigravity.uninstall(env);
     expect(readFileSync(file, "utf8")).toBe(before);
+  });
+  it("antigravity: never hooks PreToolUse, whose `{}` is a deny; an older install's entry is stale and replaced", () => {
+    const file = path.join(home, ".gemini", "config", "hooks.json");
+    antigravity.install(cmd, env);
+    expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
+    antigravity.install(cmd, env, { lean: false });
+    expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
+    // What 0.1–0.6.0 wrote: the same group plus a PreToolUse one.
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    old.sessionpipe = {
+      enabled: true,
+      PreInvocation: old.sessionpipe.PreInvocation,
+      PostInvocation: old.sessionpipe.PostInvocation,
+      PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "hook antigravity PreToolUse", timeout: 5 }] }],
+      PostToolUse: old.sessionpipe.PostToolUse,
+      Stop: old.sessionpipe.Stop,
+    };
+    writeFileSync(file, `${JSON.stringify(old, null, 2)}\n`);
+    expect(antigravity.installed(cmd, env)[0]?.state).toBe("stale");
+    expect(antigravity.install(cmd, env)[0]?.changed).toBe(true);
+    expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
+    expect(antigravity.installed(cmd, env)[0]?.state).toBe("current");
+  });
+  it("antigravity: a leftover PreToolUse entry asks the person, with why, instead of a silent deny", () => {
+    const pre = { toolCall: { name: "run_command", args: { CommandLine: "ls" } }, stepIdx: 3, conversationId: "c1" };
+    for (const stdin of [JSON.stringify(pre), "not json"]) {
+      const out = antigravity.fromHook({ argv: ["antigravity", "PreToolUse"], stdin, env: {}, cwd: "/" })?.stdout ?? "";
+      const a = JSON.parse(out);
+      expect(a.decision).toBe("ask");
+      expect(a.reason).toMatch(/sessionpipe/);
+      expect(out).toBe(AG_STALE_PRETOOL);
+    }
+    expect(antigravityAnswer("PostToolUse")).toBe("{}\n");
+  });
+  it("antigravity: PostToolUse names no tool, so it is a beat; a named one still ends the tool", () => {
+    const base = { conversationId: "c1", stepIdx: 4 };
+    const beat = antigravity.fromHook({
+      argv: ["antigravity", "PostToolUse"],
+      stdin: JSON.stringify(base),
+      env: {},
+      cwd: "/",
+    });
+    expect(beat?.events.map((e) => e.type)).toEqual(["session.heartbeat"]);
+    expect(beat?.stdout).toBe("{}\n");
+    const named = antigravity.fromHook({
+      argv: ["antigravity", "PostToolUse"],
+      stdin: JSON.stringify({ ...base, toolCall: { name: "view_file" }, error: "nope" }),
+      env: {},
+      cwd: "/",
+    });
+    expect(named?.events[0]).toMatchObject({ type: "tool.ended", data: { tool: "view_file", ok: false } });
   });
 });
 

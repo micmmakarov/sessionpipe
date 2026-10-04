@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Antigravity (Google) — docs: https://antigravity.google/docs/hooks
 // Config: ~/.gemini/config/hooks.json — top-level keys are hook NAMES, ours is
-// "sessionpipe". stdin is camelCase with NO event name (it rides in argv). Every
-// hook must print `{}`; non-JSON is a deny. Timeouts in seconds. No session end
+// "sessionpipe". stdin is camelCase with NO event name (it rides in argv). A hook's
+// stdout is its answer; non-JSON is a deny. Timeouts in seconds. No session end
 // exists. Ported from spacesheep-cli lib/sessions.js (facts, remote url, projects).
+//
+// No PreToolUse. Its answer must carry a `decision` (allow / deny / ask / force_ask),
+// none of which means "carry on": `{}` is read as a deny with no reason, which blocked
+// every tool call on every machine 0.1–0.6.0 was installed on (2026-10-04, Antigravity
+// 2.19.1), and `allow` would wave calls past the person's own review settings. So the
+// tool events come from PostToolUse alone, which carries no tool name (only `stepIdx`
+// and `error`): it is a "still working" beat.
 import {
   existsSync,
   mkdirSync,
@@ -33,7 +40,14 @@ import type {
 
 const NAME = "antigravity";
 const HOOK_NAME = "sessionpipe";
-export const AG_EVENTS = ["PreInvocation", "PostInvocation", "PreToolUse", "PostToolUse", "Stop"] as const;
+export const AG_EVENTS = ["PreInvocation", "PostInvocation", "PostToolUse", "Stop"] as const;
+/** What a PreToolUse entry an older install left behind gets, until a restarted
+ *  conversation reads the rewritten hooks.json: the person's own prompt, with why. The
+ *  hook (cli/src/hook.ts) and the launcher (cli/src/launcher.ts) print the same line. */
+export const AG_STALE_PRETOOL =
+  '{"decision":"ask","reason":"sessionpipe: an outdated PreToolUse hook is still loaded. Restart this conversation (or run sessionpipe install) to drop it."}\n';
+/** Antigravity's answer for one event: `{}` is "carry on" for every event we register. */
+export const antigravityAnswer = (event: string): string => (event === "PreToolUse" ? AG_STALE_PRETOOL : "{}\n");
 const gemini = (env: NodeJS.ProcessEnv) => env.GEMINI_CLI_HOME || path.join(HOME, ".gemini");
 const hooksFile = (env: NodeJS.ProcessEnv) => path.join(gemini(env), "config", "hooks.json");
 const projectsDir = (env: NodeJS.ProcessEnv) => path.join(gemini(env), "config", "projects");
@@ -42,13 +56,11 @@ const dataDirs = (env: NodeJS.ProcessEnv) =>
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const validTool = (n: unknown): n is string => typeof n === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(n);
 
-function entry(cmd: HookCommand, lean?: boolean) {
+// One tool event already, so a lean install is the same entry.
+function entry(cmd: HookCommand) {
   const handler = (e: string) => ({ type: "command", command: cmd([NAME, e]).command, timeout: 5 });
   const out: Record<string, unknown> = { enabled: true };
-  for (const e of AG_EVENTS) {
-    if (lean && e === "PreToolUse") continue;
-    out[e] = /Tool/.test(e) ? [{ matcher: "*", hooks: [handler(e)] }] : [handler(e)];
-  }
+  for (const e of AG_EVENTS) out[e] = /Tool/.test(e) ? [{ matcher: "*", hooks: [handler(e)] }] : [handler(e)];
   return out;
 }
 
@@ -58,12 +70,12 @@ export const antigravity: Adapter = {
   detect: (env = process.env) =>
     existsSync(path.join(gemini(env), "config")) || dataDirs(env).some((d) => existsSync(d)),
   configFiles: (env = process.env) => [hooksFile(env)],
-  install(cmd, env = process.env, opts: InstallOptions = {}): InstallReport[] {
+  install(cmd, env = process.env): InstallReport[] {
     const file = hooksFile(env);
     const f = readJsonFile(file);
     if (!f.ok) return [{ file, changed: false, skipped: true, note: `${f.reason}; not touched` }];
     const hooks = f.value;
-    const e = entry(cmd, opts.lean);
+    const e = entry(cmd);
     if (JSON.stringify(hooks[HOOK_NAME]) === JSON.stringify(e)) return [{ file, changed: false }];
     hooks[HOOK_NAME] = e;
     mkdirSync(path.dirname(file), { recursive: true });
@@ -92,14 +104,14 @@ export const antigravity: Adapter = {
     writeFileSync(file, formatJson(hooks, f));
     return [{ file, changed: true }];
   },
-  installed(cmd, env = process.env, opts: InstallOptions = {}) {
+  installed(cmd, env = process.env) {
     const file = hooksFile(env);
     const f = readJsonFile(file);
     const have = f.ok ? f.value[HOOK_NAME] : undefined;
     return [
       {
         file,
-        state: !have ? "missing" : JSON.stringify(have) === JSON.stringify(entry(cmd, opts.lean)) ? "current" : "stale",
+        state: !have ? "missing" : JSON.stringify(have) === JSON.stringify(entry(cmd)) ? "current" : "stale",
       },
     ];
   },
@@ -111,8 +123,8 @@ export const antigravity: Adapter = {
       s = input.stdin ? (JSON.parse(input.stdin) as Record<string, unknown>) : {};
     } catch {}
     const id = (s.conversationId ?? s.session_id ?? s.sessionId) as string | undefined;
-    // Antigravity parses stdout as the hook's answer; `{}` is "carry on" for every event.
-    if (!id) return { session: { id: "" }, events: [], stdout: "{}\n" };
+    const stdout = antigravityAnswer(event);
+    if (!id) return { session: { id: "" }, events: [], stdout };
     const workspaces = agWorkspaces(s.workspacePaths);
     const session: HookResult["session"] = { id: String(id), cwd: workspaces[0] ?? input.cwd };
     if (typeof s.modelName === "string" && s.modelName !== "auto") session.model = s.modelName;
@@ -134,7 +146,9 @@ export const antigravity: Adapter = {
         if (tool) events.push(ev("tool.started", { tool, input: toolCall?.args }));
         break;
       case "PostToolUse":
-        if (tool)
+        // Antigravity names no tool here; a beat keeps a long run of tools "working".
+        if (!tool) events.push(ev("session.heartbeat", {}));
+        else
           events.push(
             ev("tool.ended", {
               tool,
@@ -148,9 +162,9 @@ export const antigravity: Adapter = {
         events.push(ev("turn.ended", { reason: s.error ? "error" : "stop" }));
         break;
       default:
-        return { session, events: [], stdout: "{}\n" };
+        return { session, events: [], stdout };
     }
-    const r: HookResult = { session, events, stdout: "{}\n", hints: { workspaces } };
+    const r: HookResult = { session, events, stdout, hints: { workspaces } };
     if (typeof s.transcriptPath === "string") r.transcript = s.transcriptPath;
     return r;
   },

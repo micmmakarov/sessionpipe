@@ -7,6 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { AG_STALE_PRETOOL } from "@sessionpipe/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installLauncher, launcherScript, launcherState, removeLauncher } from "../src/launcher.js";
 
@@ -56,6 +57,27 @@ describe.skipIf(process.platform === "win32" || !existsSync(path.join(dist, "hoo
     expect(launcherState("9.9.9", env).problems.join(" ")).toMatch(/is gone/);
   });
 
+  it("the hook answers Antigravity: `{}` to what sessionpipe hooks, an ask (never a silent deny) to a leftover PreToolUse", () => {
+    const { launcher } = installLauncher({ distDir: dist, node: process.execPath, version: "9.9.9", env });
+    const run = (event: string) =>
+      spawnSync(launcher, ["antigravity", event], {
+        input: JSON.stringify({ conversationId: "ag-launcher-test", toolCall: { name: "run_command" }, stepIdx: 1 }),
+        env: {
+          PATH: "/usr/bin:/bin",
+          HOME: state,
+          SESSIONPIPE_STATE: state,
+          SESSIONPIPE_CONFIG: path.join(state, "config.json"),
+          SESSIONPIPE_NO_WORKER: "1",
+        },
+        encoding: "utf8",
+      });
+    const pre = run("PreToolUse");
+    expect(pre.status).toBe(0);
+    expect(pre.stdout).toBe(AG_STALE_PRETOOL);
+    expect(JSON.parse(pre.stdout).decision).toBe("ask");
+    for (const e of ["PreInvocation", "PostToolUse", "PostInvocation", "Stop"]) expect(run(e).stdout).toBe("{}\n");
+  });
+
   it("no node anywhere: exit 0, and Antigravity still reads `{}`", () => {
     const { launcher } = installLauncher({ distDir: dist, node: "/nonexistent/node", version: "9.9.9", env });
     const r = spawnSync(launcher, ["antigravity", "PostInvocation"], {
@@ -64,6 +86,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(path.join(dist, "hoo
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toBe("{}\n");
+    // `{}` to PreToolUse is a deny: a leftover entry asks instead, same bytes as the hook.
+    const p = spawnSync(launcher, ["antigravity", "PreToolUse"], { env: { PATH: "/nonexistent" }, encoding: "utf8" });
+    expect(p.status).toBe(0);
+    expect(p.stdout).toBe(AG_STALE_PRETOOL);
     const c = spawnSync(launcher, ["claude-code", "Stop"], { env: { PATH: "/nonexistent" }, encoding: "utf8" });
     expect(c.status).toBe(0);
     expect(c.stdout).toBe("");

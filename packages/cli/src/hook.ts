@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // The hook path. A harness runs `node hook.js <harness> <event>`; this reads stdin,
 // writes one job file, spawns the worker detached, prints what the harness needs
-// ({} for Antigravity) and exits 0 — in milliseconds, with nothing but node:
+// (Antigravity's answer) and exits 0 — in milliseconds, with nothing but node:
 // builtins imported (the build checks that). No network, no schema library, no
 // config parsing beyond one small file read for the throttle.
 import { spawn } from "node:child_process";
@@ -34,10 +34,17 @@ function configFile(): string {
   return path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "sessionpipe", "config.json");
 }
 
-// Antigravity parses stdout as the hook's answer; `{}` is "carry on" for every event.
+// Antigravity parses stdout as the hook's answer; `{}` is "carry on" for every event we
+// register. PreToolUse is not one of them: `{}` there is a deny, so an entry an older
+// install left behind asks the person instead (core's AG_STALE_PRETOOL, same bytes).
 if (harness === "antigravity") {
   try {
-    writeFileSync(1, "{}\n");
+    writeFileSync(
+      1,
+      event === "PreToolUse"
+        ? '{"decision":"ask","reason":"sessionpipe: an outdated PreToolUse hook is still loaded. Restart this conversation (or run sessionpipe install) to drop it."}\n'
+        : "{}\n",
+    );
   } catch {}
 }
 
