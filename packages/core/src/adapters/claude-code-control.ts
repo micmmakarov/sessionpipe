@@ -6,28 +6,25 @@
 // turn (`claude -p --resume`, `--fork-session`, `--session-id`). Ported from the
 // spacesheep CLI's machine listener (lib/machine.js, 1.22), which ran it in
 // production first.
-import { execFile, execFileSync, spawn } from "node:child_process";
-import { accessSync, closeSync, constants, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
+import { execFile, execFileSync } from "node:child_process";
+import { closeSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  isExe,
+  JOB_TIMEOUT_MS,
+  type Login,
+  type Mode,
+  type RunOptions,
+  type RunResult,
+  runHeadless,
+} from "./headless.js";
+
+export { JOB_TIMEOUT_MS, type Login, type Mode, type RunResult };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const JOB_TIMEOUT_MS = 30 * 60_000;
-const OUT_CAP = 1024 * 1024;
 /** A transcript someone else wrote this recently is in use. */
 const LIVE_WRITE_MS = 90_000;
-
-export type Mode = "safe" | "auto";
-
-function isExe(p: string): boolean {
-  try {
-    if (!statSync(p).isFile()) return false;
-    accessSync(p, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split(".").map(Number);
@@ -146,13 +143,6 @@ export function claudeEnv(configDir?: string, env: NodeJS.ProcessEnv = process.e
 /** Whether Claude Code is signed in for one account, in Claude Code's own words
  *  (`claude auth status --json`). `loggedIn: null` means this Claude Code can't say
  *  (too old for `auth status`, or it didn't answer): never a reason to refuse. */
-export interface Login {
-  loggedIn: boolean | null;
-  /** claude.ai, an API key, a long-lived token… as Claude Code names it. */
-  method?: string;
-  subscription?: string;
-}
-
 export function parseAuthStatus(stdout: string | null | undefined): Login {
   const text = String(stdout || "").trim();
   const start = text.indexOf("{");
@@ -357,127 +347,10 @@ export function recentlyWritten(file: string, ourLastEnd?: number, now = Date.no
   return !(ourLastEnd && m <= ourLastEnd + 2000);
 }
 
-export interface RunResult {
-  error?: string;
-  code?: number | null;
-  signal?: NodeJS.Signals | null;
-  stdout?: string | null;
-  tooBig?: boolean;
-  stderr?: string;
-  timedOut?: boolean;
-}
-
-/** Run one headless turn in its own process group, holding at most 1 MB of stdout. */
-export function runClaude(
-  bin: string,
-  args: string[],
-  o: {
-    cwd: string;
-    env: NodeJS.ProcessEnv;
-    timeoutMs?: number;
-    /** Streaming (`--output-format stream-json`): each stdout line as it arrives. Only
-     *  the `result` line is kept for the RunResult, so a long stream never hits the cap. */
-    onLine?: (line: string) => void;
-  },
-): Promise<RunResult> {
-  return new Promise((resolve) => {
-    let out: Buffer[] = [];
-    let outLen = 0;
-    let tooBig = false;
-    let errTail = "";
-    let timedOut = false;
-    let settled = false;
-    let child: import("node:child_process").ChildProcess;
-    try {
-      child = spawn(bin, args, {
-        cwd: o.cwd,
-        env: o.env,
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: process.platform !== "win32",
-        windowsHide: true,
-      });
-    } catch (e) {
-      resolve({ error: (e as Error).message });
-      return;
-    }
-    const kill = (sig: NodeJS.Signals) => {
-      try {
-        if (process.platform !== "win32" && child.pid) process.kill(-child.pid, sig);
-        else child.kill(sig);
-      } catch {
-        try {
-          child.kill(sig);
-        } catch {}
-      }
-    };
-    let partial = "";
-    child.stdout?.on("data", (b: Buffer) => {
-      if (o.onLine) {
-        const chunk = partial + b.toString("utf8");
-        const lines = chunk.split("\n");
-        partial = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            o.onLine(line);
-          } catch {}
-          if (line.includes('"type":"result"')) {
-            out = [Buffer.from(line)];
-            outLen = line.length;
-          }
-        }
-        if (partial.length > OUT_CAP) partial = "";
-        return;
-      }
-      if (tooBig) return;
-      if (outLen + b.length > OUT_CAP) {
-        tooBig = true;
-        out = [];
-        return;
-      }
-      out.push(b);
-      outLen += b.length;
-    });
-    child.stderr?.on("data", (b: Buffer) => {
-      errTail = (errTail + b.toString("utf8")).slice(-4000);
-    });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      kill("SIGTERM");
-      setTimeout(() => kill("SIGKILL"), 10_000).unref();
-    }, o.timeoutMs ?? JOB_TIMEOUT_MS);
-    const result = (code: number | null, signal: NodeJS.Signals | null): RunResult => ({
-      code,
-      signal,
-      stdout: tooBig ? null : Buffer.concat(out).toString("utf8"),
-      tooBig,
-      stderr: errTail,
-      timedOut,
-    });
-    const finish = (r: RunResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(r);
-    };
-    child.on("error", (e) => finish({ error: e.message }));
-    // A tool the agent left running can hold stdout open after Claude Code exits.
-    child.on("exit", (code, signal) => setTimeout(() => finish(result(code, signal)), 2000).unref());
-    child.on("close", (code, signal) => {
-      // The last line may end without a newline: it is often the result itself.
-      if (o.onLine && partial.trim()) {
-        try {
-          o.onLine(partial);
-        } catch {}
-        if (partial.includes('"type":"result"')) {
-          out = [Buffer.from(partial)];
-          outLen = partial.length;
-        }
-        partial = "";
-      }
-      finish(result(code, signal));
-    });
-  });
+/** Run one headless turn (headless.ts). Streaming (`--output-format stream-json`), only
+ *  the `result` line is kept for the RunResult unless the caller says otherwise. */
+export function runClaude(bin: string, args: string[], o: RunOptions): Promise<RunResult> {
+  return runHeadless(bin, args, { ...o, keep: o.keep ?? ((line) => line.includes('"type":"result"')) });
 }
 
 export interface ClaudeResult {

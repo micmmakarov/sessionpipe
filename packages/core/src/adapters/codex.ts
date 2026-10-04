@@ -123,7 +123,11 @@ function uninstallNotify(env: NodeJS.ProcessEnv) {
   return { file, changed: false };
 }
 
-function findRollout(threadId: string, env: NodeJS.ProcessEnv): string | null {
+/** The rollout file of one thread: `<CODEX_HOME>/sessions/YYYY/MM/DD/rollout-<time>-<thread
+ *  id>.jsonl`, newest day first. Null for an id that isn't a thread id's shape, so a
+ *  short or odd one never matches some other session's file. */
+export function findRollout(threadId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (!/^[A-Za-z0-9-]{8,128}$/.test(threadId)) return null;
   let best: string | null = null;
   const walk = (dir: string, depth: number) => {
     let names: string[] = [];
@@ -134,7 +138,7 @@ function findRollout(threadId: string, env: NodeJS.ProcessEnv): string | null {
     }
     for (const n of names.sort().reverse()) {
       const p = path.join(dir, n);
-      if (n.endsWith(".jsonl") && n.includes(threadId)) {
+      if (n.endsWith(`-${threadId}.jsonl`)) {
         best = p;
         return;
       }
