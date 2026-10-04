@@ -9,7 +9,6 @@
 import { accessSync, chmodSync, constants, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { AG_STALE_PRETOOL } from "@sessionpipe/core";
 
 export const LAUNCHER = "sessionpipe-hook";
 const COPIED = ["worker.js", "hook.js"] as const;
@@ -23,16 +22,20 @@ export const usesLauncher = (platform: NodeJS.Platform = process.platform): bool
 
 const sq = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 
-/** The launcher, in sh. No node at all prints what Antigravity needs and exits 0: the
- *  hook must stay invisible to the harness whatever is missing (and a PreToolUse entry
- *  an older install left must not turn into a silent deny). */
+/** The launcher, in sh. With no node, only registered Antigravity observer events
+ *  get `{}`. Never answer a stale PreToolUse with an invalid permission response. */
 export function launcherScript(node: string, hook: string, version: string): string {
   return `#!/bin/sh
 # sessionpipe ${version} hook launcher, written by \`sessionpipe install\`. Harnesses run
 # this; it runs hook.js beside it with the node sessionpipe was installed with, or with
 # any node on PATH once that one is gone (an nvm uninstall, a Homebrew upgrade).
 n=${sq(node)}
-[ -x "$n" ] || n=$(command -v node) || { [ "$1" = antigravity ] && if [ "$2" = PreToolUse ]; then echo ${sq(AG_STALE_PRETOOL.trim())}; else echo '{}'; fi; exit 0; }
+[ -x "$n" ] || n=$(command -v node) || {
+  case "$1:$2" in
+    antigravity:PreInvocation|antigravity:PostInvocation|antigravity:PostToolUse|antigravity:Stop) echo '{}' ;;
+  esac
+  exit 0
+}
 exec "$n" ${sq(hook)} "$@"
 `;
 }

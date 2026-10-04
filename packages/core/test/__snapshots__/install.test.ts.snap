@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`other harnesses keep their installed bytes > matches the baseline hook files (lean=false) 1`] = `
+{
+  "claude-code": [
+    "28e8c9a42141f6f897249b74210ecb6079cbc16c891a6800a9d19ed74a7823f9",
+  ],
+  "codex": [
+    "3778d8a5bcca4cfcdce1e2e33a47ef7ea6944407ab69ec73b4c1b653f14cd10b",
+    "c87689f1388218cf04771d45f4b209902cac1b3cef14d6b653d58f41611d55c4",
+  ],
+  "gemini-cli": [
+    "8c70592ce2f7c01b2d7ea86dfb2d91cfe881c4de1abfa2fcdb1f2a75c9e3915c",
+  ],
+}
+`;
+
+exports[`other harnesses keep their installed bytes > matches the baseline hook files (lean=true) 1`] = `
+{
+  "claude-code": [
+    "663e4f39ea7ad581a6d717db9f5baf192d5beba9175fa8019c5ca8a0f92e0807",
+  ],
+  "codex": [
+    "47083dea687c5517f076f68d83f084a3780e869a2b657aeda1f09ab44d8f2567",
+    "c87689f1388218cf04771d45f4b209902cac1b3cef14d6b653d58f41611d55c4",
+  ],
+  "gemini-cli": [
+    "32284fd88f9129b53a57b808b074aa228376f307dcb3a28725c004cd79de8a1e",
+  ],
+}
+`;

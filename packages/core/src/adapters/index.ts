@@ -9,7 +9,6 @@ import type { Adapter } from "./types.js";
 
 export const ADAPTERS: readonly Adapter[] = [claudeCode, codex, geminiCli, antigravity];
 export const adapterByName = (name: string): Adapter | undefined => ADAPTERS.find((a) => a.name === name);
-export { AG_STALE_PRETOOL, antigravityAnswer } from "./antigravity.js";
 export { claudeDirs } from "./claude-code.js";
 export * as claudeControl from "./claude-code-control.js";
 export type {

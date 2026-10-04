@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Install writes only our entries; uninstall leaves every config file byte-identical
 // to before — with someone else's hooks in place, on every harness's file shape.
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  AG_STALE_PRETOOL,
-  antigravity,
-  antigravityAnswer,
-  claudeCode,
-  codex,
-  geminiCli,
-} from "../src/adapters/index.js";
+import { antigravity, claudeCode, codex, geminiCli } from "../src/adapters/index.js";
 import type { HookCommand } from "../src/adapters/types.js";
 
 let home: string;
@@ -120,6 +114,7 @@ describe("install / uninstall", () => {
     antigravity.install(cmd, env);
     const j = JSON.parse(readFileSync(file, "utf8"));
     expect(j["other-hook"]).toBeDefined();
+    expect(j.sessionpipe.PreToolUse).toBeUndefined();
     expect(j.sessionpipe.PostToolUse[0].matcher).toBe("*");
     expect(j.sessionpipe.Stop[0].timeout).toBe(5);
     expect(antigravity.fromHook({ argv: ["antigravity", "Stop"], stdin: "not json", env: {}, cwd: "/" })?.stdout).toBe(
@@ -149,17 +144,6 @@ describe("install / uninstall", () => {
     expect(antigravity.install(cmd, env)[0]?.changed).toBe(true);
     expect(JSON.parse(readFileSync(file, "utf8")).sessionpipe.PreToolUse).toBeUndefined();
     expect(antigravity.installed(cmd, env)[0]?.state).toBe("current");
-  });
-  it("antigravity: a leftover PreToolUse entry asks the person, with why, instead of a silent deny", () => {
-    const pre = { toolCall: { name: "run_command", args: { CommandLine: "ls" } }, stepIdx: 3, conversationId: "c1" };
-    for (const stdin of [JSON.stringify(pre), "not json"]) {
-      const out = antigravity.fromHook({ argv: ["antigravity", "PreToolUse"], stdin, env: {}, cwd: "/" })?.stdout ?? "";
-      const a = JSON.parse(out);
-      expect(a.decision).toBe("ask");
-      expect(a.reason).toMatch(/sessionpipe/);
-      expect(out).toBe(AG_STALE_PRETOOL);
-    }
-    expect(antigravityAnswer("PostToolUse")).toBe("{}\n");
   });
   it("antigravity: PostToolUse names no tool, so it is a beat; a named one still ends the tool", () => {
     const base = { conversationId: "c1", stepIdx: 4 };
@@ -228,5 +212,49 @@ describe("issue #12: a lean install hooks one tool event", () => {
     claudeCode.install(cmd, env, { lean: false });
     expect(JSON.parse(readFileSync(file, "utf8")).hooks.PreToolUse).toBeDefined();
     expect(claudeCode.installed(cmd, env, { lean: true }).find((r) => r.file === file)?.state).toBe("stale");
+  });
+});
+
+describe("Antigravity permission hooks are never installed", () => {
+  it.each([true, false])("removes an old PreToolUse entry, including on re-arm (lean=%s)", (lean) => {
+    const file = path.join(home, ".gemini", "config", "hooks.json");
+    antigravity.install(cmd, env, { lean });
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    const reported = JSON.parse(
+      readFileSync(
+        new URL("../../../conformance/install/antigravity/pre-tool-use-0.5.0.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    old.sessionpipe.PreToolUse = reported.config.sessionpipe.PreToolUse;
+    old.other = { PreToolUse: [{ command: "my-safety-gate" }] };
+    writeFileSync(file, JSON.stringify(old));
+    expect(antigravity.installed(cmd, env, { lean })[0]?.state).toBe("stale");
+    expect(antigravity.install(cmd, env, { lean })[0]?.changed).toBe(true);
+    const repaired = JSON.parse(readFileSync(file, "utf8"));
+    expect(repaired.sessionpipe.PreToolUse).toBeUndefined();
+    expect(repaired.other).toEqual(old.other);
+    expect(Object.keys(repaired.sessionpipe)).toEqual([
+      "enabled",
+      "PreInvocation",
+      "PostInvocation",
+      "PostToolUse",
+      "Stop",
+    ]);
+    expect(antigravity.install(cmd, env, { lean })[0]?.changed).toBe(false);
+    expect(antigravity.installed(cmd, env, { lean })[0]?.state).toBe("current");
+  });
+});
+
+// Hash the exact bytes written by the pre-fix adapters, including whitespace and
+// command arguments. Antigravity changes must not alter another harness's hooks.
+describe("other harnesses keep their installed bytes", () => {
+  it.each([true, false])("matches the baseline hook files (lean=%s)", (lean) => {
+    const hashes: Record<string, string[]> = {};
+    for (const a of [claudeCode, codex, geminiCli]) {
+      const reports = a.install(cmd, env, { lean });
+      hashes[a.name] = reports.map((r) => createHash("sha256").update(readFileSync(r.file)).digest("hex"));
+    }
+    expect(hashes).toMatchSnapshot();
   });
 });

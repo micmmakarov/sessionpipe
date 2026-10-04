@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // The hook launcher: a copy of the hook outside every npm prefix, run with the node
 // sessionpipe was installed with — and with PATH's node once that one is gone. With no
-// node at all it still exits 0 (and Antigravity still gets its `{}`).
+// node at all it still exits 0 (registered Antigravity observer events get `{}`).
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { AG_STALE_PRETOOL } from "@sessionpipe/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installLauncher, launcherScript, launcherState, removeLauncher } from "../src/launcher.js";
 
@@ -57,28 +56,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(path.join(dist, "hoo
     expect(launcherState("9.9.9", env).problems.join(" ")).toMatch(/is gone/);
   });
 
-  it("the hook answers Antigravity: `{}` to what sessionpipe hooks, an ask (never a silent deny) to a leftover PreToolUse", () => {
-    const { launcher } = installLauncher({ distDir: dist, node: process.execPath, version: "9.9.9", env });
-    const run = (event: string) =>
-      spawnSync(launcher, ["antigravity", event], {
-        input: JSON.stringify({ conversationId: "ag-launcher-test", toolCall: { name: "run_command" }, stepIdx: 1 }),
-        env: {
-          PATH: "/usr/bin:/bin",
-          HOME: state,
-          SESSIONPIPE_STATE: state,
-          SESSIONPIPE_CONFIG: path.join(state, "config.json"),
-          SESSIONPIPE_NO_WORKER: "1",
-        },
-        encoding: "utf8",
-      });
-    const pre = run("PreToolUse");
-    expect(pre.status).toBe(0);
-    expect(pre.stdout).toBe(AG_STALE_PRETOOL);
-    expect(JSON.parse(pre.stdout).decision).toBe("ask");
-    for (const e of ["PreInvocation", "PostToolUse", "PostInvocation", "Stop"]) expect(run(e).stdout).toBe("{}\n");
-  });
-
-  it("no node anywhere: exit 0, and Antigravity still reads `{}`", () => {
+  it("no node anywhere: exit 0, and Antigravity observer events still read `{}`", () => {
     const { launcher } = installLauncher({ distDir: dist, node: "/nonexistent/node", version: "9.9.9", env });
     const r = spawnSync(launcher, ["antigravity", "PostInvocation"], {
       env: { PATH: "/nonexistent" },
@@ -86,10 +64,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(path.join(dist, "hoo
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toBe("{}\n");
-    // `{}` to PreToolUse is a deny: a leftover entry asks instead, same bytes as the hook.
-    const p = spawnSync(launcher, ["antigravity", "PreToolUse"], { env: { PATH: "/nonexistent" }, encoding: "utf8" });
-    expect(p.status).toBe(0);
-    expect(p.stdout).toBe(AG_STALE_PRETOOL);
     const c = spawnSync(launcher, ["claude-code", "Stop"], { env: { PATH: "/nonexistent" }, encoding: "utf8" });
     expect(c.status).toBe(0);
     expect(c.stdout).toBe("");
@@ -100,5 +74,20 @@ describe.skipIf(process.platform === "win32" || !existsSync(path.join(dist, "hoo
     expect(launcherState("0.5.0", env).problems.join(" ")).toMatch(/0\.4\.2/);
     const s = launcherScript("/opt/it's here/node", "/x/hook.js", "1.0.0");
     expect(s).toContain(`n='/opt/it'\\''s here/node'`);
+  });
+});
+
+describe.skipIf(process.platform === "win32")("Antigravity's removed permission hook", () => {
+  it("with no node, never answers PreToolUse with bare JSON or a permission decision", () => {
+    const r = spawnSync(
+      "/bin/sh",
+      ["-c", launcherScript("/nonexistent/node", "/unused/hook.js", "test"), "launcher", "antigravity", "PreToolUse"],
+      {
+        env: { PATH: "/nonexistent" },
+        encoding: "utf8",
+      },
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("");
   });
 });
