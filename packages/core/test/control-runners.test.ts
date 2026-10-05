@@ -126,16 +126,27 @@ describe("codex exec --json", () => {
       "--",
       "-v fix it",
     ]);
+    // `codex exec resume` takes neither -s nor --approve-for-me (0.160 refuses them as
+    // unexpected arguments): a resume says the same in config overrides.
     expect(codexArgs({ mode: "auto", prompt: "go on", resume: THREAD })).toEqual([
       "exec",
       "resume",
       "--json",
       "--skip-git-repo-check",
-      "--approve-for-me",
+      "-c",
+      'sandbox_mode="workspace-write"',
+      "-c",
+      'approval_policy="on-request"',
+      "-c",
+      'approvals_reviewer="auto_review"',
       "--",
       THREAD,
       "go on",
     ]);
+    expect(codexArgs({ mode: "safe", prompt: "go on", resume: THREAD }).join(" ")).toContain(
+      '-c sandbox_mode="workspace-write" --',
+    );
+    expect(codexArgs({ mode: "auto", prompt: "x", cwd: "/w" })).toContain("--approve-for-me");
     // Never a bypass flag, in either mode.
     for (const mode of ["safe", "auto"] as const)
       expect(codexArgs({ mode, prompt: "x", cwd: "/w" }).join(" ")).not.toMatch(/dangerously|full-auto/);

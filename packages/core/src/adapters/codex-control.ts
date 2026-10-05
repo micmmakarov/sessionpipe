@@ -43,7 +43,20 @@ export function findCodex(
  *  unattended (exec never asks). Auto: approval requests go through Codex's own
  *  automatic review. Never `--dangerously-bypass-approvals-and-sandbox` or
  *  `--dangerously-bypass-hook-trust`: no path here writes them. */
-export function codexModeFlags(mode: Mode): string[] {
+export function codexModeFlags(mode: Mode, resume = false): string[] {
+  // `codex exec resume` takes neither `-s` nor `--approve-for-me` (0.160: "unexpected
+  // argument"), so a resume says the same thing as config overrides, which it does take.
+  if (resume)
+    return mode === "auto"
+      ? [
+          "-c",
+          'sandbox_mode="workspace-write"',
+          "-c",
+          'approval_policy="on-request"',
+          "-c",
+          'approvals_reviewer="auto_review"',
+        ]
+      : ["-c", 'sandbox_mode="workspace-write"'];
   return mode === "auto" ? ["--approve-for-me"] : ["-s", "workspace-write"];
 }
 
@@ -51,7 +64,7 @@ export function codexModeFlags(mode: Mode): string[] {
  *  The prompt goes after `--`, so a message that starts with a dash is never a flag. */
 export function codexArgs(o: { mode: Mode; prompt: string; cwd?: string; resume?: string }): string[] {
   const common = ["--json", "--skip-git-repo-check"];
-  if (o.resume) return ["exec", "resume", ...common, ...codexModeFlags(o.mode), "--", o.resume, o.prompt];
+  if (o.resume) return ["exec", "resume", ...common, ...codexModeFlags(o.mode, true), "--", o.resume, o.prompt];
   return ["exec", ...common, ...(o.cwd ? ["-C", o.cwd] : []), ...codexModeFlags(o.mode), "--", o.prompt];
 }
 
