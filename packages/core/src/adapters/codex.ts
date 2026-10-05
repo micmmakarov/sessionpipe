@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from "node:path";
 import { HOME } from "../paths.js";
 import { ends, parseLines, recentFiles } from "../readers/files.js";
-import { readCodex } from "../readers/transcripts.js";
+import { codexInjected, readCodex } from "../readers/transcripts.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
 import * as toml from "./codex-config.js";
 import type {
@@ -369,7 +369,7 @@ export function codexFacts(file: string): SessionFacts {
       .map((b) => b.text as string)
       .join("\n")
       .trim();
-    if (!text || /^<[a-z_-]+>/i.test(text)) continue;
+    if (!text || codexInjected(text)) continue;
     const line = text.split("\n").find((l) => l.trim()) ?? "";
     out.title = line.length > 80 ? `${line.slice(0, 80).replace(/\s+\S*$/, "")}…` : line;
     out.title_source = "first-ask";

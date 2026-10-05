@@ -86,6 +86,13 @@ export function readClaude(lines: string[], from: number): TranscriptRead {
   return pairTurns(msgs, endOf(lines));
 }
 
+/** What Codex writes into a session as a "user" message that the person never typed:
+ *  `<environment_context>` and the like, and the AGENTS.md it read (`# AGENTS.md
+ *  instructions for <folder>` followed by `<INSTRUCTIONS>`). */
+export function codexInjected(text: string): boolean {
+  return /^<[a-z_-]+>/i.test(text) || /^# AGENTS\.md instructions\b/i.test(text);
+}
+
 /** Codex rollout: {type:"response_item", payload:{type:"message", role, content:[{type:"input_text"|"output_text", text}]}}. */
 export function readCodex(lines: string[], from: number): TranscriptRead {
   const msgs: Msg[] = [];
@@ -98,7 +105,7 @@ export function readCodex(lines: string[], from: number): TranscriptRead {
     const text = textParts(p.content, ["input_text", "output_text"]).trim();
     if (!text) continue;
     if (p.role === "user") {
-      if (/^<[a-z_-]+>/i.test(text)) continue; // <environment_context>: Codex's own injections
+      if (codexInjected(text)) continue; // Codex's own injections, not the person's words
       msgs.push({ role: "user", text, at, line: i });
     } else if (p.role === "assistant") msgs.push({ role: "assistant", text, at, line: i });
   }
