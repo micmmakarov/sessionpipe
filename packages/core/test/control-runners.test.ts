@@ -200,20 +200,24 @@ describe("codex exec --json", () => {
     expect(codexReading().outcome({ timedOut: true, code: null, signal: "SIGTERM" })).toHaveProperty("failed");
   });
 
-  it("login: CODEX_API_KEY is enough; else `codex login status` decides by exit code", async () => {
-    const bin = path.join(tmp, "codex-login");
-    const say = (code: number) =>
-      writeFileSync(bin, `#!/bin/sh\n[ "$1 $2" = "login status" ] || exit 9\necho "Not logged in"\nexit ${code}\n`);
-    say(1);
-    chmodSync(bin, 0o755);
-    expect(await codexLogin(bin, { PATH: process.env.PATH })).toEqual({ loggedIn: false });
-    expect(await codexLogin(bin, { PATH: process.env.PATH, CODEX_API_KEY: "sk-test" })).toMatchObject({
-      loggedIn: true,
-    });
-    say(0);
-    expect(await codexLogin(bin, { PATH: process.env.PATH })).toEqual({ loggedIn: true });
-    expect(await codexLogin(path.join(tmp, "nope"), {})).toEqual({ loggedIn: null });
-  });
+  // Runs a fake executable (a shell script), as the spawn test below does: POSIX only.
+  it.runIf(process.platform !== "win32")(
+    "login: CODEX_API_KEY is enough; else `codex login status` decides by exit code",
+    async () => {
+      const bin = path.join(tmp, "codex-login");
+      const say = (code: number) =>
+        writeFileSync(bin, `#!/bin/sh\n[ "$1 $2" = "login status" ] || exit 9\necho "Not logged in"\nexit ${code}\n`);
+      say(1);
+      chmodSync(bin, 0o755);
+      expect(await codexLogin(bin, { PATH: process.env.PATH })).toEqual({ loggedIn: false });
+      expect(await codexLogin(bin, { PATH: process.env.PATH, CODEX_API_KEY: "sk-test" })).toMatchObject({
+        loggedIn: true,
+      });
+      say(0);
+      expect(await codexLogin(bin, { PATH: process.env.PATH })).toEqual({ loggedIn: true });
+      expect(await codexLogin(path.join(tmp, "nope"), {})).toEqual({ loggedIn: null });
+    },
+  );
 
   it("finds a thread's rollout by its exact id, never by a fragment", () => {
     const home = path.join(tmp, "codex-home");
@@ -282,31 +286,35 @@ describe("agy --output-format stream-json", () => {
 });
 
 describe("finding the binaries, and running one", () => {
-  it("SESSIONPIPE_CODEX / SESSIONPIPE_AGY first, then PATH, then the installers' folders", () => {
-    const bin = path.join(tmp, "bin");
-    mkdirSync(bin, { recursive: true });
-    for (const n of ["codex", "agy", "my-codex"]) {
-      writeFileSync(path.join(bin, n), "#!/bin/sh\n");
-      chmodSync(path.join(bin, n), 0o755);
-    }
-    const empty = path.join(tmp, "empty");
-    mkdirSync(empty, { recursive: true });
-    expect(findCodex({ PATH: bin }, empty, empty)).toBe(path.join(bin, "codex"));
-    expect(findCodex({ PATH: empty, SESSIONPIPE_CODEX: path.join(bin, "my-codex") }, empty, empty)).toBe(
-      path.join(bin, "my-codex"),
-    );
-    // Beside the node that runs the daemon (an npm install -g there).
-    expect(findCodex({ PATH: empty }, empty, bin)).toBe(path.join(bin, "codex"));
-    expect(findAgy({ PATH: bin }, empty)).toBe(path.join(bin, "agy"));
-    const home = path.join(tmp, "home");
-    mkdirSync(path.join(home, ".local", "bin"), { recursive: true });
-    writeFileSync(path.join(home, ".local", "bin", "agy"), "#!/bin/sh\n");
-    chmodSync(path.join(home, ".local", "bin", "agy"), 0o755);
-    expect(findAgy({ PATH: empty }, home)).toBe(path.join(home, ".local", "bin", "agy"));
-    expect(drivableHarnesses({ PATH: bin, SESSIONPIPE_CLAUDE: path.join(bin, "codex") })).toEqual(
-      expect.arrayContaining(["claude-code", "codex", "antigravity"]),
-    );
-  });
+  // Runs a fake executable (a shell script), as the spawn test below does: POSIX only.
+  it.runIf(process.platform !== "win32")(
+    "SESSIONPIPE_CODEX / SESSIONPIPE_AGY first, then PATH, then the installers' folders",
+    () => {
+      const bin = path.join(tmp, "bin");
+      mkdirSync(bin, { recursive: true });
+      for (const n of ["codex", "agy", "my-codex"]) {
+        writeFileSync(path.join(bin, n), "#!/bin/sh\n");
+        chmodSync(path.join(bin, n), 0o755);
+      }
+      const empty = path.join(tmp, "empty");
+      mkdirSync(empty, { recursive: true });
+      expect(findCodex({ PATH: bin }, empty, empty)).toBe(path.join(bin, "codex"));
+      expect(findCodex({ PATH: empty, SESSIONPIPE_CODEX: path.join(bin, "my-codex") }, empty, empty)).toBe(
+        path.join(bin, "my-codex"),
+      );
+      // Beside the node that runs the daemon (an npm install -g there).
+      expect(findCodex({ PATH: empty }, empty, bin)).toBe(path.join(bin, "codex"));
+      expect(findAgy({ PATH: bin }, empty)).toBe(path.join(bin, "agy"));
+      const home = path.join(tmp, "home");
+      mkdirSync(path.join(home, ".local", "bin"), { recursive: true });
+      writeFileSync(path.join(home, ".local", "bin", "agy"), "#!/bin/sh\n");
+      chmodSync(path.join(home, ".local", "bin", "agy"), 0o755);
+      expect(findAgy({ PATH: empty }, home)).toBe(path.join(home, ".local", "bin", "agy"));
+      expect(drivableHarnesses({ PATH: bin, SESSIONPIPE_CLAUDE: path.join(bin, "codex") })).toEqual(
+        expect.arrayContaining(["claude-code", "codex", "antigravity"]),
+      );
+    },
+  );
 
   it.runIf(process.platform !== "win32")(
     "runHeadless streams every line, keeps only what it is told, and closes stdin",
