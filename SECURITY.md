@@ -4,7 +4,7 @@
 
 Please report privately, never in a public issue:
 
-- **GitHub private vulnerability reporting**: [open a draft advisory](https://github.com/micmmakarov/sessionpipe/security/advisories/new)
+- **GitHub private vulnerability reporting**: [open a draft advisory](https://github.com/spacesheep-dev/sessionpipe/security/advisories/new)
 - or email **security@sessionpipe.org**
 
 Until that address is live, the GitHub form reaches the maintainer directly.

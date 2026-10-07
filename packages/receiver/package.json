@@ -10,11 +10,11 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/micmmakarov/sessionpipe.git",
+    "url": "git+https://github.com/spacesheep-dev/sessionpipe.git",
     "directory": "packages/receiver"
   },
   "homepage": "https://sessionpipe.org",
-  "bugs": "https://github.com/micmmakarov/sessionpipe/issues",
+  "bugs": "https://github.com/spacesheep-dev/sessionpipe/issues",
   "keywords": [
     "sessionpipe",
     "coding-agents",

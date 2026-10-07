@@ -1,6 +1,6 @@
 # Get started
 
-> **Pre-release.** The packages publish to npm at v0.1.0; until then, the commands below describe the client as specified and built in the repository. Follow the [roadmap](https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md).
+> **Pre-release.** The packages publish to npm at v0.1.0; until then, the commands below describe the client as specified and built in the repository. Follow the [roadmap](https://github.com/spacesheep-dev/sessionpipe/blob/main/ROADMAP.md).
 
 ## To a receiver, in one command
 
@@ -50,7 +50,7 @@ sessionpipe status
 npx sessionpipe-receiver --port 7357 --token <t> --max-tier 3
 ```
 
-or in Docker: `docker run -p 7357:7357 -v sessionpipe:/data ghcr.io/micmmakarov/sessionpipe-receiver`. Open `http://localhost:7357/` for the page: sessions grouped needs-you / working / recent, live.
+or in Docker: `docker run -p 7357:7357 -v sessionpipe:/data ghcr.io/spacesheep-dev/sessionpipe-receiver`. Open `http://localhost:7357/` for the page: sessions grouped needs-you / working / recent, live.
 
 ## Send to spacesheep
 

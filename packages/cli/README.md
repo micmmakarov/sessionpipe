@@ -23,7 +23,7 @@ sessionpipe uninstall          # every config file byte-identical again
 
 No telemetry. Secrets never leave (`secrets@1` runs above tier 0, always). Your
 server or none. Pre-release: the reference receiver is still being built; see the
-[roadmap](https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md).
+[roadmap](https://github.com/spacesheep-dev/sessionpipe/blob/main/ROADMAP.md).
 
 ## Control: messages to your sessions (M6: Claude Code, Codex, Antigravity)
 
@@ -128,5 +128,5 @@ a launchd or systemd service doesn't inherit your shell's variables, while
 `sessionpipe update off` reaches it (it re-reads the config every ten minutes).
 
 Docs and the protocol: [sessionpipe.org](https://sessionpipe.org) · Source:
-[github.com/micmmakarov/sessionpipe](https://github.com/micmmakarov/sessionpipe) · Apache-2.0.
+[github.com/spacesheep-dev/sessionpipe](https://github.com/spacesheep-dev/sessionpipe) · Apache-2.0.
 Provided as-is; check what a sink receives with `sessionpipe tail` before you point it anywhere.

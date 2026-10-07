@@ -26,7 +26,7 @@ const nav = [
   ["/protocol/", "Protocol"],
   ["/get-started/", "Get started"],
   ["/receivers/", "Receivers"],
-  ["https://github.com/micmmakarov/sessionpipe", "GitHub"],
+  ["https://github.com/spacesheep-dev/sessionpipe", "GitHub"],
 ];
 
 /** Spec links: PROTOCOL.md → /protocol/, HTTP.md → /protocol/http/, section anchors kept. */
@@ -41,16 +41,16 @@ const specPath = {
 };
 const rootPath = {
   LICENSE: "/legal/",
-  NOTICE: "https://github.com/micmmakarov/sessionpipe/blob/main/NOTICE",
-  DCO: "https://github.com/micmmakarov/sessionpipe/blob/main/DCO",
-  "CONTRIBUTING.md": "https://github.com/micmmakarov/sessionpipe/blob/main/CONTRIBUTING.md",
-  "CODE_OF_CONDUCT.md": "https://github.com/micmmakarov/sessionpipe/blob/main/CODE_OF_CONDUCT.md",
+  NOTICE: "https://github.com/spacesheep-dev/sessionpipe/blob/main/NOTICE",
+  DCO: "https://github.com/spacesheep-dev/sessionpipe/blob/main/DCO",
+  "CONTRIBUTING.md": "https://github.com/spacesheep-dev/sessionpipe/blob/main/CONTRIBUTING.md",
+  "CODE_OF_CONDUCT.md": "https://github.com/spacesheep-dev/sessionpipe/blob/main/CODE_OF_CONDUCT.md",
   "SECURITY.md": "/security/",
   "GOVERNANCE.md": "/governance/",
   "TRADEMARKS.md": "/legal/#trademarks",
-  "ROADMAP.md": "https://github.com/micmmakarov/sessionpipe/blob/main/ROADMAP.md",
+  "ROADMAP.md": "https://github.com/spacesheep-dev/sessionpipe/blob/main/ROADMAP.md",
   "CHANGELOG.md": "/changelog/",
-  "SUPPORT.md": "https://github.com/micmmakarov/sessionpipe/blob/main/SUPPORT.md",
+  "SUPPORT.md": "https://github.com/spacesheep-dev/sessionpipe/blob/main/SUPPORT.md",
 };
 
 function rewriteLinks(md, map, dirPrefix) {
@@ -123,7 +123,7 @@ function mdPage({ pathname, file, title, description, map, dirPrefix = "", licen
       description,
       body,
       pathname,
-      edit: `https://github.com/micmmakarov/sessionpipe/edit/main/${file}`,
+      edit: `https://github.com/spacesheep-dev/sessionpipe/edit/main/${file}`,
       license,
     }),
   );
@@ -190,7 +190,7 @@ for (const [pathname, file, title, description] of specs) {
       description,
       body,
       pathname,
-      edit: `https://github.com/micmmakarov/sessionpipe/edit/main/${file}`,
+      edit: `https://github.com/spacesheep-dev/sessionpipe/edit/main/${file}`,
       license: "spec",
     }),
   );
@@ -238,7 +238,7 @@ mdPage({
 });
 {
   const privacy = read("website/src/pages/privacy.md");
-  const body = `<article class="prose">${marked.parse(privacy)}<h2 id="trademarks">Trademarks</h2>${marked.parse(read("TRADEMARKS.md").replace(/^# Trademarks\n/, ""))}<h2 id="code-license">Code license</h2><p>Apache License 2.0. <a href="https://github.com/micmmakarov/sessionpipe/blob/main/LICENSE">Full text</a> · <a href="https://github.com/micmmakarov/sessionpipe/blob/main/NOTICE">NOTICE</a></p><h2 id="spec-license">Specification license</h2><p>Creative Commons Attribution 4.0 International. <a href="https://creativecommons.org/licenses/by/4.0/">Summary</a> · <a href="https://github.com/micmmakarov/sessionpipe/blob/main/spec/LICENSE">Full text</a></p></article>`;
+  const body = `<article class="prose">${marked.parse(privacy)}<h2 id="trademarks">Trademarks</h2>${marked.parse(read("TRADEMARKS.md").replace(/^# Trademarks\n/, ""))}<h2 id="code-license">Code license</h2><p>Apache License 2.0. <a href="https://github.com/spacesheep-dev/sessionpipe/blob/main/LICENSE">Full text</a> · <a href="https://github.com/spacesheep-dev/sessionpipe/blob/main/NOTICE">NOTICE</a></p><h2 id="spec-license">Specification license</h2><p>Creative Commons Attribution 4.0 International. <a href="https://creativecommons.org/licenses/by/4.0/">Summary</a> · <a href="https://github.com/spacesheep-dev/sessionpipe/blob/main/spec/LICENSE">Full text</a></p></article>`;
   write(
     "/legal/",
     page({
@@ -320,7 +320,7 @@ const FAQ = [
         operatingSystem: "macOS, Linux, Windows",
         softwareVersion: version,
         license: "https://www.apache.org/licenses/LICENSE-2.0",
-        codeRepository: "https://github.com/micmmakarov/sessionpipe",
+        codeRepository: "https://github.com/spacesheep-dev/sessionpipe",
         url: SITE,
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         description:
@@ -392,7 +392,7 @@ const llms = [
   "",
   `- [Get started](${SITE}/get-started/)`,
   `- [Receivers](${SITE}/receivers/)`,
-  "- [Source](https://github.com/micmmakarov/sessionpipe)",
+  "- [Source](https://github.com/spacesheep-dev/sessionpipe)",
   "",
   "## Project",
   "",
