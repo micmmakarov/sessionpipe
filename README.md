@@ -6,7 +6,7 @@ filtered to a privacy tier you choose per destination, secrets are removed on yo
 machine before anything leaves it, and it goes to your server, to a file, or nowhere
 at all.
 
-[![CI](https://github.com/micmmakarov/sessionpipe/actions/workflows/ci.yml/badge.svg)](https://github.com/micmmakarov/sessionpipe/actions/workflows/ci.yml)
+[![CI](https://github.com/spacesheep-dev/sessionpipe/actions/workflows/ci.yml/badge.svg)](https://github.com/spacesheep-dev/sessionpipe/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/sessionpipe)](https://www.npmjs.com/package/sessionpipe)
 [![License: Apache-2.0](https://img.shields.io/badge/code-Apache--2.0-blue)](LICENSE)
 [![Spec: CC BY 4.0](https://img.shields.io/badge/spec-CC%20BY%204.0-blue)](spec/LICENSE)
@@ -53,7 +53,7 @@ sessionpipe tail            # watch events locally, no server needed
 ### From source
 
 ```sh
-git clone https://github.com/micmmakarov/sessionpipe && cd sessionpipe
+git clone https://github.com/spacesheep-dev/sessionpipe && cd sessionpipe
 npm ci --ignore-scripts && npm run build && npm test
 npm pack -w sessionpipe
 npm install -g --prefix ~/.local sessionpipe-*.tgz     # ~/.local/bin on PATH; never the clone itself
@@ -121,7 +121,7 @@ Who receives: [sessionpipe.org/receivers](https://sessionpipe.org/receivers/).
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md). Every commit is signed off under the
 [DCO](DCO); there is no CLA. A new harness is one adapter file plus its fixtures. A
-protocol change starts as a [spec proposal](https://github.com/micmmakarov/sessionpipe/issues/new?template=spec-proposal.yml)
+protocol change starts as a [spec proposal](https://github.com/spacesheep-dev/sessionpipe/issues/new?template=spec-proposal.yml)
 with a fixture. Security reports go through [SECURITY.md](SECURITY.md).
 
 Code is Apache-2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)); the spec is CC BY 4.0

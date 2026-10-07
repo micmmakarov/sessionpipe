@@ -6,7 +6,7 @@ Discussion and we will fix the page.
 ## Dev setup
 
 ```sh
-git clone https://github.com/micmmakarov/sessionpipe
+git clone https://github.com/spacesheep-dev/sessionpipe
 cd sessionpipe
 npm ci --ignore-scripts
 npm run build        # esbuild bundles + declarations, per package
@@ -64,7 +64,7 @@ One PR, touching:
 
 ## Proposing a spec change
 
-Open a [spec proposal](https://github.com/micmmakarov/sessionpipe/issues/new?template=spec-proposal.yml).
+Open a [spec proposal](https://github.com/spacesheep-dev/sessionpipe/issues/new?template=spec-proposal.yml).
 It needs a motivation, the exact field change with its requirement level (RFC 2119),
 the fixture that would prove it, and a compatibility statement (additive behind a
 capability string, or breaking with a protocol integer bump). Decisions are by lazy

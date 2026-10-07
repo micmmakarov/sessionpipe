@@ -29,9 +29,9 @@ receiver feature), an existing maintainer may nominate a contributor in a public
 issue. Lazy consensus for seven days, then they are added to this file and given
 merge rights.
 
-When a second maintainer joins, the repository moves from `micmmakarov/sessionpipe`
-into a GitHub organisation, and the npm packages and the domain get a second owner.
-Until then, the maintainer list above is the bus factor, stated plainly.
+The repository lives in the `spacesheep-dev` GitHub organisation. When a second
+maintainer joins, the npm packages and the domain get a second owner. Until then,
+the maintainer list above is the bus factor, stated plainly.
 
 ## Stepping down
 

@@ -1,9 +1,9 @@
 # Support
 
-- **Questions and ideas**: [GitHub Discussions](https://github.com/micmmakarov/sessionpipe/discussions).
-- **Bugs**: an [issue](https://github.com/micmmakarov/sessionpipe/issues/new?template=bug.yml)
+- **Questions and ideas**: [GitHub Discussions](https://github.com/spacesheep-dev/sessionpipe/discussions).
+- **Bugs**: an [issue](https://github.com/spacesheep-dev/sessionpipe/issues/new?template=bug.yml)
   with the output of `sessionpipe doctor --json`.
-- **A harness we do not support yet**: an [adapter request](https://github.com/micmmakarov/sessionpipe/issues/new?template=adapter.yml).
+- **A harness we do not support yet**: an [adapter request](https://github.com/spacesheep-dev/sessionpipe/issues/new?template=adapter.yml).
 - **Security**: see [SECURITY.md](SECURITY.md); never a public issue.
 
 ## What is not supported
