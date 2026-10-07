@@ -318,7 +318,9 @@ describe.runIf(unix)("delivery", () => {
     await startDaemon();
     await ask(sock, { op: "event", session: SESSION, event: "UserPromptSubmit" }, 500);
     const q = await rx.send({ session: SESSION, text: "also write pong" });
-    await new Promise((r) => setTimeout(r, 300));
+    // Taken on the next long-poll; wait for the ack rather than a fixed sleep (a loaded CI
+    // runner took longer than 300 ms once, 2026-10-05, ubuntu/node 20).
+    for (let i = 0; i < 100 && !rx.acks.some((a) => a.id === q.id); i++) await new Promise((r) => setTimeout(r, 20));
     expect(rx.finalAck(q.id)).toBeUndefined();
     expect(rx.acks.find((a) => a.id === q.id)?.outcome).toBe("taken");
     // Taken, so the receiver stops handing it back: the long-poll doesn't spin.
