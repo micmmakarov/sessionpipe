@@ -3,7 +3,6 @@
   "compilerOptions": {
     "noEmit": true,
     "rootDir": ".",
-    "baseUrl": ".",
     "paths": {
       "@sessionpipe/core": ["./packages/core/src/index.ts"],
       "@sessionpipe/core/schema": ["./packages/core/schema/v1.ts"],

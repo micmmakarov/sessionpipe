@@ -4,7 +4,11 @@ updates:
     directory: /
     schedule: { interval: weekly }
     groups:
-      npm: { patterns: ["*"] }
+      # Minor and patch bumps ride together; a major (TypeScript 7 removed `baseUrl`,
+      # 2026-10-05) gets its own PR so one breaking change can't block the whole group.
+      npm-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
