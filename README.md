@@ -35,6 +35,11 @@ The daemon then keeps sessionpipe up to date by itself, installing a new release
 day at most and only when it's idle (`sessionpipe update off` stops that; see
 [the CLI's README](packages/cli/README.md#updates)).
 
+In the Claude desktop app, ask the session to run `sessionpipe wait` as a background
+command. Messages from your devices then arrive in that session, in the app, with no
+`claude` command or separate sign-in
+([Get started](https://sessionpipe.org/get-started/)).
+
 Or only the hooks, with nothing sent anywhere:
 
 ```sh
