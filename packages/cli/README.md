@@ -62,6 +62,11 @@ background command with the longest timeout it can (Claude Code: raise
 sessionpipe wait            # Claude Code: the session id comes from CLAUDE_CODE_SESSION_ID
 ```
 
+The waiter and next-Stop modes work in any Claude Code session that runs your hooks,
+the Claude desktop app's included, and need nothing else. The Agent SDK, resume and fork
+modes run the `claude` command, which has its own login (`claude auth login`); the
+desktop app doesn't share its login with that command.
+
 Permission prompts can be answered from the receiver too: while the terminal shows
 its prompt, the PermissionRequest hook waits for your signed answer, and whichever
 comes first wins. Nothing is ever auto-allowed. Safe mode (the default) runs headless

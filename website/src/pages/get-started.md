@@ -19,6 +19,18 @@ Run it on each machine your agents run on: a laptop, a lab workstation over ssh,
 
 Run it again any time; it only fixes what's missing. `sessionpipe doctor` checks all of the above.
 
+## In the Claude desktop app
+
+The desktop app runs the same hooks, so its sessions report like any other. To message one from another device, say this in that session:
+
+```text
+Run `sessionpipe wait` as a background command, with the longest timeout you can.
+```
+
+Your messages then arrive in that session, in the app, and its answers go back to you by themselves. A message sent while the session is mid-turn lands when the turn ends. This needs no `claude` command and no separate sign-in.
+
+The `claude` command only matters when the daemon has to start Claude Code outside the app: a new session you start from the receiver, or a message to an app session that is neither running `sessionpipe wait` nor mid-turn (it runs headless, outside the app). That command has its own login, which the app doesn't share: `claude auth login` once if you want those too.
+
 ## 1. Install the hooks
 
 ```sh
