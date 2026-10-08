@@ -81,6 +81,8 @@ try {
       "CLAUDE_CONFIG_DIR",
       "CLAUDE_PROJECT_DIR",
       "CODEX_HOME",
+      // Devin's payload names no folder at all; this is the only thing that does.
+      "DEVIN_PROJECT_DIR",
       "GEMINI_CLI_HOME",
     ]),
     ppid: process.ppid,
