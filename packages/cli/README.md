@@ -54,7 +54,10 @@ cheapest way the session allows: to `sessionpipe wait` parked in the session's
 background (in place, ~60 ms, no network), at the session's next Stop if it is
 mid-turn, through the Agent SDK for a session it started (if the SDK is installed), or
 as a headless `claude -p --resume` (a `--fork-session` copy when a live process holds
-it). A session stays reachable in place with zero idle turns by running, as a
+it). Before a headless run the daemon checks `claude auth status` for that account and,
+if it isn't signed in, answers with `claude auth login` instead of starting it. The
+Claude desktop app keeps its login to itself, so a machine where you've only used the
+app needs that once. A session stays reachable in place with zero idle turns by running, as a
 background command with the longest timeout it can (Claude Code: raise
 `BASH_MAX_TIMEOUT_MS`, else a background command is stopped after 2 hours at most):
 

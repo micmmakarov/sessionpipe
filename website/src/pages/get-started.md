@@ -8,6 +8,8 @@
 npx sessionpipe connect your-receiver.example
 ```
 
+**Using Claude Code only in the Claude desktop app?** Sign the `claude` command in once first: `claude auth login`. A message you send runs `claude` on this machine with its own login, and the app keeps its login to itself, so the app being signed in isn't enough. `claude auth status` says which you have. No `claude` command? `npm install -g @anthropic-ai/claude-code`.
+
 Run it on each machine your agents run on: a laptop, a lab workstation over ssh, a cloud box. It shows six digits; open the receiver's pairing page on any device where you're signed in, type them and approve with that device's passkey. That approval hands the machine both its control token and its sessions key, so there is nothing to copy. Then, without asking:
 
 - **Hooks** for every harness here, and every Claude Code account (`~/.claude`, `~/.claude-*`). Hooks run `~/.local/share/sessionpipe/sessionpipe-hook`, which outlives a Node upgrade or `nvm uninstall`.
@@ -15,7 +17,7 @@ Run it on each machine your agents run on: a laptop, a lab workstation over ssh,
 - **Signed messages**: the control daemon, in safe mode unless `--mode auto`, for the folder you ran it in, or the folders your recent sessions ran in when you ran it from your home folder (never the home folder itself).
 - **Keys** in the macOS Keychain, or the Secret Service keyring in a Linux desktop session; otherwise a `0600` file, which is what a headless server has. `sessionpipe secrets` shows where each one is.
 - **The daemon keeps running after you log out** (systemd linger on Linux; a background launchd agent on a Mac nobody is logged in to).
-- Each Claude Code account it finds, and whether it's **signed in** as this machine sees it: a message you send starts a headless run with that login.
+- Each Claude Code account it finds, and whether it's **signed in** as this machine sees it: a message you send starts a headless run with that login. *Not signed in* means `claude auth login`, then send the message again.
 
 Run it again any time; it only fixes what's missing. `sessionpipe doctor` checks all of the above.
 
@@ -57,6 +59,7 @@ or in Docker: `docker run -p 7357:7357 -v sessionpipe:/data ghcr.io/spacesheep-d
 On Pro or Team, one command and one approval at spacesheep.dev/pair:
 
 ```sh
+claude auth login     # once, if `claude auth status` says loggedIn: false (the desktop app's login doesn't count)
 npx -y sessionpipe@latest connect spacesheep.dev --mode auto
 ```
 

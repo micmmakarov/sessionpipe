@@ -35,6 +35,10 @@ The daemon then keeps sessionpipe up to date by itself, installing a new release
 day at most and only when it's idle (`sessionpipe update off` stops that; see
 [the CLI's README](packages/cli/README.md#updates)).
 
+If you use Claude Code only in the Claude desktop app, run `claude auth login` once
+before `connect`: a message you send runs the `claude` command here with its own login,
+and the app doesn't share its login with that command.
+
 Or only the hooks, with nothing sent anywhere:
 
 ```sh
