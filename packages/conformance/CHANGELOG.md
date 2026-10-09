@@ -1,5 +1,11 @@
 # @sessionpipe/conformance
 
+## 0.8.0
+
+### Patch Changes
+
+- ea1d43a: Build on TypeScript 7 (`baseUrl` dropped from every tsconfig; `paths` already resolved relative to the file). Dev-only: published output is unchanged.
+
 ## 0.7.0
 
 No changes in this release.
