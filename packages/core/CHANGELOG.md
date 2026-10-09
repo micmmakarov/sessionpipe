@@ -1,5 +1,15 @@
 # @sessionpipe/core
 
+## 0.8.0
+
+### Minor Changes
+
+- 3c5d8fb: Control's pairing request and every daemon hello name the Claude Code accounts signed in on the machine (`accounts`: `{harness, id, email}` per config dir, read again for each hello), so a receiver the person paired with can label `session.account_id` with the account's email instead of showing an id. Events are unchanged: `account_id` stays an id and no event carries an email. `sessionpipe control pair` and `connect` say which accounts they named.
+
+### Patch Changes
+
+- ea1d43a: Build on TypeScript 7 (`baseUrl` dropped from every tsconfig; `paths` already resolved relative to the file). Dev-only: published output is unchanged.
+
 ## 0.7.0
 
 ### Minor Changes
