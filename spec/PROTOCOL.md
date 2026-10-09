@@ -80,7 +80,7 @@ blanks an earlier full value.
 | `model` | The model id the harness reports. |
 | `title`, `title_source` | The session's name and where it came from: `custom` (the person named it), `harness` (the tool's own titler), `first-ask` (the first prompt, cut). A receiver SHOULD never replace a better source with a worse one. |
 | `url` | A link that opens the session (a Remote Control link, a web remote). |
-| `account_id` | An opaque id for the harness account, never an email. |
+| `account_id` | An opaque id for the harness account, never an email. A receiver the person paired with for control learns the email that goes with it from the pairing request and the daemon's hellos (`accounts`, [CONTROL.md §2](CONTROL.md#2-keys-and-enrollment)). |
 | `parent_id` | For a subagent's own events: the parent session's id. `null` or absent otherwise. |
 
 ## 4. Event vocabulary

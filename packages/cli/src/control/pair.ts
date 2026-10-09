@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { drivableHarnesses } from "@sessionpipe/core";
+import { claudeAccounts, claudeDirs, drivableHarnesses, type HarnessAccount } from "@sessionpipe/core";
 import { type TrustedKey, verifyEnrollment } from "@sessionpipe/core/control";
 import {
   type ControlConfig,
@@ -40,6 +40,8 @@ export interface PairOptions {
   addSink?: (token: string) => void;
   /** The harnesses this machine can run a message in (default: those installed here). */
   harnesses?: string[];
+  /** The harness accounts signed in here (default: every Claude Code config dir's). */
+  accounts?: HarnessAccount[];
 }
 
 async function json(r: Response): Promise<Record<string, unknown>> {
@@ -91,6 +93,14 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
   cfg.mode = o.mode;
   cfg.folders = [...new Set([...cfg.folders, ...o.folders.map((d) => path.resolve(d))])];
   const existing = cfg.receivers.find((r) => r.control === control);
+  let accounts = o.accounts;
+  if (!accounts)
+    try {
+      const e = o.env ?? process.env;
+      accounts = claudeAccounts(claudeDirs(e), e.HOME);
+    } catch {
+      accounts = [];
+    }
   const auth = { authorization: `Bearer ${o.token ?? pollKey}`, "content-type": "application/json" };
   const started = await f(`${control}/pair`, {
     method: "POST",
@@ -104,6 +114,7 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
       version: VERSION,
       folders: cfg.folders,
       mode: cfg.mode,
+      ...(accounts.length ? { accounts } : {}),
     }),
   });
   const s = await json(started);
@@ -161,6 +172,9 @@ export async function pair(o: PairOptions): Promise<ControlConfig> {
     if (!existing) cfg.receivers.push(rec);
     writeControl(cfg, o.env);
     o.out(`  ✓ Paired with ${rec.url} as ${machine} · ${rec.keys.length} key(s) trusted on this machine`);
+    const named = accounts.flatMap((a) => (a.email ? [a.email] : []));
+    if (named.length)
+      o.out(`  Its session board names your Claude Code account${named.length > 1 ? "s" : ""}: ${named.join(", ")}`);
     // Whose passkey this machine now trusts: with open pairing, whoever approved the link.
     if (typeof p.account === "string")
       o.out(`  Approved by ${p.account}. If that isn't you, run \`sessionpipe control off\` now.`);

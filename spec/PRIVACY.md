@@ -71,6 +71,12 @@ anonymity:
 
 Vectors: `conformance/redaction/pii.json`.
 
+Tiers and rulesets govern events. The control lane is not a sink: it talks only to a
+receiver the person paired with by approving it with their passkey, and its pairing
+request and hellos may name the machine's harness accounts with their emails
+(`accounts`, [CONTROL.md §2](CONTROL.md#2-keys-and-enrollment)) so that receiver's board can label
+`session.account_id`. No event carries an email for that.
+
 ## 3. What a sender never reads
 
 An adapter uses a harness's documented hooks API and reads files the person's own

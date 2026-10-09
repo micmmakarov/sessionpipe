@@ -68,6 +68,15 @@ The pairing request and every hello MAY carry the machine's allowed `folders` an
 mode), so a receiver can offer a folder picker for a new session. They are
 informational: the machine checks its own list again (§5 step 6).
 
+They MAY also carry `accounts`: the harness accounts signed in on the machine, each
+`{harness, id, email}`, where `id` is what events carry as `session.account_id` and
+`email` is the address the account signs in with, so the receiver's board can name an
+account rather than show its id. The email travels only here, to a receiver the
+person paired with, and never on an event (events reach every sink, a team board
+included). The daemon reads the accounts again for every hello, so a new sign-in is
+named without pairing again. A receiver MUST NOT treat them as anything but a label:
+nothing on the machine is checked against them.
+
 Keys are listed and removed one at a time on the machine (`sessionpipe control keys`,
 `sessionpipe control keys remove <id>`); `sessionpipe control off` removes the machine,
 its keys and its token, and tells the receiver (`POST {control}/off`). Adding another

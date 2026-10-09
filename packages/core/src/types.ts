@@ -20,3 +20,4 @@ export type WellKnown = z.infer<typeof S.WellKnown>;
 export type ControlMessage = z.infer<typeof S.ControlMessage>;
 export type ControlAck = z.infer<typeof S.ControlAck>;
 export type AttentionKind = z.infer<typeof S.AttentionKind>;
+export type HarnessAccount = z.infer<typeof S.HarnessAccount>;

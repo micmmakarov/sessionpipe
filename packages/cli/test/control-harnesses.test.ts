@@ -461,4 +461,18 @@ describe.runIf(unix)("hello", () => {
     for (let i = 0; i < 100 && !rx.hellos.length; i++) await new Promise((r) => setTimeout(r, 20));
     expect(rx.hellos[0]).toMatchObject({ harnesses: ["codex"] });
   });
+  it("names the accounts signed in, read again for each hello", async () => {
+    const file = path.join(tmp, "claude-config", ".claude.json");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ oauthAccount: { accountUuid: "acct-a", emailAddress: "a@example.com" } }));
+    await startDaemon();
+    for (let i = 0; i < 100 && !rx.hellos.length; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(rx.hellos[0]?.accounts).toEqual([{ harness: "claude-code", id: "acct-a", email: "a@example.com" }]);
+    await d?.stop();
+    rx.hellos.length = 0;
+    rmSync(file);
+    await startDaemon();
+    for (let i = 0; i < 100 && !rx.hellos.length; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(rx.hellos[0]).not.toHaveProperty("accounts");
+  });
 });
