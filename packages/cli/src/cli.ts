@@ -35,6 +35,7 @@ import { autoUpdateOff, readUpdate, updateFile, updateLine, updateSummary } from
 import { CONTROL_HELP, controlMain, enabledHarnesses, waitMain } from "./control/cli.js";
 import { ask, socketPath } from "./control/local.js";
 import { moveControlSecrets, pairedCount, readControl } from "./control/store.js";
+import { commandHelp } from "./help.js";
 import { installLauncher, launcherPath, launcherState, removeLauncher, usesLauncher } from "./launcher.js";
 import { buildSinks, factsState, flush, jobsDir, runJob, VERSION } from "./run.js";
 import { rerunGlobally, stableNode, viaNpx } from "./runtime.js";
@@ -83,6 +84,14 @@ function selectedAdapters(): typeof ADAPTERS {
 }
 
 async function main(): Promise<void> {
+  // Help wins over every command and argument, before any command can do work.
+  if (has("--help") || has("-h")) {
+    const usage = commandHelp(
+      args,
+      ADAPTERS.map((a) => a.name),
+    );
+    return usage ? out(usage) : help();
+  }
   switch (cmd) {
     case "connect":
       return connect();
@@ -130,6 +139,7 @@ async function main(): Promise<void> {
 function help(): void {
   out(`sessionpipe ${VERSION} — an open protocol for what your coding agents are doing
 
+Usage:
   sessionpipe connect <receiver> [--machine NAME] [--tier 0-3] [--mode safe|auto] [--folder DIR]…
                                   (everything, in one go: hooks, a sink, signed messages, keys)
   sessionpipe install [--claude-code --codex --gemini-cli --antigravity] [--machine NAME] [--backfill DAYS] [--sink URL --tier N]
@@ -137,7 +147,7 @@ function help(): void {
   sessionpipe sink add <url|file:PATH|stdout> [--tier 0-3] [--token T] [--pii] [--name N]
   sessionpipe sink list | remove <name> | test <name>
   sessionpipe secrets [move keychain|secret-service|file]   (where the machine's keys live)
-  sessionpipe status | doctor [--json]
+  sessionpipe status [--json] | doctor [--json]
   sessionpipe tail [--session ID] [--tier N] [--harness NAME]
   sessionpipe backfill [--days 30] | forget <harness> <session> | replay --sink NAME
   sessionpipe update [off|on]       (install the latest now; off/on: the daemon's daily update)
@@ -615,15 +625,25 @@ async function replay(): Promise<void> {
 function status(): void {
   const cfg = readConfig();
   const hc = hookCommand();
-  out(`  machine:  ${machineName(cfg, os.hostname())}   sessionpipe ${VERSION}   state ${tilde(state)}`);
+  const json = has("--json");
+  const harnesses: Record<string, { file: string; state: string; note?: string }[]> = {};
+  const sinks = [];
+  if (!json) out(`  machine:  ${machineName(cfg, os.hostname())}   sessionpipe ${VERSION}   state ${tilde(state)}`);
   for (const a of ADAPTERS) {
     if (!a.detect() && !cfg.harnesses[a.name]) continue;
-    for (const r of a.installed(hc, process.env, { lean: isLean(cfg) }))
-      out(
-        `  ${a.name.padEnd(12)} ${tilde(r.file).padEnd(44)} ${r.state}${r.state !== "current" && r.note ? ` — ${r.note}` : ""}`,
-      );
+    const installed = a.installed(hc, process.env, { lean: isLean(cfg) });
+    harnesses[a.name] = installed.map((r) => ({
+      file: tilde(r.file),
+      state: r.state,
+      ...(r.note ? { note: r.note } : {}),
+    }));
+    if (!json)
+      for (const r of installed)
+        out(
+          `  ${a.name.padEnd(12)} ${tilde(r.file).padEnd(44)} ${r.state}${r.state !== "current" && r.note ? ` — ${r.note}` : ""}`,
+        );
   }
-  if (!cfg.sinks.length) out("  sinks:    none (events stay in the local outbox)");
+  if (!json && !cfg.sinks.length) out("  sinks:    none (events stay in the local outbox)");
   for (const s of cfg.sinks) {
     const c = new Cursors(state, s.name).read();
     const outbox = new Outbox(state);
@@ -634,21 +654,51 @@ function status(): void {
         pending += Math.max(0, statSync(f).size - (c[`${ref.harness}/${ref.session}`] ?? 0)) > 0 ? 1 : 0;
       } catch {}
     }
-    out(
-      `  sink      ${s.name.padEnd(16)} tier ${Math.min(s.tier, s.max_tier ?? 3)}  ${s.paused ? `PAUSED ${s.paused}` : pending ? `${pending} session file(s) with undelivered events` : "up to date"}`,
-    );
+    sinks.push({
+      name: s.name,
+      url: s.url,
+      tier: s.tier,
+      max_tier: s.max_tier ?? null,
+      pii: !!s.pii,
+      control: !!s.control,
+      paused: s.paused ?? null,
+      pending_sessions: pending,
+    });
+    if (!json)
+      out(
+        `  sink      ${s.name.padEnd(16)} tier ${Math.min(s.tier, s.max_tier ?? 3)}  ${s.paused ? `PAUSED ${s.paused}` : pending ? `${pending} session file(s) with undelivered events` : "up to date"}`,
+      );
   }
-  out(`  update:   ${updateLine(updateState(cfg), Date.now())}`);
+  const update = updateState(cfg);
+  if (!json) out(`  update:   ${updateLine(update, Date.now())}`);
   const t = timing();
-  if (t)
+  if (!json && t)
     out(
       `  hook:     in-process p50 ${t.p50} ms over ${t.n} runs (\`sessionpipe doctor\` measures the wall clock the harness waits)`,
     );
-  const jobs = jobsDir(state);
+  let jobs = 0;
   try {
-    const n = readdirSync(jobs).length;
-    if (n) out(`  jobs:     ${n} waiting`);
+    jobs = readdirSync(jobsDir(state)).length;
   } catch {}
+  if (json)
+    out(
+      JSON.stringify(
+        {
+          version: VERSION,
+          machine: machineName(cfg, os.hostname()),
+          state,
+          config: configFile(),
+          harnesses,
+          sinks,
+          timing: t,
+          update,
+          jobs,
+        },
+        null,
+        2,
+      ),
+    );
+  else if (jobs) out(`  jobs:     ${jobs} waiting`);
 }
 
 /** Spawn the hook the way a harness does and time the whole process (issue #12:
