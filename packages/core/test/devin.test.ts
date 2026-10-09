@@ -374,13 +374,17 @@ function execSql(file: string, stmts: string[]): boolean {
       DatabaseSync: new (p: string) => { exec(s: string): void; close(): void };
     };
     const db = new DatabaseSync(file);
+    // One transaction: a commit per statement is thousands of fsyncs, which took the
+    // 4300-node fixture past a minute on Windows.
+    db.exec("BEGIN");
     for (const s of stmts) db.exec(s);
+    db.exec("COMMIT");
     db.close();
     return true;
   }
   if (!sqlite3Cli) return false;
   execFileSync("sqlite3", [file], {
-    input: `${stmts.map((s) => `${s};`).join("\n")}\n`,
+    input: `BEGIN;\n${stmts.map((s) => `${s};`).join("\n")}\nCOMMIT;\n`,
     stdio: ["pipe", "ignore", "ignore"],
     timeout: 30_000,
   });
@@ -533,7 +537,8 @@ describe.runIf(canMakeDb)("devin: the session store", () => {
     const notADb = path.join(home, "text.db");
     writeFileSync(notADb, "this is not a database");
     expect(readDevinChain(notADb, "frill-vulture", 0).turns).toEqual([]);
-    expect(devin.backfill(0, { ...env, XDG_DATA_HOME: path.join(home, "gone") })).toEqual([]);
+    const gone = path.join(home, "gone");
+    expect(devin.backfill(0, { ...env, XDG_DATA_HOME: gone, APPDATA: gone })).toEqual([]);
   });
 
   // The CI matrix runs Node 20, where node:sqlite does not exist and the child path
