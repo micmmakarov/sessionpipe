@@ -3,7 +3,8 @@
 // Config: settings.json in EVERY config dir (~/.claude, $CLAUDE_CONFIG_DIR, ~/.claude-*):
 // one per account; hooks written to one never fire for the others. Reads only the
 // hook's stdin, the transcript it names, the per-pid session registry and the config
-// dir's .claude.json account id. Ported from spacesheep-cli lib/sessions.js.
+// dir's .claude.json account (its id; its email only for control's pair and hello).
+// Ported from spacesheep-cli lib/sessions.js.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -13,6 +14,7 @@ import { HOME } from "../paths.js";
 import { ends, parseLines, recentFiles, scanLines } from "../readers/files.js";
 import { gitFacts } from "../readers/git.js";
 import { isInjected, readClaude } from "../readers/transcripts.js";
+import type { HarnessAccount } from "../types.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
 import type {
   Adapter,
@@ -408,25 +410,48 @@ function parentOf(): (pid: number) => number {
   } catch {}
   return (pid) => table.get(pid) || 0;
 }
-const accountCache = new Map<string, string | null>();
-/** The account id (never the email) from the config dir's .claude.json. */
-function claudeAccount(dir: string): string | null {
-  const hit = accountCache.get(dir);
-  if (hit !== undefined) return hit;
+const EMAIL_RE = /^[^@\s]{1,64}@[^@\s]{1,189}$/;
+/** Who a config dir is signed in as, from its .claude.json (the default dir keeps it
+ *  at ~/.claude.json): the account id, and the email it signs in with. */
+function claudeLogin(dir: string, home = HOME): { id: string; email?: string } | null {
   const files = [path.join(dir, ".claude.json")];
-  if (path.resolve(dir) === path.join(HOME, ".claude")) files.unshift(path.join(HOME, ".claude.json"));
-  let acct: string | null = null;
+  if (path.resolve(dir) === path.join(home, ".claude")) files.unshift(path.join(home, ".claude.json"));
   for (const f of files) {
     try {
-      const a = (JSON.parse(readFileSync(f, "utf8")) as { oauthAccount?: { accountUuid?: string } }).oauthAccount;
-      if (a?.accountUuid) {
-        acct = String(a.accountUuid);
-        break;
+      const a = (
+        JSON.parse(readFileSync(f, "utf8")) as { oauthAccount?: { accountUuid?: unknown; emailAddress?: unknown } }
+      ).oauthAccount;
+      if (typeof a?.accountUuid === "string" && a.accountUuid) {
+        const email = typeof a.emailAddress === "string" && EMAIL_RE.test(a.emailAddress) ? a.emailAddress : undefined;
+        return { id: a.accountUuid.slice(0, 128), ...(email ? { email } : {}) };
       }
     } catch {}
   }
+  return null;
+}
+const accountCache = new Map<string, string | null>();
+/** The account id for `session.account_id`: never the email. Events go to every sink,
+ *  a team board included; the email reaches only a receiver the person paired with,
+ *  in control's pair and hello (claudeAccounts). */
+function claudeAccount(dir: string): string | null {
+  const hit = accountCache.get(dir);
+  if (hit !== undefined) return hit;
+  const acct = claudeLogin(dir)?.id ?? null;
   accountCache.set(dir, acct);
   return acct;
+}
+/** Every account signed in across these config dirs, read fresh (a person signs in to
+ *  another account without restarting anything), for control's pair and hello. */
+export function claudeAccounts(dirs: string[], home = HOME): HarnessAccount[] {
+  const out: HarnessAccount[] = [];
+  for (const d of dirs) {
+    const l = claudeLogin(d, home);
+    if (!l) continue;
+    const seen = out.find((a) => a.id === l.id);
+    if (!seen) out.push({ harness: NAME, ...l });
+    else if (!seen.email && l.email) seen.email = l.email;
+  }
+  return out;
 }
 const LINK_RE = /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/;
 function transcriptLink(records: Record<string, unknown>[]): string | null {

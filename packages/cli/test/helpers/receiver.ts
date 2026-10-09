@@ -31,6 +31,7 @@ export class FakeReceiver {
   readonly queue = new Map<string, Queued[]>();
   readonly acks: Record<string, unknown>[] = [];
   readonly hellos: Record<string, unknown>[] = [];
+  readonly pairs: Record<string, unknown>[] = [];
   readonly polls: number[] = [];
   machine = "m_fakemachine0000000001";
   token = "tok_machine_0123456789abcdef";
@@ -157,6 +158,7 @@ export class FakeReceiver {
     const base = "/api/sessionpipe/v1/control";
     if (u.pathname === `${base}/pair` && req.method === "POST") {
       const b = await this.body(req);
+      this.pairs.push(b);
       if (!sinkAuth) {
         if (!this.openPairing || auth || typeof b.poll_key !== "string") return send(401);
         this.pollKey = b.poll_key;

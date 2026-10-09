@@ -325,6 +325,15 @@ export const ControlAck = z.object({
     .min(1),
 });
 
+/** A harness account signed in on the machine: the id `session.account_id` carries,
+ *  and the email it signs in with, so a receiver the person paired with can name the
+ *  account rather than show an id. Only pair and hello carry it, never an event. */
+export const HarnessAccount = z.object({
+  harness: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+  id: z.string().min(1).max(128),
+  email: z.string().max(254).optional(),
+});
+
 /** `POST {control}/pair`, sent with the person's sink token from their own terminal —
  *  or, where the receiver declares `control.open_pairing`, with no token and a
  *  `poll_key` (CONTROL.md §2). */
@@ -346,6 +355,9 @@ export const ControlPairStart = z.object({
   folders: z.array(z.string().max(1024)).max(50).optional(),
   /** safe: nothing that needs approval runs unattended; auto: the harness's auto mode. */
   mode: z.enum(["safe", "auto"]).optional(),
+  /** The harness accounts signed in here, so the receiver's board can name each
+   *  `session.account_id` (CONTROL.md §2). */
+  accounts: z.array(HarnessAccount).max(20).optional(),
 });
 
 /** The receiver's answer: where the person confirms, and the digits both screens show. */
@@ -388,6 +400,8 @@ export const ControlHello = z.object({
   /** As in control-pair.json: informational, re-checked on the machine. */
   folders: z.array(z.string().max(1024)).max(50).optional(),
   mode: z.enum(["safe", "auto"]).optional(),
+  /** As in control-pair.json: read again for every hello, so a new sign-in is named. */
+  accounts: z.array(HarnessAccount).max(20).optional(),
 });
 
 export const WellKnown = z.object({

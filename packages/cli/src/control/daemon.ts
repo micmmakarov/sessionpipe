@@ -13,9 +13,11 @@ import net from "node:net";
 import path from "node:path";
 import {
   antigravityControl,
+  claudeAccounts,
   claudeControl,
   codexControl,
   deniedNote,
+  type HarnessAccount,
   JOB_TIMEOUT_MS,
   jobEnv,
   type Login,
@@ -159,6 +161,9 @@ export interface DaemonDeps {
   /** The harnesses every hello advertises (core's drivableHarnesses); by default, the
    *  ones the finders above find. */
   harnesses?: () => string[];
+  /** The harness accounts every hello names; by default, those signed in across
+   *  `claudeDirs`, read again for each hello. */
+  accounts?: () => HarnessAccount[];
   run: (bin: string, args: string[], o: RunOptions) => Promise<RunResult>;
   sdk?: SdkHost | null;
   /** How long to follow a live session's turn for an in-place answer (tests shorten it). */
@@ -766,6 +771,7 @@ export class ControlDaemon {
     const waiting = [...this.live].filter(([, l]) => l.waiter).map(([k]) => k);
     const modes: DeliveryMode[] = ["waiter", "turn", "resume", "fork", ...(this.deps.sdk ? (["sdk"] as const) : [])];
     const harnesses = this.harnesses();
+    const accounts = this.accounts();
     for (const r of this.cfg.receivers) {
       const body = {
         name: this.cfg.name,
@@ -776,6 +782,7 @@ export class ControlDaemon {
         waiting,
         folders: this.cfg.folders,
         mode: this.cfg.mode,
+        ...(accounts.length ? { accounts } : {}),
       };
       await this.post(r, "/hello", body).catch(() => {});
     }
@@ -1039,6 +1046,15 @@ export class ControlDaemon {
         reading: () => antigravityControl.reading(),
       };
     return null;
+  }
+
+  /** Who is signed in here, for hello. A bad .claude.json names nobody, never fails a hello. */
+  private accounts(): HarnessAccount[] {
+    try {
+      return this.deps.accounts ? this.deps.accounts() : claudeAccounts(this.deps.claudeDirs());
+    } catch {
+      return [];
+    }
   }
 
   /** The harnesses this machine can run a message in, for hello. */
