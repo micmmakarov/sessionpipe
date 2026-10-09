@@ -175,9 +175,22 @@ export async function runJob(
   const state = opts.state ?? stateDir();
   const cfg = readConfig();
   const adapter = adapterByName(job.harness);
-  if (!adapter) return { events: [], delivered: {} };
+  // A hooks file can outlive the build that wrote it (an update to a sessionpipe without
+  // that adapter, a hand-written entry): without this line the events are dropped in
+  // silence, with nothing on the machine to say so.
+  if (!adapter) {
+    log(state, `${job.harness} ${job.event}: no adapter for harness "${job.harness}"; event dropped`);
+    return { events: [], delivered: {} };
+  }
   const r = adapter.fromHook({ argv: job.argv, stdin: job.stdin, env: { ...process.env, ...job.env }, cwd: job.cwd });
-  if (!r || !r.session.id) return { events: [], delivered: {} };
+  // The adapter did not claim the payload (another harness ran our entry out of a
+  // shared hooks file, an event name it does not map, a payload with no session id).
+  // Dropped either way, but never in silence: this is where a wrongly-named event
+  // lands, and the log is the only thing on the machine that can say so.
+  if (!r || !r.session.id) {
+    log(state, `${job.harness} ${job.event}: the ${job.harness} adapter did not claim this payload; event dropped`);
+    return { events: [], delivered: {} };
+  }
   // A session the control daemon started goes by the id its start command named, not
   // the one the harness picked (CONTROL.md §6 `start`; control/aliases.ts): its events
   // say so, and so does everything below. The adapter's own reading of the session
@@ -209,15 +222,18 @@ export async function runJob(
     const heavy = !/^(PreToolUse|PostToolUse|PostToolUseFailure|BeforeTool|AfterTool|PostInvocation)$/.test(job.event);
     let learned: Partial<Session> = {};
     if (heavy) {
-      const f = adapter.facts(r.session, r.transcript, r.hints ?? {}, facts);
+      // The hook's environment, not the worker's: a swept job may be run by a worker
+      // another harness's hook spawned, whose env names none of this harness's homes.
+      const f = adapter.facts(r.session, r.transcript, r.hints ?? {}, facts, { ...process.env, ...job.env });
       const { started_at: _s, last_at: _l, first_ask: _fa, harness_version, ...rest } = f;
       learned = rest;
       if (harness_version) facts.save(job.harness, id, { harness_version });
       facts.save(job.harness, id, { session: { ...(mem.session as object), ...learned } });
-      // Antigravity's transcript never says which folder a conversation runs in; the
-      // hooks do. Kept raw (this file is the machine's own, 0600), so the control
+      // Antigravity's transcript never says which folder a conversation runs in, and
+      // Devin's payload names none either (only DEVIN_PROJECT_DIR in the hook's env);
+      // the hooks do. Kept raw (this file is the machine's own, 0600), so the control
       // daemon still knows where to resume it after a restart.
-      if (job.harness === "antigravity" && r.session.cwd && path.isAbsolute(r.session.cwd))
+      if (CWD_FROM_HOOKS.has(job.harness) && r.session.cwd && path.isAbsolute(r.session.cwd))
         facts.save(job.harness, id, { cwd: r.session.cwd });
     }
     const known = (mem.session as Partial<Session> | undefined) ?? {};
@@ -288,6 +304,9 @@ export async function runJob(
     release();
   }
 }
+
+/** Harnesses whose own files do not name the session's folder: the hooks' cwd is kept. */
+const CWD_FROM_HOOKS = new Set(["antigravity", "devin"]);
 
 const BATCH = 50;
 const MAX_PER_RUN = 500;
