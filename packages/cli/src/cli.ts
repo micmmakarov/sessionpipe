@@ -133,7 +133,7 @@ function help(): void {
   sessionpipe connect <receiver> [--machine NAME] [--tier 0-3] [--mode safe|auto] [--folder DIR]…
                                   (everything, in one go: hooks, a sink, signed messages, keys)
   sessionpipe install [--claude-code --codex --gemini-cli --antigravity --devin] [--machine NAME] [--backfill DAYS] [--sink URL --tier N]
-  sessionpipe uninstall [--keep-state]
+  sessionpipe uninstall [--claude-code --codex --gemini-cli --antigravity --devin | --all] [--keep-state]
   sessionpipe sink add <url|file:PATH|stdout> [--tier 0-3] [--token T] [--pii] [--name N]
   sessionpipe sink list | remove <name> | test <name>
   sessionpipe secrets [move keychain|secret-service|file]   (where the machine's keys live)
@@ -404,9 +404,48 @@ function secrets(): void {
   out(`  best store from this session: ${storeLabel(bestStore())}`);
 }
 
+/** The one env var that moves a harness's config off the real home. `antigravity` has
+ *  none: its path is fixed when the module loads, so nothing can point it elsewhere. */
+const AWAY_FROM_HOME: Record<string, string | null> = {
+  "claude-code": "CLAUDE_CONFIG_DIR",
+  codex: "CODEX_HOME",
+  "gemini-cli": "GEMINI_CLI_HOME",
+  antigravity: null,
+  devin: "XDG_CONFIG_HOME",
+};
+/** Harnesses this process would read out of the real home although SESSIONPIPE_CONFIG
+ *  or SESSIONPIPE_STATE say "not this machine". Setting those is how a test or an agent
+ *  sandboxes sessionpipe — but they only cover sessionpipe's own files, so an
+ *  all-harnesses uninstall under them still empties the live hooks files (measured
+ *  twice on a reporting machine, 8 Oct 2026: six config files rewritten, every `status`
+ *  row `missing`). */
+function unisolated(): string[] {
+  if (!process.env.SESSIONPIPE_CONFIG && !process.env.SESSIONPIPE_STATE) return [];
+  return ADAPTERS.filter((a) => {
+    const v = AWAY_FROM_HOME[a.name];
+    return v === null || (typeof v === "string" && !process.env[v]);
+  }).map((a) => a.name);
+}
+
 function uninstall(): void {
+  // `install` has had a per-harness selector all along; uninstall taking every harness
+  // with no way to say otherwise is how one harness's test strips the other four.
+  const named = ADAPTERS.filter((a) => has(`--${a.name}`));
+  const all = !named.length;
+  if (all && !has("--all")) {
+    const exposed = unisolated();
+    if (exposed.length) {
+      out(
+        `  ! Refusing an uninstall of every harness: SESSIONPIPE_CONFIG/SESSIONPIPE_STATE point away from this machine, but ${exposed.join(", ")} still resolve from ${tilde(os.homedir())}.`,
+      );
+      out(`  Nothing was changed. Name what to remove (${exposed.map((n) => `--${n}`).join(" ")}),`);
+      out("  pass --all if you do mean every harness on this machine, or unset SESSIONPIPE_CONFIG/SESSIONPIPE_STATE.");
+      process.exitCode = 2;
+      return;
+    }
+  }
   const cfg = readConfig();
-  for (const a of ADAPTERS) {
+  for (const a of all ? ADAPTERS : named) {
     const created = cfg.harnesses[a.name]?.created ?? [];
     for (const r of a.uninstall(process.env, { created }))
       if (r.changed) out(`  ✓ ${a.name}: ${r.note ?? `hooks removed from ${tilde(r.file)}`}`);
@@ -414,7 +453,13 @@ function uninstall(): void {
     delete cfg.harnesses[a.name];
   }
   writeConfig(cfg);
-  if (usesLauncher()) removeLauncher();
+  // The launcher is shared: removing it while another harness still has hook entries
+  // would leave that harness running a path that is gone.
+  if (all && usesLauncher()) removeLauncher();
+  if (!all) {
+    out(`  Still installed: ${Object.keys(cfg.harnesses).join(", ") || "nothing"}.`);
+    return;
+  }
   if (!has("--keep-state"))
     out(
       `  Outbox and state kept under ${tilde(state)} (delete it yourself, or pass nothing: it prunes after ${readConfig().keep_days ?? 30} days).`,
