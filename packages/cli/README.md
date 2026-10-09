@@ -130,3 +130,29 @@ a launchd or systemd service doesn't inherit your shell's variables, while
 Docs and the protocol: [sessionpipe.org](https://sessionpipe.org) · Source:
 [github.com/spacesheep-dev/sessionpipe](https://github.com/spacesheep-dev/sessionpipe) · Apache-2.0.
 Provided as-is; check what a sink receives with `sessionpipe tail` before you point it anywhere.
+
+## Help and status JSON
+
+`sessionpipe <command> --help` (or `-h`) prints usage and exits successfully before
+running the command. This also works after operands and for nested commands, such
+as `sessionpipe sink remove example --help` and `sessionpipe control pair example --help`.
+
+`sessionpipe status --json` prints one JSON object. Its shared fields use the same
+names and meanings as `doctor --json`:
+
+| Field | Shape / meaning |
+|---|---|
+| `version`, `machine`, `state`, `config` | Strings; state and config are absolute paths. |
+| `harnesses` | Object keyed by harness name; each value is an array of `{file, state, note?}` hook checks. `file` uses `~` for home, as doctor does. Includes detected **or configured** harnesses. |
+| `sinks` | Array of `{name, url, tier, max_tier, pii, control, paused, pending_sessions}`. `tier` is the configured tier; the effective tier is `min(tier, max_tier ?? 3)`. `max_tier` and `paused` are `null` when unset. No token or secret is included. |
+| `timing` | `{n, p50, p95}` from the last 100 local hook timings, in milliseconds; `null` when unavailable. |
+| `update` | Doctor's update summary: `{auto, off, last_check, latest, last_error, pending, updated, failed}`. `auto` is boolean; absent details are `null`. |
+| `jobs` | Number of entries waiting in the local jobs directory; zero when absent. |
+
+`pending_sessions` counts outbox session files with bytes beyond that sink's cursor,
+including paused sinks; it counts files, not individual events. Empty collections
+are `{}` / `[]`. Status omits doctor's active hook benchmark, login/keychain checks,
+and warnings. Both commands still check hook installation, which can run
+`gemini --version` (up to four seconds) when `tools.enableHooks` is unset. JSON is an
+output format, not a promise of constant-time diagnostics. Plain `sessionpipe status`
+keeps its existing human output.
