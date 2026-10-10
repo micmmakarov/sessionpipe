@@ -1,0 +1,46 @@
+{"timestamp":"2026-10-09T23:47:06.489Z","type":"session_meta","payload":{"id":"11111111-1111-4111-8111-111111111111","forked_from_id":"22222222-2222-4222-8222-222222222222","cwd":"/synthetic/child","cli_version":"0.160.0","source":{"subagent":{"thread_spawn":{"parent_thread_id":"22222222-2222-4222-8222-222222222222"}}}}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"session_meta","payload":{"id":"22222222-2222-4222-8222-222222222222","cwd":"/synthetic/parent","cli_version":"0.159.0"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_id":"22222222-2222-4222-8222-222222222222"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_started","turn_id":"parent-turn-1"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"turn_context","payload":{"model":"parent-model"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"output_text","text":"Synthetic parent instructions."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>Parent context</environment_context>"}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Write a synthetic baseline solution."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Synthetic parent answer one."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"parent-turn-1"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_started","turn_id":"parent-turn-2"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"turn_context","payload":{"model":"parent-model"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Synthetic parent follow-up 2."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Synthetic parent answer 2."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"parent-turn-2"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_started","turn_id":"parent-turn-3"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"turn_context","payload":{"model":"parent-model"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Synthetic parent follow-up 3."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Synthetic parent answer 3."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"parent-turn-3"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"task_started","turn_id":"parent-turn-4"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Parent request to delegate the next task."}]}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.490Z","type":"event_msg","payload":{"type":"token_count"}}
+{"timestamp":"2026-10-09T23:47:06.600Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_id":"11111111-1111-4111-8111-111111111111"}}
+{"timestamp":"2026-10-09T23:47:07.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"child-turn-1"}}
+{"timestamp":"2026-10-09T23:47:07.100Z","type":"turn_context","payload":{"model":"child-model"}}
+{"timestamp":"2026-10-09T23:47:07.200Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<inter_agent_message>Inspect the synthetic sorting code.</inter_agent_message>"}]}}
+{"timestamp":"2026-10-09T23:47:08.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"I will inspect the sorting code."}]}}
+{"timestamp":"2026-10-09T23:47:08.500Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"cmd\":\"true\"}","call_id":"synthetic-call"}}
+{"timestamp":"2026-10-09T23:47:09.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"synthetic-call","output":"synthetic output"}}
+{"timestamp":"2026-10-09T23:47:10.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"The sorting code handles the synthetic input."}]}}
+{"timestamp":"2026-10-09T23:47:11.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"child-turn-1"}}

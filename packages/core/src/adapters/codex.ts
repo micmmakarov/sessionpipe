@@ -7,10 +7,11 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { HOME } from "../paths.js";
-import { ends, parseLines, recentFiles } from "../readers/files.js";
+import { ends, parseLines, recentFiles, scanLines } from "../readers/files.js";
 import { codexInjected, readCodex } from "../readers/transcripts.js";
 import { installClaudeShaped, installedClaudeShaped, uninstallClaudeShaped } from "./claude-shaped.js";
 import * as toml from "./codex-config.js";
+import { codexReplayBoundary } from "./codex-rollout.js";
 import type {
   Adapter,
   BackfillRow,
@@ -339,21 +340,37 @@ function prune<T extends Record<string, unknown>>(o: T): T {
   return o;
 }
 
-/** Codex keeps no title; its first real ask stands in. */
+/** Codex keeps no title; its first real ask stands in. A fork's replay is not its ask. */
 export function codexFacts(file: string): SessionFacts {
   const { head, tail } = ends(file, 128 * 1024, 64 * 1024);
-  const H = parseLines(head);
-  const T = parseLines(tail);
+  let H = parseLines(head);
+  let T = parseLines(tail);
   const out: SessionFacts = {};
-  const meta = H.find((j) => j.type === "session_meta" && j.payload) as
-    | { payload?: { cwd?: string; cli_version?: string; git?: { branch?: string; repository_url?: string } } }
-    | undefined;
+  const meta = H.find((j) => j.type === "session_meta" && j.payload);
+  const boundary = codexReplayBoundary(meta);
   if (meta?.payload) {
-    const p = meta.payload;
+    const p = meta.payload as {
+      cwd?: string;
+      cli_version?: string;
+      git?: { branch?: string; repository_url?: string };
+    };
     if (p.cwd) out.cwd = p.cwd;
     if (p.cli_version) out.harness_version = String(p.cli_version);
     if (p.git?.branch) out.branch = p.git.branch;
     if (p.git?.repository_url) out.repo = String(p.git.repository_url).replace(/\/\/[^/@]*@/, "//");
+  }
+  if (boundary) {
+    const h = H.findIndex(boundary);
+    const t = T.findIndex(boundary);
+    H = h < 0 ? [] : H.slice(h);
+    // The samples can overlap, so trim each one at the boundary independently.
+    // If both miss it, scan the gap before trusting the tail: it could still be
+    // parent replay. Stop as soon as the boundary is found, without loading the file.
+    const found =
+      h >= 0 ||
+      t >= 0 ||
+      scanLines(file, (line) => (boundary(parseLines([line])[0] ?? null) ? true : null), Number.POSITIVE_INFINITY);
+    T = t >= 0 ? T.slice(t) : found ? T : [];
   }
   const ctx = H.concat(T)
     .reverse()
@@ -375,7 +392,7 @@ export function codexFacts(file: string): SessionFacts {
     out.title_source = "first-ask";
     break;
   }
-  const times = H.concat(T)
+  const times = (boundary && meta ? [meta, ...H, ...T] : H.concat(T))
     .map((j) => Date.parse(String(j.timestamp ?? "")))
     .filter((n) => n > 0);
   if (times.length) {
